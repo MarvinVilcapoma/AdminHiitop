@@ -1,0 +1,206 @@
+/* ── Contenedor principal ── */
+.login-wrapper {
+  display: flex;
+  min-height: 100dvh;   /* dvh respeta la barra del navegador en móvil */
+  background: #f0f4f3;
+}
+
+/* ── Panel imagen — solo en lg+ ── */
+.login-image-panel {
+  flex: 0 0 58%;
+  position: relative;
+  overflow: hidden;
+  display: none;           /* oculto por defecto; Bootstrap d-lg-flex lo activa */
+
+  @media (min-width: 992px) {
+    display: flex;
+    min-height: 100dvh;
+  }
+
+  .brand-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+}
+
+/* ── Panel formulario ── */
+.login-form-panel {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  background: #f0f4f3;
+  min-width: 0;
+  overflow-y: auto;
+
+  /* En móvil agrega un acento de color arriba */
+  @media (max-width: 991.98px) {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+}
+
+/* ── Tarjeta del formulario ── */
+.form-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 2rem 2.25rem;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;   /* evita que el padding desborde */
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.04),
+    0 8px 24px rgba(0,0,0,0.08);
+  border: 1px solid rgba(0,0,0,0.06);
+
+  /* Padding más compacto en pantallas pequeñas */
+  @media (max-width: 420px) {
+    padding: 1.5rem 1.25rem;
+    border-radius: 14px;
+  }
+}
+
+/* ── Bloque logo ── */
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1.1rem;
+}
+
+.brand-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-style: italic;
+  color: #0d9488;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0d9488;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Textos ── */
+.form-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.01em;
+}
+
+.form-subtitle {
+  margin: 0 0 1.2rem;
+  color: #777;
+  font-size: 0.84rem;
+}
+
+/* ── Campos ── */
+.field-group {
+  margin-bottom: 0.85rem;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 0.3rem;
+  letter-spacing: 0.01em;
+}
+
+.field-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1.5px solid #d1d5db;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  background: #fafafa;
+  transition: border-color .15s, box-shadow .15s;
+  appearance: none;           /* normaliza en Safari/iOS */
+  -webkit-appearance: none;
+
+  &:focus {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgba(13,148,136,.12);
+    background: #fff;
+    outline: none;
+  }
+
+  &.is-invalid {
+    border-color: #dc3545;
+    background: #fff;
+  }
+}
+
+/* ── Enlace olvidaste ── */
+.forgot-link {
+  color: #0d9488;
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  &:hover { text-decoration: underline; }
+}
+
+/* ── Error general ── */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  margin-bottom: 0.75rem;
+  background: #fff4f4;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 0.83rem;
+
+  i { flex-shrink: 0; font-size: 0.9rem; }
+}
+
+/* ── Botón principal ── */
+.btn-login {
+  width: 100%;
+  padding: 0.65rem;
+  margin-top: 0.5rem;
+  background: #0d9488;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background .18s, transform .1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover:not(:disabled) { background: #0f766e; }
+  &:active:not(:disabled) { transform: scale(0.99); }
+  &:disabled { opacity: 0.65; cursor: not-allowed; }
+}
+
+/* ── Pie ── */
+.copyright {
+  margin-top: 1.2rem;
+  font-size: 0.72rem;
+  color: #aaa;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+

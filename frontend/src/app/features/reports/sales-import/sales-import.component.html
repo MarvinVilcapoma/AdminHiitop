@@ -1,0 +1,168 @@
+<div class="page-header">
+  <h1><i class="bi bi-file-earmark-arrow-up me-2 text-primary"></i>Importar ventas</h1>
+</div>
+
+<!-- Instructions -->
+<div class="alert alert-info d-flex gap-3 align-items-start mb-4">
+  <i class="bi bi-info-circle-fill fs-4 flex-shrink-0 mt-1 text-info"></i>
+  <div>
+    <strong>¿Cómo importar?</strong>
+    <ol class="mb-0 mt-1 ps-3 small">
+      <li>Abre el Excel de <em>Ventas Brutas</em> exportado desde tu POS (Bsale u otro).</li>
+      <li>Selecciona <strong>todas las celdas</strong> (Ctrl+A) y copia (Ctrl+C).</li>
+      <li>Pega el contenido en el área de texto de abajo (Ctrl+V).</li>
+      <li>Haz clic en <strong>Vista previa</strong> y luego en <strong>Importar</strong>.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- Paste area -->
+<div class="form-section mb-4">
+  <h6 class="form-section-title">Pegar datos del Excel</h6>
+  <div class="mb-3">
+    <label class="form-label">Contenido copiado del Excel (TSV / tabulado)</label>
+    <textarea class="form-control font-monospace" rows="8"
+      [(ngModel)]="rawText"
+      placeholder="Pega aquí el contenido del Excel (incluye la primera fila con los encabezados)..."></textarea>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-outline-primary" (click)="preview()" [disabled]="!rawText.trim()">
+      <i class="bi bi-eye me-1"></i>Vista previa
+    </button>
+    <button class="btn btn-primary" (click)="importData()" [disabled]="rows().length < 2 || importing()">
+      @if (importing()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+      <i class="bi bi-cloud-upload me-1"></i>Importar {{ rows().length > 1 ? rows().length - 1 + ' filas' : '' }}
+    </button>
+    <button class="btn btn-outline-secondary btn-clear-filters" (click)="clear()">
+      <i class="bi bi-x-lg me-1"></i>Limpiar
+    </button>
+  </div>
+
+  @if (importError()) {
+    <div class="alert alert-danger mt-3">{{ importError() }}</div>
+  }
+  @if (importSuccess()) {
+    <div class="alert alert-success mt-3">
+      <i class="bi bi-check-circle me-2"></i>{{ importSuccess() }}
+    </div>
+  }
+</div>
+
+<!-- Preview table -->
+@if (rows().length > 1) {
+  <div class="form-section mb-4">
+    <h6 class="form-section-title">
+      Vista previa <span class="badge bg-light text-muted ms-2">primeras 10 filas</span>
+    </h6>
+    <div class="preview-scroll table-wrap">
+      <table class="table table-sm small">
+        <thead>
+          <tr>
+            @for (h of rows()[0]; track h) {
+              <th class="text-nowrap">{{ h }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows() | slice:1:11; track $index) {
+            <tr>
+              @for (cell of row; track $index) {
+                <td class="preview-cell">{{ cell }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <small class="text-muted">Mostrando hasta 10 de {{ rows().length - 1 }} filas de datos</small>
+  </div>
+}
+
+<!-- Import history -->
+<div class="form-section">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h6 class="form-section-title mb-0">Historial de importaciones</h6>
+    <button class="btn btn-sm btn-outline-secondary" (click)="loadBatches()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+    </button>
+  </div>
+
+  @if (loadingBatches()) {
+    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+  } @else if (batches().length === 0) {
+    <div class="text-center text-muted py-3">
+      <i class="bi bi-inbox fs-2 d-block mb-1"></i>Aún no hay importaciones
+    </div>
+  } @else {
+    <div class="table-wrap">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Lote</th>
+            <th>Archivo</th>
+            <th class="text-end">Filas</th>
+            <th class="text-end">Venta neta</th>
+            <th class="text-end">Venta bruta</th>
+            <th>Importado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (b of batches(); track b.import_batch) {
+            <tr>
+              <td><code class="text-muted small">{{ b.import_batch | slice:0:8 }}…</code></td>
+              <td class="text-muted small">{{ b.file_name || 'Pegado manual' }}</td>
+              <td class="text-end"><span class="badge bg-light text-dark">{{ b.row_count }}</span></td>
+              <td class="text-end">S/ {{ b.total_net | number:'1.2-2' }}</td>
+              <td class="text-end">S/ {{ b.total_gross | number:'1.2-2' }}</td>
+              <td class="text-muted small">{{ b.imported_at | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <button class="btn btn-xs btn-outline-danger" title="Eliminar lote" (click)="deleteBatch(b)">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- Toast -->
+@if (toast()) {
+  <div class="position-fixed bottom-0 end-0 p-3 toast-wrap">
+    <div class="toast show align-items-center border-0" [class]="'text-bg-' + toast()!.type" role="alert">
+      <div class="d-flex">
+        <div class="toast-body">{{ toast()!.text }}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" (click)="toast.set(null)"></button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Confirm delete modal -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <div class="icon-circle-danger mb-3">
+            <i class="bi bi-file-earmark-x text-danger fs-4"></i>
+          </div>
+          <h6 class="fw-600 mb-1">¿Eliminar lote?</h6>
+          <p class="text-muted small mb-0">{{ delConfirm()!.message }}</p>
+          <p class="text-danger small">
+            <i class="bi bi-exclamation-triangle me-1"></i>Esta acción no se puede deshacer.
+          </p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary" (click)="delConfirm.set(null)">Cancelar</button>
+          <button class="btn btn-danger" (click)="delConfirm()!.action(); delConfirm.set(null)">
+            <i class="bi bi-trash me-1"></i>Eliminar lote
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

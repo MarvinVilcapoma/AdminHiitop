@@ -1,0 +1,91 @@
+// Stock movement modal — standalone styles
+// The .modal-overlay and bootstrap modal classes are global.
+
+.item-preview {
+  padding: .75rem 1rem;
+  background: var(--bs-light);
+  border: 1px solid var(--bs-border-color);
+  border-radius: .5rem;
+}
+
+// ── Custom searchable dropdown ──────────────────────────────────────────────
+
+.searchable-select {
+  position: relative;
+
+  .ss-input-wrap {
+    position: relative;
+    .ss-icon {
+      position: absolute;
+      left: .65rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--bs-secondary);
+      font-size: .8rem;
+      pointer-events: none;
+    }
+    .ss-input {
+      padding-left: 2rem;
+    }
+  }
+
+  .ss-selected {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    cursor: pointer;
+    background: white;
+    padding: .3rem .6rem;
+    font-size: .875rem;
+
+    .ss-clear {
+      color: var(--bs-secondary);
+      cursor: pointer;
+      font-size: .85rem;
+      flex-shrink: 0;
+      &:hover { color: var(--bs-danger); }
+    }
+  }
+
+  .ss-dropdown {
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(100% + 2px);
+    background: white;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .375rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    z-index: 1055;
+    max-height: 220px;
+    overflow-y: auto;
+
+    .ss-option {
+      padding: .45rem .75rem;
+      cursor: pointer;
+      font-size: .875rem;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      &:hover, &.active {
+        background: var(--bs-primary-bg-subtle);
+        color: var(--bs-primary);
+      }
+    }
+
+    .ss-empty {
+      padding: .6rem .75rem;
+      color: var(--bs-secondary);
+      font-size: .8rem;
+      font-style: italic;
+    }
+  }
+}
+
+.color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,.15);
+  flex-shrink: 0;
+}

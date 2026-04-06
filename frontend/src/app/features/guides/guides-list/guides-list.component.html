@@ -1,0 +1,186 @@
+<div class="page-header">
+  <h1>
+    <i class="bi bi-truck me-2 text-primary"></i>
+    Guías de remisión
+  </h1>
+  <div class="d-flex gap-2 flex-wrap">
+    <a routerLink="/dashboard/guides/new" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Nueva guía de remisión
+    </a>
+    <a routerLink="/dashboard/pos" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-shop-window me-1"></i>Ir a POS
+    </a>
+  </div>
+</div>
+
+<p class="text-muted mb-3">Módulo exclusivo para emisión de guía electrónica, separado del POS.</p>
+
+@if (notice(); as n) {
+  <div class="alert" [class.alert-success]="n.type === 'success'" [class.alert-danger]="n.type === 'danger'" role="alert">
+    <i class="bi me-2" [class.bi-check-circle-fill]="n.type === 'success'" [class.bi-exclamation-triangle-fill]="n.type === 'danger'"></i>
+    {{ n.message }}
+  </div>
+}
+
+<div class="filter-wrap mb-3 p-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label small text-muted mb-1" for="guides-search">Buscar</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input
+          id="guides-search"
+          type="search"
+          class="form-control"
+          placeholder="N° pedido, N° guía, cliente, DNI..."
+          [(ngModel)]="search"
+          (input)="onSearchInput()" />
+      </div>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1" for="guides-status">Estado guía</label>
+      <select id="guides-status" class="form-select form-select-sm" [(ngModel)]="filterStatus" (change)="onFilterChange()">
+        <option value="">Todos</option>
+        <option value="draft">Borrador</option>
+        <option value="accepted">Aceptado</option>
+        <option value="rejected">Rechazado</option>
+        <option value="exception">Observado</option>
+        <option value="error">Error</option>
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1" for="guides-from">Desde</label>
+      <input id="guides-from" type="date" class="form-control form-control-sm" [(ngModel)]="filterFromDate" (change)="onFilterChange()" />
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1" for="guides-to">Hasta</label>
+      <input id="guides-to" type="date" class="form-control form-control-sm" [(ngModel)]="filterToDate" (change)="onFilterChange()" />
+    </div>
+
+    <div class="col-6 col-md-2 d-flex align-items-end">
+      @if (hasFilters) {
+        <button class="btn btn-sm btn-outline-secondary btn-clear-filters w-100" (click)="clearFilters()">
+          <i class="bi bi-x-circle me-1"></i>Limpiar
+        </button>
+      }
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <app-page-state [loading]="loading()">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Pedido</th>
+            <th>N° guía</th>
+            <th>Cliente</th>
+            <th>DNI/RUC</th>
+            <th>Estado</th>
+            <th>SUNAT</th>
+            <th>Registrado por</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of guides(); track row.id) {
+            <tr>
+              <td class="text-muted">{{ row.order_date | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td class="fw-500">{{ row.order_number ?? ('#' + row.id) }}</td>
+              <td>
+                @if (row.guide_full_number) {
+                  <span class="badge bg-light text-dark border">{{ row.guide_full_number }}</span>
+                } @else {
+                  <span class="text-muted">—</span>
+                }
+              </td>
+              <td>{{ row.customer_name ?? row.guide_recipient_name ?? '—' }}</td>
+              <td class="text-muted">{{ row.dni ?? row.guide_recipient_doc_number ?? '—' }}</td>
+              <td>
+                <span class="badge guide-status" [ngClass]="statusBadgeClass(row)">{{ statusLabel(row) }}</span>
+              </td>
+              <td class="text-muted small">
+                @if (row.guide_sunat_code) {
+                  {{ row.guide_sunat_code }}
+                } @else {
+                  —
+                }
+              </td>
+              <td class="text-muted small">
+                @if (row.user?.name) {
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                    <i class="bi bi-person me-1"></i>{{ row.user?.name }}
+                  </span>
+                } @else {
+                  —
+                }
+              </td>
+              <td>
+                <div class="d-flex gap-1 justify-content-end">
+                  @if (canSendGuide(row)) {
+                    <button class="btn btn-xs btn-outline-success" title="Emitir / reenviar" (click)="sendGuide(row)" [disabled]="sendingId() === row.id">
+                      @if (sendingId() === row.id) {
+                        <span class="spinner-border spinner-border-sm"></span>
+                      } @else {
+                        <i class="bi bi-send"></i>
+                      }
+                    </button>
+                  }
+
+                  @if (row.guide_status) {
+                    <button class="btn btn-xs btn-outline-secondary" title="Descargar XML" (click)="downloadXml(row)">
+                      <i class="bi bi-file-earmark-code"></i>
+                    </button>
+                  }
+
+                  @if (row.guide_status === 'accepted') {
+                    <button class="btn btn-xs btn-outline-secondary" title="Descargar CDR" (click)="downloadCdr(row)">
+                      <i class="bi bi-file-earmark-zip"></i>
+                    </button>
+                  }
+
+                  <a [routerLink]="['/dashboard/guides', row.id]" class="btn btn-xs btn-outline-primary" title="Editar guía">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="9" class="text-center text-muted py-5">
+                <i class="bi bi-truck fs-1 d-block mb-2 opacity-25"></i>
+                No hay guías de remisión registradas.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">Mostrando {{ guides().length }} de {{ total() }} guías</span>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage === 1">
+              <button class="page-link" (click)="goToPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="p === currentPage">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  </app-page-state>
+</div>

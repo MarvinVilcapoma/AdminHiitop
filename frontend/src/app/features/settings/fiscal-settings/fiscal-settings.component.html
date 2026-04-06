@@ -1,0 +1,418 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/settings" class="btn btn-sm btn-outline-secondary me-2" title="Volver">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi bi-percent me-2 text-primary"></i>
+    Parámetros fiscales
+  </h1>
+</div>
+
+@if (loading()) {
+  <div class="text-center py-5">
+    <span class="spinner-border text-primary"></span>
+  </div>
+} @else {
+<div class="row justify-content-center">
+  <div class="col-lg-7 col-xl-6">
+
+    @if (saved()) {
+      <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
+        <i class="bi bi-check-circle-fill"></i>
+        Configuración guardada correctamente.
+      </div>
+    }
+    @if (error()) {
+      <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+        <i class="bi bi-exclamation-triangle-fill"></i>{{ error() }}
+      </div>
+    }
+
+    <!-- IGV Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+        <i class="bi bi-percent text-primary"></i>
+        <span class="fw-600">IGV — Impuesto General a las Ventas</span>
+      </div>
+      <div class="card-body">
+
+        <!-- IGV enabled toggle -->
+        <div class="d-flex align-items-center justify-content-between mb-4 p-3 rounded bg-light">
+          <div>
+            <p class="fw-semibold mb-0">IGV activo</p>
+            <p class="text-muted small mb-0">Aplica el impuesto a las ventas</p>
+          </div>
+          <div class="form-check form-switch fs-4 mb-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+              id="igvEnabled" [(ngModel)]="cfg.igv_enabled">
+          </div>
+        </div>
+
+        <div class="row g-3 align-items-end">
+          <div class="col-sm-5">
+            <label class="form-label fw-500">Tasa IGV (%)</label>
+            <div class="input-group">
+              <input type="number" class="form-control" [(ngModel)]="cfg.igv_rate"
+                min="0" max="100" step="0.01" placeholder="18"
+                [disabled]="!cfg.igv_enabled" />
+              <span class="input-group-text">%</span>
+            </div>
+          </div>
+          <div class="col-sm-7 d-flex flex-column gap-1">
+            <span class="text-muted small">Valor vigente en Perú: <strong>18%</strong></span>
+            <span class="text-muted small">
+              Factor multiplicador:
+              <code class="igv-factor">× {{ (1 + cfg.igv_rate / 100).toFixed(2) }}</code>
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-3 p-3 rounded bg-light">
+          <p class="mb-1 small fw-500 text-muted">Ejemplo con precio base:</p>
+          <div class="d-flex gap-3 align-items-center">
+            <span>S/ 100.00</span>
+            <i class="bi bi-arrow-right text-muted"></i>
+            @if (cfg.igv_enabled) {
+              <span class="fw-600 text-success">S/ {{ (100 * (1 + cfg.igv_rate / 100)).toFixed(2) }}</span>
+              <span class="text-muted small">(con IGV)</span>
+            } @else {
+              <span class="fw-600 text-secondary">S/ 100.00</span>
+              <span class="text-muted small">(sin IGV)</span>
+            }
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex align-items-center justify-content-between p-3 rounded border">
+          <div>
+            <p class="fw-semibold mb-0 small">Los precios ya incluyen IGV</p>
+            <p class="text-muted small mb-0">Los precios registrados son con impuesto incluido</p>
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+              id="pricesIncludeIgv" [(ngModel)]="cfg.prices_include_igv"
+              [disabled]="!cfg.igv_enabled">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Datos empresa Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+        <i class="bi bi-building text-secondary"></i>
+        <span class="fw-600">Datos de la empresa</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-500">Nombre de empresa</label>
+            <input class="form-control" [(ngModel)]="cfg.company_name"
+              placeholder="Ej. Hiitop S.A.C." maxlength="200" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-500">Moneda</label>
+            <select class="form-select" [(ngModel)]="cfg.currency">
+              <option value="PEN">PEN — Sol (S/)</option>
+              <option value="USD">USD — Dólar ($)</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-500">Almacén predeterminado para POS</label>
+            <select class="form-select" [(ngModel)]="cfg.pos_default_warehouse_id">
+              <option [ngValue]="null">Automático (primera tienda activa)</option>
+              @for (w of (storeWarehouses().length ? storeWarehouses() : warehouses()); track w.id) {
+                <option [ngValue]="w.id">{{ w.name }}</option>
+              }
+            </select>
+            <small class="text-muted">Se usa en el Punto de venta cuando no se selecciona un almacén manualmente.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUNAT Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+        <i class="bi bi-shield-check text-success"></i>
+        <span class="fw-600">Configuración SUNAT</span>
+        <span class="badge ms-auto" [class.text-bg-warning]="environment === 'beta'" [class.text-bg-danger]="environment === 'produccion'">
+          {{ environment === 'beta' ? 'Activo: Beta' : 'Activo: Producción' }}
+        </span>
+      </div>
+      <div class="card-body">
+
+        <!-- Active environment selector -->
+        <div class="mb-4 p-3 rounded border bg-light">
+          <p class="fw-semibold mb-2 small text-muted text-uppercase" style="letter-spacing:.05em">Ambiente activo para facturación</p>
+          <div class="d-flex gap-4">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="envBeta"
+                name="sunat_env" value="beta" [(ngModel)]="environment" />
+              <label class="form-check-label" for="envBeta">
+                <span class="badge text-bg-warning me-1">Beta</span> Pruebas (SUNAT demo)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" id="envProd"
+                name="sunat_env" value="produccion" [(ngModel)]="environment" />
+              <label class="form-check-label" for="envProd">
+                <span class="badge text-bg-danger me-1">Prod</span> Producción (real)
+              </label>
+            </div>
+          </div>
+          <small class="text-muted d-block mt-2">
+            <i class="bi bi-info-circle me-1"></i>
+            El ambiente activo se usará al emitir comprobantes. Guarda la configuración de ambos ambientes abajo.
+          </small>
+        </div>
+
+        <!-- Tabs: Beta / Producción -->
+        <ul class="nav nav-tabs mb-3">
+          <li class="nav-item">
+            <button class="nav-link" [class.active]="activeTab === 'beta'" (click)="activeTab = 'beta'">
+              <span class="badge text-bg-warning me-1">Beta</span> Pruebas
+              @if (environment === 'beta') { <i class="bi bi-check-circle-fill text-success ms-1" title="Activo"></i> }
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" [class.active]="activeTab === 'prod'" (click)="activeTab = 'prod'">
+              <span class="badge text-bg-danger me-1">Prod</span> Producción
+              @if (environment === 'produccion') { <i class="bi bi-check-circle-fill text-success ms-1" title="Activo"></i> }
+            </button>
+          </li>
+        </ul>
+
+        <!-- ─── BETA TAB ─── -->
+        @if (activeTab === 'beta') {
+          <div class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-flask me-1"></i>
+            <strong>Ambiente de pruebas SUNAT.</strong>
+            Credenciales demo: RUC <code>20000000001</code>, usuario <code>MODDATOS</code>, clave <code>moddatos</code>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label fw-500">RUC</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.ruc"
+                placeholder="20000000001" maxlength="11" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-500">Razón Social</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.razon_social"
+                placeholder="EMPRESA DEMO SAC" maxlength="100" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-500">Nombre Comercial</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.nombre_comercial"
+                placeholder="DEMO" maxlength="100" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-500">Ubigeo</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.ubigueo"
+                placeholder="150101" maxlength="6" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-500">Cód. establecimiento</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.codigo_local"
+                placeholder="0000" maxlength="4" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-500">Departamento</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.departamento"
+                placeholder="LIMA" maxlength="50" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-500">Provincia</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.provincia"
+                placeholder="LIMA" maxlength="50" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-500">Distrito</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.distrito"
+                placeholder="LIMA" maxlength="50" />
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-500">Urbanización</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.urbanizacion"
+                placeholder="Urbanización (opcional)" maxlength="100" />
+            </div>
+            <div class="col-md-7">
+              <label class="form-label fw-500">Dirección</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.direccion"
+                placeholder="Av. Demo 123" maxlength="200" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-500">Usuario SOL</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.sol_user"
+                placeholder="MODDATOS" maxlength="50" autocomplete="off" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-500">Contraseña SOL</label>
+              <input type="password" class="form-control form-control-sm" [(ngModel)]="sunatBeta.sol_pass"
+                placeholder="••••••••" autocomplete="new-password" />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label fw-500 mb-0">Certificado Digital (PEM) — Beta</label>
+              <button type="button" class="btn btn-xs btn-outline-secondary" (click)="showPemBeta = !showPemBeta">
+                <i class="bi" [class.bi-eye]="!showPemBeta" [class.bi-eye-slash]="showPemBeta"></i>
+                {{ showPemBeta ? 'Ocultar' : 'Mostrar' }}
+              </button>
+            </div>
+            @if (showPemBeta || sunatBeta.certificate_pem.length === 0) {
+              <textarea class="form-control form-control-sm font-monospace"
+                [(ngModel)]="sunatBeta.certificate_pem" rows="7"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----&#10;-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"></textarea>
+            } @else {
+              <div class="p-2 rounded border bg-light small text-muted font-monospace text-truncate">
+                {{ sunatBeta.certificate_pem.substring(0, 80) }}…
+                <span class="badge text-bg-secondary ms-1">{{ sunatBeta.certificate_pem.length }} chars</span>
+              </div>
+            }
+            <small class="text-muted">
+              Para pruebas, usa el
+              <a href="https://raw.githubusercontent.com/thegreenter/xmldsig/master/tests/certificate.pem" target="_blank">
+                certificado demo de Greenter
+              </a>.
+            </small>
+          </div>
+
+          <div class="d-flex align-items-center gap-2 mt-3">
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="testConnection('beta')" [disabled]="testingBeta()">
+              @if (testingBeta()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-wifi me-1"></i> }
+              Probar conexión Beta
+            </button>
+            @if (testBetaResult() !== null) {
+              <span class="badge" [class.text-bg-success]="testBetaResult()!.ok" [class.text-bg-danger]="!testBetaResult()!.ok">
+                <i class="bi" [class.bi-check-lg]="testBetaResult()!.ok" [class.bi-x-lg]="!testBetaResult()!.ok"></i>
+                {{ testBetaResult()!.msg }}
+              </span>
+            }
+          </div>
+        }
+
+        <!-- ─── PROD TAB ─── -->
+        @if (activeTab === 'prod') {
+          <div class="alert alert-danger py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            <strong>Producción real SUNAT.</strong>
+            Los comprobantes emitidos en este modo son válidos tributariamente. Usa tu RUC y certificado real.
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label fw-500">RUC</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.ruc"
+                placeholder="20512345678" maxlength="11" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-500">Razón Social</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.razon_social"
+                placeholder="EMPRESA SAC" maxlength="100" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-500">Nombre Comercial</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.nombre_comercial"
+                placeholder="Nombre comercial (opcional)" maxlength="100" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-500">Ubigeo</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.ubigueo"
+                placeholder="150101" maxlength="6" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-500">Cód. establecimiento</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.codigo_local"
+                placeholder="0000" maxlength="4" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-500">Departamento</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.departamento"
+                placeholder="LIMA" maxlength="50" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-500">Provincia</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.provincia"
+                placeholder="LIMA" maxlength="50" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-500">Distrito</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.distrito"
+                placeholder="LIMA" maxlength="50" />
+            </div>
+            <div class="col-md-5">
+              <label class="form-label fw-500">Urbanización</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.urbanizacion"
+                placeholder="Urbanización (opcional)" maxlength="100" />
+            </div>
+            <div class="col-md-7">
+              <label class="form-label fw-500">Dirección</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.direccion"
+                placeholder="Av. Ejemplo 123" maxlength="200" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-500">Usuario SOL</label>
+              <input class="form-control form-control-sm" [(ngModel)]="sunatProd.sol_user"
+                placeholder="USUARIO_SOL" maxlength="50" autocomplete="off" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-500">Contraseña SOL</label>
+              <input type="password" class="form-control form-control-sm" [(ngModel)]="sunatProd.sol_pass"
+                placeholder="••••••••" autocomplete="new-password" />
+            </div>
+          </div>
+
+          <!-- Prod certificate -->
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label fw-500 mb-0">Certificado Digital (PEM) — Producción</label>
+              <button type="button" class="btn btn-xs btn-outline-secondary" (click)="showPemProd = !showPemProd">
+                <i class="bi" [class.bi-eye]="!showPemProd" [class.bi-eye-slash]="showPemProd"></i>
+                {{ showPemProd ? 'Ocultar' : 'Mostrar' }}
+              </button>
+            </div>
+            @if (showPemProd || sunatProd.certificate_pem.length === 0) {
+              <textarea class="form-control form-control-sm font-monospace"
+                [(ngModel)]="sunatProd.certificate_pem" rows="7"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----&#10;-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"></textarea>
+            } @else {
+              <div class="p-2 rounded border bg-light small text-muted font-monospace text-truncate">
+                {{ sunatProd.certificate_pem.substring(0, 80) }}…
+                <span class="badge text-bg-secondary ms-1">{{ sunatProd.certificate_pem.length }} chars</span>
+              </div>
+            }
+          </div>
+
+          <div class="d-flex align-items-center gap-2 mt-3">
+            <button type="button" class="btn btn-sm btn-outline-danger" (click)="testConnection('prod')" [disabled]="testingProd()">
+              @if (testingProd()) { <span class="spinner-border spinner-border-sm me-1"></span> } @else { <i class="bi bi-wifi me-1"></i> }
+              Probar conexión Producción
+            </button>
+            @if (testProdResult() !== null) {
+              <span class="badge" [class.text-bg-success]="testProdResult()!.ok" [class.text-bg-danger]="!testProdResult()!.ok">
+                <i class="bi" [class.bi-check-lg]="testProdResult()!.ok" [class.bi-x-lg]="!testProdResult()!.ok"></i>
+                {{ testProdResult()!.msg }}
+              </span>
+            }
+          </div>
+        }
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" [disabled]="saving()" (click)="saveConfig()">
+        @if (saving()) {
+          <span class="spinner-border spinner-border-sm me-1"></span>Guardando…
+        } @else {
+          <i class="bi bi-floppy me-1"></i>Guardar configuración
+        }
+      </button>
+      <a routerLink="/dashboard/settings" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+}

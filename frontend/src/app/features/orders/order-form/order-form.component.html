@@ -1,0 +1,600 @@
+﻿<!-- Cabecera -->
+<div class="page-header">
+  <h1>
+    <a [routerLink]="backRoute()" class="btn btn-sm btn-outline-secondary me-2" title="Volver">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="me-2 text-primary" [class.bi]="true" [class.bi-truck]="guideMode()" [class.bi-bag]="!guideMode()"></i>
+    {{ guideMode() ? (id() ? 'Editar guía de remisión' : 'Nueva guía de remisión') : (id() ? 'Editar pedido' : 'Nuevo pedido') }}
+  </h1>
+</div>
+
+<form [formGroup]="form" (ngSubmit)="onSubmit()">
+
+  <!-- ── Aviso: pedido facturado (solo lectura) ── -->
+  @if (isInvoiced()) {
+    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-lock-fill fs-5"></i>
+      <div>
+        <strong>Pedido facturado — vista de solo lectura.</strong>
+        Este pedido tiene un comprobante emitido. Solo puedes modificar el estado.
+      </div>
+    </div>
+  }
+
+  @if (isStatusLocked()) {
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-shield-lock-fill fs-5"></i>
+      <div>
+        <strong>Pedido bloqueado.</strong>
+        El estado actual (pagado/cancelado) no permite más cambios.
+      </div>
+    </div>
+  }
+
+  <!-- ── Datos generales ── -->
+  <div class="form-section mb-3">
+    <h6 class="form-section-title"><i class="bi bi-info-circle me-2 text-primary"></i>Datos del pedido</h6>
+    <div class="row g-3">
+
+      <div class="col-md-4">
+        <label for="order_date" class="form-label">Fecha</label>
+        <input id="order_date" type="datetime-local" class="form-control" formControlName="order_date" />
+      </div>
+
+      <div class="col-md-4">
+        <label for="order_status_id" class="form-label">Estado</label>
+        <select id="order_status_id" class="form-select" formControlName="order_status_id">
+          <option [ngValue]="null">— Selecciona —</option>
+          @for (s of orderStatuses(); track s.id) {
+            <option [ngValue]="s.id">{{ s.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label for="shipping_agency_id" class="form-label">Agencia de envio</label>
+        <app-searchable-select
+          inputId="shipping_agency_id"
+          formControlName="shipping_agency_id"
+          [options]="shippingAgencies()"
+          placeholder="— Selecciona agencia —"
+        />
+      </div>
+
+      @if (!guideMode()) {
+        <div class="col-md-4">
+          <label for="purchase_type_id" class="form-label">Tipo de compra</label>
+          <select id="purchase_type_id" class="form-select" formControlName="purchase_type_id">
+            <option [ngValue]="null">—</option>
+            @for (p of purchaseTypes(); track p.id) {
+              <option [ngValue]="p.id">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <div class="col-md-4">
+        <label [attr.for]="guideMode() ? 'guide_document_type' : 'document_type_id'" class="form-label">Tipo de documento</label>
+        @if (guideMode()) {
+          <input id="guide_document_type" type="text" class="form-control" [value]="guideDocumentName()" readonly>
+        } @else {
+          <select id="document_type_id" class="form-select" formControlName="document_type_id">
+            <option [ngValue]="null">— Selecciona —</option>
+            @for (d of documentTypes(); track d.id) {
+              <option [ngValue]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        }
+      </div>
+
+      <!-- DNI -->
+      <div class="col-md-4">
+        <label for="dni" class="form-label">DNI / RUC</label>
+        <div class="input-group">
+          <input id="dni" type="text" class="form-control" formControlName="dni"
+                 [readonly]="customerLocked()"
+                 (blur)="onDniBlur()" />
+          @if (dniLooking()) {
+            <span class="input-group-text">
+              <span class="spinner-border spinner-border-sm"></span>
+            </span>
+          }
+          @if (customerLocked()) {
+            <button type="button" class="btn btn-outline-secondary" (click)="clearCustomer()" title="Cambiar cliente">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          }
+        </div>
+        @if (customerFound()) {
+          <div class="mt-1"><span class="badge bg-success"><i class="bi bi-person-check me-1"></i>Cliente encontrado en BD</span></div>
+        } @else if (form.get('dni')?.value && !dniLooking() && !customerLocked()) {
+          <div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-person-plus me-1"></i>Cliente nuevo — se creara al guardar</span></div>
+        }
+      </div>
+
+      <!-- Cliente -->
+      <div class="col-md-4">
+        <label for="customer_name" class="form-label">Cliente</label>
+        <div class="input-group">
+          <input id="customer_name" type="text" class="form-control" formControlName="customer_name"
+                 [readonly]="customerLocked()" />
+          @if (customerLocked()) {
+            <span class="input-group-text text-success"><i class="bi bi-lock-fill"></i></span>
+          }
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label for="phone" class="form-label">Telefono</label>
+        <input id="phone" type="text" class="form-control" formControlName="phone"
+               [readonly]="customerLocked()" />
+      </div>
+
+      <div class="col-md-4">
+        <label for="customer_email" class="form-label">Email</label>
+        <input id="customer_email" type="email" class="form-control" formControlName="customer_email"
+               [readonly]="customerLocked()" />
+      </div>
+
+      <div class="col-md-4">
+        <label for="province_id" class="form-label">Departamento</label>
+        <app-searchable-select
+          inputId="province_id"
+          formControlName="province_id"
+          [options]="provinces()"
+          placeholder="— Selecciona departamento —"
+        />
+      </div>
+
+      <div class="col-md-4">
+        <label for="district_id" class="form-label">Distrito</label>
+        <app-searchable-select
+          inputId="district_id"
+          formControlName="district_id"
+          [options]="districts()"
+          placeholder="— Selecciona distrito —"
+        />
+      </div>
+
+      <div class="col-8">
+        <label for="address" class="form-label">Direccion</label>
+        <input id="address" type="text" class="form-control" formControlName="address" />
+      </div>
+
+      <div class="col-12">
+        <label for="observations" class="form-label">Observaciones</label>
+        <textarea id="observations" class="form-control" formControlName="observations" rows="2"></textarea>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Items del pedido ── -->
+  <div class="form-section mb-3">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h6 class="form-section-title mb-0"><i class="bi bi-bag-check me-2 text-primary"></i>Items del pedido</h6>
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <!-- Promo toggle -->
+        @if (promotions().length) {
+          <div class="form-check form-switch mb-0 me-1">
+            <input class="form-check-input" type="checkbox" id="isPromoToggle"
+              [checked]="isPromoOrder()"
+              (change)="isPromoOrder.set(!isPromoOrder())"
+              [disabled]="isInvoiced()">
+            <label class="form-check-label small" for="isPromoToggle">
+              <i class="bi bi-tags me-1"></i>Pedido de promocion
+            </label>
+          </div>
+        }
+        @if (isPromoOrder() && promotions().length) {
+          <div class="input-group input-group-sm" style="max-width:340px">
+            <select class="form-select form-select-sm" [(ngModel)]="selectedPromoId"
+              [ngModelOptions]="{standalone:true}" [disabled]="isInvoiced()">
+              <option [ngValue]="null">— Elige una promocion —</option>
+              @for (p of promotions(); track p.id) {
+                <option [ngValue]="p.id">{{ p.name }}</option>
+              }
+            </select>
+            <button type="button" class="btn btn-outline-primary btn-sm" (click)="addPromotion()"
+              [disabled]="!selectedPromoId || isInvoiced()">
+              <i class="bi bi-tags me-1"></i>Agregar
+            </button>
+          </div>
+        }
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="addLine()"
+          [disabled]="isInvoiced()">
+          <i class="bi bi-plus-lg me-1"></i>Agregar item
+        </button>
+      </div>
+    </div>
+
+    <!-- Almacen (contexto de stock) -->
+    <div class="d-flex flex-wrap align-items-center gap-3 mb-3 p-3 bg-light rounded-3 border">
+      <i class="bi bi-building-fill-gear text-primary fs-5"></i>
+      <div>
+        <label class="form-label fw-semibold mb-1 small">
+          Almacen de despacho
+          <span class="text-muted fw-normal">(opcional)</span>
+        </label>
+        <select class="form-select form-select-sm" style="max-width:260px"
+          [(ngModel)]="warehouseId" [ngModelOptions]="{standalone:true}"
+          [attr.disabled]="isInvoiced() ? '' : null">
+          <option value="">— Sin especificar —</option>
+          @for (w of warehouses(); track w.id) {
+            <option [value]="w.id">{{ w.name }}{{ w.warehouse_type ? ' · ' + w.warehouse_type.name : '' }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="form-label fw-semibold mb-1 small">
+          Coleccion
+          <span class="text-muted fw-normal">(opcional)</span>
+        </label>
+        <app-searchable-select
+          [(ngModel)]="filterCollectionId"
+          [ngModelOptions]="{standalone:true}"
+          [options]="collectionOptions()"
+          placeholder="Todas las colecciones"
+          searchPlaceholder="Buscar coleccion..."
+          style="display:block;max-width:260px"
+          [disabled]="isInvoiced()">
+        </app-searchable-select>
+      </div>
+      @if (warehouseId) {
+        <span class="badge bg-success-subtle text-success border border-success-subtle align-self-end mb-1">
+          <i class="bi bi-check-circle me-1"></i>Stock filtrado
+        </span>
+      }
+    </div>
+
+    @if (!lines().length) {
+      <div class="text-center text-muted py-4 border rounded bg-light">
+        <i class="bi bi-bag fs-2 d-block mb-2 opacity-40"></i>
+        Sin items — agrega productos usando el boton de arriba.
+      </div>
+    } @else {
+      <div class="order-lines">
+        <!-- Header (desktop) -->
+        <div class="d-none d-lg-grid order-line-header px-3 py-2 border-bottom bg-light text-muted small fw-semibold rounded-top">
+          <span>Producto *</span>
+          <span>Color</span>
+          <span>Talla</span>
+          <span class="text-center">Cant.</span>
+          <span class="text-end">P. Unit. (S/)</span>
+          <span class="text-end">Subtotal</span>
+          <span></span>
+        </div>
+
+        @for (line of lines(); track $index; let i = $index; let last = $last) {
+          <div class="order-line px-3 py-2" [class.border-bottom]="!last">
+
+            <!-- Product search -->
+            <div class="order-line-product position-relative">
+              <label class="form-label d-lg-none small fw-semibold">Producto *</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white">
+                  @if (line.searching) {
+                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                  } @else {
+                    <i class="bi bi-search text-muted"></i>
+                  }
+                </span>
+                <input type="text" class="form-control form-control-sm"
+                  [(ngModel)]="line.productSearch"
+                  [ngModelOptions]="{standalone:true}"
+                  placeholder="Buscar producto..."
+                  (ngModelChange)="onProductSearchInput(line, i)"
+                  (focus)="onProductFocus(line, i)"
+                  (blur)="closeDropdown(line)"
+                  [readonly]="isInvoiced()"
+                  autocomplete="off">
+              </div>
+              @if (line.dropdownOpen && line.searchResults.length > 0) {
+                <div class="product-dropdown shadow-sm border rounded-3 bg-white">
+                  @for (p of line.searchResults; track p.id) {
+                    <button type="button" class="product-dropdown-item"
+                      (mousedown)="selectProduct(line, p)">
+                      <div class="fw-semibold small">{{ p.name }}</div>
+                      <div class="text-muted" style="font-size:.75rem">
+                        @if (p.sku) { <span class="me-2">{{ p.sku }}</span> }
+                        @if (p.product_type) { <span class="badge bg-light text-muted border">{{ p.product_type.name }}</span> }
+                        <span class="ms-auto text-success fw-semibold">S/ {{ p.base_price | number:'1.2-2' }}</span>
+                      </div>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Color -->
+            <div class="order-line-color">
+              <label class="form-label d-lg-none small fw-semibold">Color</label>
+              @if (line.availableColors.length > 0) {
+                <select class="form-select form-select-sm"
+                  [(ngModel)]="line.color_id"
+                  [ngModelOptions]="{standalone:true}"
+                  [disabled]="isInvoiced()"
+                  (ngModelChange)="onColorChange(line)">
+                  <option [ngValue]="null">Sin color</option>
+                  @for (c of line.availableColors; track c.id) {
+                    <option [ngValue]="c.id">{{ c.name }}</option>
+                  }
+                </select>
+              } @else {
+                <input type="text" class="form-control form-control-sm text-muted"
+                  value="—" readonly tabindex="-1">
+              }
+            </div>
+
+            <!-- Size -->
+            <div class="order-line-size">
+              <label class="form-label d-lg-none small fw-semibold">Talla</label>
+              @if (line.availableSizes.length > 0) {
+                <select class="form-select form-select-sm"
+                  [(ngModel)]="line.size" [ngModelOptions]="{standalone:true}"
+                  [disabled]="isInvoiced()">
+                  <option value="">Sin talla</option>
+                  @for (s of line.availableSizes; track s) {
+                    <option [value]="s">{{ s }}</option>
+                  }
+                </select>
+              } @else {
+                <input type="text" class="form-control form-control-sm"
+                  [(ngModel)]="line.size" [ngModelOptions]="{standalone:true}"
+                  [readonly]="isInvoiced()"
+                  placeholder="XS, S, M...">
+              }
+            </div>
+
+            <!-- Quantity -->
+            <div class="order-line-qty">
+              <label class="form-label d-lg-none small fw-semibold">Cant. *</label>
+              <input type="number" class="form-control form-control-sm text-center"
+                [(ngModel)]="line.quantity" [ngModelOptions]="{standalone:true}"
+                (ngModelChange)="onLineChange(line)"
+                [readonly]="isInvoiced()"
+                min="1" step="1">
+            </div>
+
+            <!-- Unit price -->
+            <div class="order-line-price">
+              <label class="form-label d-lg-none small fw-semibold">P. Unit.</label>
+              <input type="number" class="form-control form-control-sm text-end"
+                [(ngModel)]="line.unit_price" [ngModelOptions]="{standalone:true}"
+                (ngModelChange)="onLineChange(line)"
+                [readonly]="isInvoiced()"
+                min="0" step="0.01">
+            </div>
+
+            <!-- Subtotal -->
+            <div class="order-line-subtotal text-end fw-semibold small align-self-center">
+              <span class="d-lg-none text-muted fw-normal me-1 small">Subtotal:</span>
+              S/ {{ line.subtotal | number:'1.2-2' }}
+            </div>
+
+            <!-- Remove -->
+            <div class="order-line-actions d-flex justify-content-end align-items-center">
+              @if (!isInvoiced()) {
+                <button type="button" class="btn btn-xs btn-outline-danger" title="Quitar" (click)="removeItem(i)">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              }
+            </div>
+
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Totales -->
+    <div class="d-flex justify-content-end mt-3">
+      <table class="table table-sm w-auto text-end mb-0">
+        <tbody>
+          <tr>
+            <td class="text-muted pe-4">Subtotal items</td>
+            <td class="fw-500" style="min-width:110px">S/ {{ itemsTotal() | number:'1.2-2' }}</td>
+          </tr>
+          <tr>
+            <td class="text-muted pe-4">Costo de envio</td>
+            <td>
+              <div class="input-group input-group-sm justify-content-end" style="width:140px;margin-left:auto">
+                <span class="input-group-text">S/</span>
+                <input type="number" class="form-control text-end" formControlName="delivery_cost" step="0.01" min="0" style="max-width:85px" />
+              </div>
+            </td>
+          </tr>
+          <tr class="table-active fw-bold">
+            <td class="pe-4">Total</td>
+            <td>
+              <div class="input-group input-group-sm justify-content-end" style="width:auto;margin-left:auto;min-width:175px">
+                <span class="input-group-text">S/</span>
+                <input type="number" class="form-control text-end" formControlName="total"
+                  step="0.01" min="0" style="max-width:100px"
+                  (input)="totalManualMode = true">
+                @if (totalManualMode && !isInvoiced()) {
+                  <button type="button" class="btn btn-sm btn-outline-secondary" title="Recalcular automatico" (click)="resetToAutoTotal()">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                  </button>
+                }
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Guía de remisión ── -->
+  @if (isGuideDocumentSelected()) {
+    <div class="form-section mb-3">
+      <h6 class="form-section-title"><i class="bi bi-truck me-2 text-primary"></i>Datos de guía de remisión</h6>
+      <div class="row g-3">
+
+        <div class="col-md-4">
+          <label class="form-label">Motivo de traslado</label>
+          <select class="form-select" formControlName="guide_transfer_reason_code">
+            <option value="01">01 - Venta</option>
+            <option value="02">02 - Compra</option>
+            <option value="04">04 - Traslado entre establecimientos</option>
+            <option value="08">08 - Importación</option>
+            <option value="09">09 - Exportación</option>
+            <option value="13">13 - Otros</option>
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Modalidad de transporte</label>
+          <select class="form-select" formControlName="guide_transfer_mode">
+            <option value="02">Privado (02)</option>
+            <option value="01">Público (01)</option>
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Fecha de traslado</label>
+          <input type="date" class="form-control" formControlName="guide_transfer_date" />
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Peso total</label>
+          <input type="number" class="form-control" formControlName="guide_total_weight" min="0.001" step="0.001" />
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Unidad peso</label>
+          <input type="text" class="form-control" formControlName="guide_weight_unit" maxlength="3" placeholder="KGM" />
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">N° de bultos</label>
+          <input type="number" class="form-control" formControlName="guide_package_count" min="1" step="1" />
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Constancia transporte</label>
+          <input type="text" class="form-control" formControlName="guide_transport_certificate" maxlength="60" placeholder="Opcional" />
+        </div>
+
+        <div class="col-12"><hr class="my-1" /></div>
+
+        <div class="col-md-3">
+          <label class="form-label">Ubigeo partida</label>
+          <input type="text" class="form-control" formControlName="guide_origin_ubigeo" maxlength="6" placeholder="150101" />
+        </div>
+
+        <div class="col-md-9">
+          <label class="form-label">Dirección partida</label>
+          <input type="text" class="form-control" formControlName="guide_origin_address" />
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Ubigeo llegada</label>
+          <input type="text" class="form-control" formControlName="guide_destination_ubigeo" maxlength="6" placeholder="150101" />
+        </div>
+
+        <div class="col-md-9">
+          <label class="form-label">Dirección llegada</label>
+          <input type="text" class="form-control" formControlName="guide_destination_address" />
+        </div>
+
+        <div class="col-12"><hr class="my-1" /></div>
+
+        <div class="col-md-2">
+          <label class="form-label">Doc. destinatario</label>
+          <select class="form-select" formControlName="guide_recipient_doc_type">
+            <option value="1">DNI</option>
+            <option value="6">RUC</option>
+            <option value="4">CE</option>
+            <option value="7">PAS</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">N° doc. destinatario</label>
+          <input type="text" class="form-control" formControlName="guide_recipient_doc_number" maxlength="20" />
+        </div>
+
+        <div class="col-md-7">
+          <label class="form-label">Destinatario</label>
+          <input type="text" class="form-control" formControlName="guide_recipient_name" maxlength="255" />
+        </div>
+
+        @if (isPublicTransportMode()) {
+          <div class="col-12"><hr class="my-1" /></div>
+          <div class="col-md-2">
+            <label class="form-label">Doc. transportista</label>
+            <select class="form-select" formControlName="guide_carrier_doc_type">
+              <option value="6">RUC</option>
+              <option value="1">DNI</option>
+              <option value="4">CE</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">N° doc. transportista</label>
+            <input type="text" class="form-control" formControlName="guide_carrier_doc_number" maxlength="20" />
+          </div>
+          <div class="col-md-7">
+            <label class="form-label">Razón social transportista</label>
+            <input type="text" class="form-control" formControlName="guide_carrier_name" maxlength="255" />
+          </div>
+        }
+
+        @if (isPrivateTransportMode()) {
+          <div class="col-12"><hr class="my-1" /></div>
+          <div class="col-md-3">
+            <label class="form-label">Placa vehículo</label>
+            <input type="text" class="form-control" formControlName="guide_vehicle_plate" maxlength="20" />
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Doc. conductor</label>
+            <select class="form-select" formControlName="guide_driver_doc_type">
+              <option value="1">DNI</option>
+              <option value="4">CE</option>
+              <option value="7">PAS</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">N° doc. conductor</label>
+            <input type="text" class="form-control" formControlName="guide_driver_doc_number" maxlength="20" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Nombre conductor</label>
+            <input type="text" class="form-control" formControlName="guide_driver_name" maxlength="255" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Licencia conductor</label>
+            <input type="text" class="form-control" formControlName="guide_driver_license" maxlength="30" />
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Acciones ── -->
+  <div class="d-flex gap-2 mb-4">
+    @if (!isInvoiced() && !isStatusLocked()) {
+      <button type="submit" class="btn btn-primary" [disabled]="loading()">
+        @if (loading()) {
+          <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+        } @else {
+          <i class="bi bi-floppy me-1"></i>
+        }
+        {{ guideMode() ? 'Guardar guía' : 'Guardar pedido' }}
+      </button>
+    } @else if (isInvoiced() && !isStatusLocked()) {
+      <button type="submit" class="btn btn-primary" [disabled]="loading()">
+        @if (loading()) {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        } @else {
+          <i class="bi bi-check2 me-1"></i>
+        }
+        {{ guideMode() ? 'Actualizar estado de guía' : 'Actualizar estado' }}
+      </button>
+    }
+    <a [routerLink]="backRoute()" class="btn btn-outline-secondary">
+      <i class="bi bi-x me-1"></i>Cancelar
+    </a>
+  </div>
+
+</form>

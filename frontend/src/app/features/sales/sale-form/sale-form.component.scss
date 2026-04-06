@@ -1,0 +1,44 @@
+.font-monospace { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace; }
+
+.fw-700 { font-weight: 700; }
+
+.totals-card .card-body {
+  background: #f9fdfb;
+}
+
+@media (min-width: 992px) {
+  .actions-card {
+    position: sticky;
+    top: 80px;
+  }
+}
+
+// Product autocomplete
+.product-search-cell {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  z-index: 1050;
+}
+
+.autocomplete-item {
+  padding: 7px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  line-height: 1.3;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: #f0f7ff; }
+}

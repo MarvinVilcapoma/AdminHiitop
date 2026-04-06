@@ -1,0 +1,343 @@
+<div class="page-header">
+  <h1>
+    <a [routerLink]="backRoute()" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi {{ icon() }} me-2 text-primary"></i>{{ title() }}
+  </h1>
+  @if (!adminOnly() || isAdmin) {
+    <button class="btn btn-primary" (click)="toggleForm()">
+      <i class="bi" [class]="showForm() ? 'bi-x-lg' : 'bi-plus-lg'"></i>
+      {{ showForm() ? 'Cancelar' : 'Nuevo' }}
+    </button>
+  } @else {
+    <span class="text-muted small"><i class="bi bi-lock me-1"></i>Solo administradores</span>
+  }
+</div>
+
+<!-- Inline add form -->
+@if (showForm()) {
+  <div class="form-section mb-3">
+    <h6 class="form-section-title">Agregar {{ title() | lowercase }}</h6>
+    @if (formError()) {
+      <div class="alert alert-danger py-2 small">{{ formError() }}</div>
+    }
+    <div class="row g-3 align-items-end">
+      @for (col of columns(); track col.key) {
+        @if (col.key !== 'id') {
+          <div class="col-12" [class]="columns().length <= 2 ? 'col-sm-6' : 'col-sm-4'">
+            <label class="form-label" [attr.for]="'create-' + col.key">{{ col.label }}</label>
+
+            @if (col.type === 'color') {
+              <div class="input-group">
+                <span class="input-group-text p-1 color-preview-wrap">
+                  <span class="d-block rounded color-preview-swatch"
+                    [style.background]="newRow[col.key] || '#cccccc'"></span>
+                </span>
+                <input type="color" class="form-control form-control-color flex-shrink-0 color-native-input"
+                  [id]="'create-' + col.key"
+                  [(ngModel)]="newRow[col.key]">
+                <input type="text" class="form-control font-monospace" [(ngModel)]="newRow[col.key]"
+                  placeholder="#RRGGBB" maxlength="7">
+              </div>
+            } @else if (col.type === 'textarea') {
+              <textarea [id]="'create-' + col.key" class="form-control form-control-sm" rows="2" [(ngModel)]="newRow[col.key]" [placeholder]="col.label"></textarea>
+            } @else if (col.type === 'number') {
+              <input [id]="'create-' + col.key" type="number" class="form-control form-control-sm" [(ngModel)]="newRow[col.key]" [placeholder]="col.label" min="0">
+            } @else if (col.type === 'boolean') {
+              <div class="form-check form-switch mt-1">
+                <input [id]="'create-' + col.key" type="checkbox" class="form-check-input" [(ngModel)]="newRow[col.key]">
+                <label class="form-check-label" [attr.for]="'create-' + col.key">{{ newRow[col.key] ? 'Sí' : 'No' }}</label>
+              </div>
+            } @else {
+              <input [id]="'create-' + col.key" type="text" class="form-control form-control-sm" [(ngModel)]="newRow[col.key]"
+                [placeholder]="col.label"
+                (input)="col.type === 'slug' ? onSlugInput(col.key, $event) : null">
+            }
+          </div>
+        }
+      }
+      <div class="col-12 col-sm-auto">
+        <button class="btn btn-primary w-100" [disabled]="saving()" (click)="create()">
+          @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-check-lg me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Status filter bar -->
+<div class="filters-bar mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    @if (searchEnabled()) {
+      <div class="input-group input-group-sm" style="max-width: 360px;">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input
+          type="search"
+          class="form-control"
+          [placeholder]="searchPlaceholder()"
+          [(ngModel)]="searchTerm"
+          (input)="onSearchInput()"
+        >
+        @if (searchTerm) {
+          <button class="btn btn-outline-secondary" type="button" (click)="clearSearch()">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        }
+      </div>
+    }
+
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" [class.active]="statusFilter() === 'all'" (click)="statusFilter.set('all')">Todos</button>
+      <button class="btn btn-outline-success"   [class.active]="statusFilter() === 'active'" (click)="statusFilter.set('active')">Activos</button>
+      <button class="btn btn-outline-danger"    [class.active]="statusFilter() === 'inactive'" (click)="statusFilter.set('inactive')">Inactivos</button>
+    </div>
+    <small class="text-muted ms-auto">{{ filteredRows().length }} de {{ useServerPagination() ? totalRows() : rows().length }}</small>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  @if (loading()) {
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  } @else {
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            @for (col of columns(); track col.key) {
+              <th>{{ col.label }}</th>
+            }
+            <th class="text-center">Estado</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of filteredRows(); track row.id) {
+            <tr>
+              @for (col of columns(); track col.key) {
+                <td>
+                  @if (col.type === 'color') {
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="color-swatch" [style.background]="row[col.key]" [title]="row[col.key]"></span>
+                      <code class="text-muted small">{{ row[col.key] }}</code>
+                    </div>
+                  } @else if (col.type === 'boolean') {
+                    <span class="badge" [class]="row[col.key] ? 'text-bg-success' : 'text-bg-secondary'">
+                      {{ row[col.key] ? 'Sí' : 'No' }}
+                    </span>
+                  } @else {
+                    {{ row[col.key] ?? '—' }}
+                    @if (col.key === 'name' && isProtectedRow(row)) {
+                      <span class="badge text-bg-light border ms-1">
+                        <i class="bi bi-shield-lock me-1"></i>Protegido
+                      </span>
+                    }
+                  }
+                </td>
+              }
+              <td class="text-center">
+                @if (isProtectedRow(row)) {
+                  <span class="badge text-bg-light border">
+                    <i class="bi bi-shield-lock me-1"></i>Protegido
+                  </span>
+                } @else {
+                  <button class="status-toggle-btn" [class.is-active]="row.is_active !== false"
+                    [title]="row.is_active !== false ? 'Desactivar' : 'Activar'"
+                    (click)="toggleActive(row)">
+                    <i class="bi" [class]="row.is_active !== false ? 'bi-toggle-on' : 'bi-toggle-off'"></i>
+                    <span>{{ row.is_active !== false ? 'Activo' : 'Inactivo' }}</span>
+                  </button>
+                }
+              </td>
+              <td>
+                <div class="d-flex gap-1 justify-content-end">
+                  @if (isSizableEndpoint()) {
+                    <button class="btn btn-xs"
+                      [class]="activeSizesRowId() === row.id ? 'btn-primary' : 'btn-outline-secondary'"
+                      title="Gestionar tallas" (click)="toggleSizesPanel(row.id)">
+                      <i class="bi bi-rulers"></i>
+                    </button>
+                  }
+                  @if (!isProtectedRow(row)) {
+                    <button class="btn btn-xs btn-outline-primary" title="Editar" (click)="startEdit(row)">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                  } @else {
+                    <button class="btn btn-xs btn-outline-secondary" title="Protegido" disabled>
+                      <i class="bi bi-shield-lock"></i>
+                    </button>
+                  }
+                  @if (!isProtectedRow(row)) {
+                    <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="delete(row)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+            <!-- Sizes panel (product-types only) -->
+            @if (isSizableEndpoint() && activeSizesRowId() === row.id) {
+              <tr class="sizes-panel-row">
+                <td [attr.colspan]="columns().length + 2" class="bg-light p-3">
+                  <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                    <strong class="small text-muted me-1">
+                      <i class="bi bi-rulers me-1"></i>Tallas de "{{ row.name }}":
+                    </strong>
+                    @for (s of row.sizes; track s.id) {
+                      <span class="badge bg-white border text-dark d-inline-flex align-items-center gap-1 px-2 py-1">
+                        {{ s.name }}
+                        <button type="button" class="btn-close btn-close-sm" style="font-size:.5rem"
+                          [disabled]="sizeSaving()"
+                          (click)="removeSize(row, s)"></button>
+                      </span>
+                    } @empty {
+                      <span class="text-muted small">Sin tallas configuradas.</span>
+                    }
+                  </div>
+                  <div class="d-flex gap-2 align-items-center">
+                    <input type="text" class="form-control form-control-sm" style="max-width:140px"
+                      [(ngModel)]="newSizeName"
+                      placeholder="Nueva talla…"
+                      (keydown.enter)="addSize(row)"
+                      maxlength="20">
+                    <button class="btn btn-sm btn-primary" [disabled]="!newSizeName.trim() || sizeSaving()"
+                      (click)="addSize(row)">
+                      @if (sizeSaving()) { <span class="spinner-border spinner-border-sm"></span> }
+                      @else { <i class="bi bi-plus-lg"></i> }
+                      Agregar
+                    </button>
+                  </div>
+                  <p class="text-muted small mt-2 mb-0">Ej: XS · S · M · L · XL · XXL · 28 · 30 · 32</p>
+                </td>
+              </tr>
+            }
+          } @empty {
+            <tr>
+              <td [attr.colspan]="columns().length + 2" class="text-center text-muted py-5">
+                <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                No hay registros. Usa el botón <strong>+ Nuevo</strong> para agregar.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="px-3 py-2 border-top d-flex align-items-center justify-content-between gap-2 flex-wrap">
+      <small class="text-muted">{{ filteredRows().length }} de {{ useServerPagination() ? totalRows() : rows().length }} registros</small>
+
+      @if (useServerPagination() && lastPage() > 1) {
+        <nav aria-label="Paginación">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" type="button" (click)="goToPage(1)">Primero</button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" type="button" (click)="goToPage(currentPage() - 1)">
+                <i class="bi bi-chevron-left"></i>
+              </button>
+            </li>
+            @for (p of pageNumbers(); track p) {
+              <li class="page-item" [class.active]="p === currentPage()">
+                <button class="page-link" type="button" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage() === lastPage()">
+              <button class="page-link" type="button" (click)="goToPage(currentPage() + 1)">
+                <i class="bi bi-chevron-right"></i>
+              </button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === lastPage()">
+              <button class="page-link" type="button" (click)="goToPage(lastPage())">Último</button>
+            </li>
+          </ul>
+        </nav>
+      }
+    </div>
+  }
+</div>
+
+<!-- Edit modal -->
+@if (editRow()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fs-6">Editar {{ title() }}</h5>
+          <button class="btn-close" (click)="editRow.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          @if (editError()) {
+            <div class="alert alert-danger py-2 small">{{ editError() }}</div>
+          }
+          <div class="row g-3">
+            @for (col of columns(); track col.key) {
+              @if (col.key !== 'id') {
+                <div class="col-12">
+                  <label class="form-label" [attr.for]="'edit-' + col.key">{{ col.label }}</label>
+                  @if (col.type === 'color') {
+                    <div class="input-group">
+                      <span class="input-group-text p-1 color-preview-wrap">
+                        <span class="d-block rounded color-preview-swatch"
+                          [style.background]="editRow()![col.key] || '#cccccc'"></span>
+                      </span>
+                      <input type="color" class="form-control form-control-color flex-shrink-0 color-native-input"
+                        [id]="'edit-' + col.key"
+                        [(ngModel)]="editRow()![col.key]">
+                      <input type="text" class="form-control font-monospace" [(ngModel)]="editRow()![col.key]"
+                        placeholder="#RRGGBB" maxlength="7">
+                    </div>
+                  } @else if (col.type === 'textarea') {
+                    <textarea [id]="'edit-' + col.key" class="form-control" rows="2" [(ngModel)]="editRow()![col.key]"></textarea>
+                  } @else if (col.type === 'number') {
+                    <input [id]="'edit-' + col.key" type="number" class="form-control" [(ngModel)]="editRow()![col.key]" min="0">
+                  } @else if (col.type === 'boolean') {
+                    <div class="form-check form-switch mt-1">
+                      <input [id]="'edit-' + col.key" type="checkbox" class="form-check-input" [(ngModel)]="editRow()![col.key]">
+                      <label class="form-check-label" [attr.for]="'edit-' + col.key">{{ editRow()![col.key] ? 'Sí' : 'No' }}</label>
+                    </div>
+                  } @else {
+                    <input [id]="'edit-' + col.key" type="text" class="form-control" [(ngModel)]="editRow()![col.key]">
+                  }
+                </div>
+              }
+            }
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="editRow.set(null)">Cancelar</button>
+          <button class="btn btn-primary btn-sm" [disabled]="saving()" (click)="saveEdit()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Confirm delete modal -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <div class="icon-circle-danger mb-3">
+            <i class="bi bi-trash text-danger fs-4"></i>
+          </div>
+          <h6 class="fw-600 mb-1">¿Confirmar eliminación?</h6>
+          <p class="text-muted small mb-0">{{ delConfirm()!.message }}</p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary" (click)="delConfirm.set(null)">
+            <i class="bi bi-x me-1"></i>Cancelar
+          </button>
+          <button class="btn btn-danger" (click)="delConfirm()!.action(); delConfirm.set(null)">
+            <i class="bi bi-trash me-1"></i>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

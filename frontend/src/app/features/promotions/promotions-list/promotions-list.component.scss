@@ -1,0 +1,67 @@
+.promo-card {
+  transition: transform .15s, box-shadow .15s;
+  &:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.1) !important; }
+  &.inactive { opacity: .65; }
+}
+
+.promo-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; color: #2e7d32;
+  flex-shrink: 0;
+}
+
+.item-list {
+  list-style: none; padding: 0; margin: 0;
+  font-size: .82rem;
+  li { padding: 2px 0; color: #374151; }
+}
+
+.qty-badge {
+  display: inline-block;
+  background: #e8f5e9; color: #2e7d32;
+  border-radius: 4px; padding: 0 5px;
+  font-weight: 600; font-size: .78rem;
+  margin-right: 4px;
+}
+
+.fixed-price-row {
+  background: #f0fdf4;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: .85rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  display: flex; flex-direction: column; align-items: center;
+}
+
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1050;
+}
+
+.modal-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 32px 28px;
+  max-width: 380px; width: 90%;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,.18);
+}
+
+.icon-circle-danger {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: #fee2e2;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; color: #dc2626;
+  margin: 0 auto;
+}

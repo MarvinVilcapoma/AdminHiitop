@@ -1,0 +1,124 @@
+$col-collection: minmax(140px, 0.8fr);
+$col-product: minmax(200px, 1.4fr);
+$col-color: minmax(130px, 0.8fr);
+$col-size: minmax(110px, 0.6fr);
+$col-qty: 90px;
+$col-actions: 72px;
+
+.stock-line-header,
+.stock-line {
+  @media (min-width: 992px) {
+    display: grid;
+    grid-template-columns: $col-collection $col-product $col-color $col-size $col-qty $col-actions;
+    align-items: start;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 991.98px) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    .stock-line-actions { justify-content: flex-end; }
+  }
+}
+
+.stock-line-header {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  align-items: center !important;
+}
+
+// ── Transfer route banner ─────────────────────────────────────────────────
+
+.transfer-banner {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  background: #e7f3ff;
+  border: 1px solid #b6d4fe;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  color: #0a58ca;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+// ── Custom searchable select ──────────────────────────────────────────────────
+
+.searchable-select {
+  position: relative;
+
+  .ss-input-wrap {
+    position: relative;
+
+    .ss-icon {
+      position: absolute;
+      left: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6c757d;
+      font-size: 0.75rem;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .ss-input {
+      padding-left: 1.6rem;
+    }
+  }
+
+  .ss-selected {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    user-select: none;
+    overflow: hidden;
+
+    &:hover { background: #f8f9fa; }
+
+    .ss-clear {
+      color: #adb5bd;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      cursor: pointer;
+
+      &:hover { color: #dc3545; }
+    }
+  }
+
+  .ss-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+    max-height: 210px;
+    overflow-y: auto;
+  }
+
+  .ss-option {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &:hover   { background: #f8f9fa; }
+    &.active  { background: #e7f3ff; color: #0d6efd; font-weight: 500; }
+  }
+
+  .ss-empty {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-style: italic;
+  }
+}

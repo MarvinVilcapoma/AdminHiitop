@@ -1,0 +1,68 @@
+/* Todos los estilos los provee Bootstrap + el global styles.scss */
+
+// ── Order lines grid ──────────────────────────────────────────────────────────
+
+.order-lines {
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  overflow: visible; // Must be visible — overflow:hidden clips the product search dropdown
+}
+
+$grid-cols: minmax(200px, 2.5fr) minmax(120px, 1fr) minmax(100px, 0.8fr) 80px 110px 100px 44px;
+
+.order-line-header,
+.order-line {
+  @media (min-width: 992px) {
+    display: grid;
+    grid-template-columns: $grid-cols;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.order-line-header {
+  background: #f8f9fa;
+  border-radius: 0.5rem 0.5rem 0 0; // keep rounded top since parent no longer clips
+}
+
+.order-line {
+  background: #fff;
+
+  &:hover { background: #fafbfc; }
+
+  @media (max-width: 991px) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+}
+
+// Product search dropdown
+.product-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 0.5rem;
+}
+
+.product-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: #f0f5ff; }
+
+  div { pointer-events: none; }
+}

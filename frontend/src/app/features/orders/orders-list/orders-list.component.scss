@@ -1,0 +1,91 @@
+/* Orders list — component-specific overrides */
+
+/* Filter card — same look as .table-wrap but overflow:visible so dropdowns show */
+.filter-wrap {
+  background: #fff;
+  border-radius: 12px;
+  overflow: visible;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.status-badge {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity .15s;
+  &:hover { opacity: .85; }
+}
+
+.status-select {
+  min-width: 130px;
+  font-size: .8rem;
+  padding: .2rem .4rem;
+  height: auto;
+}
+
+.form-select-xs {
+  font-size: .8rem;
+  padding: .2rem 1.5rem .2rem .4rem;
+  background-size: 12px 9px;
+}
+
+/* Confirm delete modal */
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1040;
+}
+
+.confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1050;
+  background: #fff;
+  border-radius: .75rem;
+  padding: 2rem;
+  min-width: 340px;
+  max-width: 90vw;
+  box-shadow: 0 1rem 3rem rgba(0,0,0,.2);
+  text-align: center;
+
+  .confirm-modal-icon {
+    font-size: 2.5rem;
+    line-height: 1;
+    margin-bottom: .75rem;
+  }
+}
+
+/* Confirm delete modal */
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1040;
+}
+
+.confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1050;
+  background: #fff;
+  border-radius: .75rem;
+  padding: 2rem;
+  min-width: 340px;
+  max-width: 90vw;
+  box-shadow: 0 1rem 3rem rgba(0,0,0,.2);
+  text-align: center;
+
+  .confirm-modal-icon {
+    font-size: 2.5rem;
+    line-height: 1;
+    margin-bottom: .75rem;
+  }
+}

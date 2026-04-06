@@ -1,0 +1,82 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/users" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    {{ isEdit() ? 'Editar usuario' : 'Nuevo usuario' }}
+  </h1>
+</div>
+
+<app-page-state [loading]="loading()">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+
+      @if (error()) {
+        <div class="alert alert-danger alert-dismissible">
+          {{ error() }}
+          <button class="btn-close" (click)="error.set('')"></button>
+        </div>
+      }
+
+      <div class="form-section">
+        <h6 class="form-section-title">Información personal</h6>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" for="user-name">Nombre completo <span class="text-danger">*</span></label>
+            <input id="user-name" type="text" class="form-control" [(ngModel)]="form.name" placeholder="Juan Pérez">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="user-email">Email <span class="text-danger">*</span></label>
+            <input id="user-email" type="email" class="form-control" [(ngModel)]="form.email" placeholder="usuario@empresa.com">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="user-password">{{ isEdit() ? 'Nueva contraseña' : 'Contraseña' }} {{ isEdit() ? '' : '*' }}</label>
+            <input id="user-password" type="password" class="form-control" [(ngModel)]="form.password"
+              [placeholder]="isEdit() ? 'Dejar vacío para no cambiar' : 'Mínimo 8 caracteres'"
+              autocomplete="new-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="user-password-confirm">Confirmar contraseña</label>
+            <input id="user-password-confirm" type="password" class="form-control" [(ngModel)]="form.password_confirmation"
+              placeholder="Repetir contraseña" autocomplete="new-password">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h6 class="form-section-title">Rol del usuario</h6>
+        <p class="text-muted small mb-3">Selecciona un solo rol. El usuario heredará los módulos definidos en ese rol.</p>
+        <div class="row g-2">
+          @for (role of availableRoles(); track role.name) {
+            <div class="col-12 col-sm-6 col-md-4">
+              <button
+                type="button"
+                class="card border-2 p-3 d-flex flex-row align-items-start gap-2 role-card w-100 text-start"
+                [class.border-primary]="selectedRole() === role.name"
+                (click)="selectRole(role.name)">
+                <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="role"
+                  [checked]="selectedRole() === role.name" readonly>
+                <div>
+                  <span class="badge mb-1" [class]="roleBadge(role.name)">{{ role.name }}</span>
+                  <div class="text-muted small">{{ role.description }}</div>
+                </div>
+              </button>
+            </div>
+          }
+        </div>
+        @if (availableRoles().length === 0) {
+          <p class="text-muted small">No se pudieron cargar los roles.</p>
+        }
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end mt-3">
+        <a routerLink="/dashboard/users" class="btn btn-outline-secondary">Cancelar</a>
+        <button class="btn btn-primary" [disabled]="saving()" (click)="save()">
+          @if (saving()) { <span class="spinner-border spinner-border-sm me-2"></span> }
+          <i class="bi bi-check-lg me-1"></i>
+          {{ isEdit() ? 'Guardar cambios' : 'Crear usuario' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</app-page-state>

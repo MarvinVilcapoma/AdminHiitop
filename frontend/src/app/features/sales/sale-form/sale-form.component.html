@@ -1,0 +1,331 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/sales" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
+    {{ isEdit() ? 'Editar venta' : 'Nueva venta' }}
+  </h1>
+</div>
+
+<app-page-state [loading]="loading()" [error]="error()" (dismissed)="error.set('')">
+
+  <div class="row g-4">
+
+    <!-- LEFT: Header fields -->
+    <div class="col-lg-8">
+
+      <!-- Cabecera del comprobante -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-receipt text-primary"></i>
+          <span class="fw-600">Cabecera del comprobante</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+
+            <div class="col-sm-4">
+              <label class="form-label">Tipo de movimiento</label>
+              <select class="form-select" [(ngModel)]="header.movement_type">
+                <option value="venta">Venta</option>
+                <option value="devolucion">Devolución</option>
+                <option value="nota_credito">Nota de crédito</option>
+              </select>
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label">Tipo de documento</label>
+              <input class="form-control" [(ngModel)]="header.document_type_label"
+                placeholder="BOLETA - T, TICKET…">
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label">Número de documento</label>
+              <input class="form-control font-monospace" [(ngModel)]="header.document_number"
+                placeholder="32">
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label">Prefijo serie</label>
+              <input class="form-control font-monospace" [(ngModel)]="header.series_prefix"
+                placeholder="B003">
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label">N.º serie completo</label>
+              <input class="form-control font-monospace" [(ngModel)]="header.series_number"
+                placeholder="B003-32">
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label">Fecha emisión</label>
+              <input type="date" class="form-control" [(ngModel)]="header.issue_date">
+            </div>
+
+            <div class="col-sm-6">
+              <label class="form-label">Fecha y hora de venta</label>
+              <input type="datetime-local" class="form-control" [(ngModel)]="header.sale_datetime">
+            </div>
+
+            <div class="col-sm-6">
+              <label class="form-label">Moneda</label>
+              <select class="form-select" [(ngModel)]="header.currency">
+                <option value="PEN">PEN — Sol peruano (S/)</option>
+                <option value="USD">USD — Dólar americano ($)</option>
+              </select>
+            </div>
+
+            <div class="col-sm-6">
+              <label class="form-label">Sucursal</label>
+              <input class="form-control" [(ngModel)]="header.branch"
+                list="branches-list" placeholder="Tienda FISICA">
+              <datalist id="branches-list">
+                @for (s of branches(); track s) {
+                  <option [value]="s"></option>
+                }
+              </datalist>
+            </div>
+
+            <div class="col-sm-6">
+              <label class="form-label">Vendedor</label>
+              <input class="form-control" [(ngModel)]="header.seller" placeholder="Nombre vendedor">
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos del cliente -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-person text-secondary"></i>
+          <span class="fw-600">Datos del cliente</span>
+          <span class="text-muted small ms-auto">Opcional</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-sm-8">
+              <label class="form-label">Nombre cliente</label>
+              <input class="form-control" [(ngModel)]="header.customer_name" placeholder="Sin cliente">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">RUC / DNI</label>
+              <input class="form-control font-monospace" [(ngModel)]="header.customer_tax_id">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" [(ngModel)]="header.customer_email">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Dirección</label>
+              <input class="form-control" [(ngModel)]="header.customer_address">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Distrito</label>
+              <input class="form-control" [(ngModel)]="header.customer_district">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Provincia</label>
+              <input class="form-control" [(ngModel)]="header.customer_province">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Departamento</label>
+              <input class="form-control" [(ngModel)]="header.customer_department">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Líneas de producto -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-list-check text-success"></i>
+          <span class="fw-600">Productos vendidos</span>
+          <span class="badge bg-primary ms-auto">{{ items.length }}</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="min-width:220px">Buscar producto</th>
+                  <th style="min-width:160px">Producto</th>
+                  <th style="min-width:90px">Variante</th>
+                  <th style="min-width:90px">P. Bruto Unit.</th>
+                  <th style="min-width:70px">Cant.</th>
+                  <th style="min-width:100px">Total Bruto</th>
+                  <th style="min-width:90px">P. Neto Unit.</th>
+                  <th style="min-width:80px">Dcto. Bruto</th>
+                  <th style="min-width:75px">% Dcto.</th>
+                  <th style="min-width:90px">Costo Unit.</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of items; track $index; let i = $index) {
+                  <tr>
+                    <td class="product-search-cell">
+                      <input class="form-control form-control-sm"
+                        [(ngModel)]="item._search"
+                        (input)="item._open = true"
+                        (focus)="item._open = true"
+                        (blur)="closeDropdown(item)"
+                        [placeholder]="item.sku ? item.sku : 'Buscar SKU o nombre…'">
+                      @if (item._open && suggestionsFor(item).length > 0) {
+                        <div class="autocomplete-dropdown">
+                          @for (s of suggestionsFor(item); track s.id) {
+                            <div class="autocomplete-item" (mousedown)="selectSuggestion(item, s)">
+                              <div class="d-flex justify-content-between align-items-center">
+                                <span class="small fw-semibold text-truncate me-2">{{ s.product?.name }}</span>
+                                <span class="badge flex-shrink-0"
+                                  [class.bg-success]="(s.available ?? s.quantity) > 5"
+                                  [class.bg-warning]="(s.available ?? s.quantity) > 0 && (s.available ?? s.quantity) <= 5"
+                                  [class.text-dark]="(s.available ?? s.quantity) > 0 && (s.available ?? s.quantity) <= 5"
+                                  [class.bg-danger]="(s.available ?? s.quantity) <= 0">
+                                  {{ s.available ?? s.quantity }} uds
+                                </span>
+                              </div>
+                              <div class="text-muted" style="font-size:0.7rem">
+                                {{ s.product?.sku }}{{ s.color?.name ? ' · ' + s.color?.name : '' }}{{ s.size ? ' · ' + s.size : '' }}
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      }
+                    </td>
+                    <td>
+                      <input class="form-control form-control-sm"
+                        [(ngModel)]="item.product_name"
+                        placeholder="Nombre producto">
+                    </td>
+                    <td>
+                      <input class="form-control form-control-sm"
+                        [(ngModel)]="item.variant"
+                        placeholder="S, M, L…">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end"
+                          [(ngModel)]="item.unit_gross_price"
+                        (ngModelChange)="calcItem(item)"
+                        min="0" step="0.01">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end"
+                          [(ngModel)]="item.quantity"
+                        (ngModelChange)="calcItem(item)"
+                        min="1" step="1">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end bg-light"
+                          [(ngModel)]="item.total_gross" readonly tabindex="-1">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end"
+                          [(ngModel)]="item.unit_net_price" min="0" step="0.01">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end"
+                          [(ngModel)]="item.discount_gross" min="0" step="0.01">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end"
+                          [(ngModel)]="item.discount_pct" min="0" max="100" step="0.01">
+                    </td>
+                    <td>
+                      <input type="number" class="form-control form-control-sm text-end"
+                          [(ngModel)]="item.unit_cost_net" min="0" step="0.01">
+                    </td>
+                    <td>
+                      @if (items.length > 1) {
+                        <button class="btn btn-xs btn-outline-danger" (click)="removeItem(i)">
+                          <i class="bi bi-x"></i>
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="px-3 py-2 border-top">
+            <button class="btn btn-sm btn-outline-primary" (click)="addItem()">
+              <i class="bi bi-plus-lg me-1"></i>Agregar ítem
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Summary + Actions -->
+    <div class="col-lg-4">
+
+      <!-- Delivery info -->
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-truck text-secondary"></i>
+          <span class="fw-600">Entrega</span>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Tipo de entrega</label>
+            <select class="form-select" [(ngModel)]="header.delivery_type">
+              <option value="Entrega inmediata">Entrega inmediata</option>
+              <option value="Despacho">Despacho</option>
+              <option value="Retiro en tienda">Retiro en tienda</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Lista de precios</label>
+              <input class="form-control" [(ngModel)]="header.price_list"
+              placeholder="Lista de Precios Base">
+          </div>
+        </div>
+      </div>
+
+      <!-- Totals summary card -->
+      <div class="card border-0 shadow-sm mb-3 totals-card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-calculator text-success"></i>
+          <span class="fw-600">Resumen</span>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">Total neto</span>
+            <span class="fw-500">S/ {{ totalNet | number:'1.2-2' }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">IGV 18%</span>
+            <span class="fw-500">S/ {{ totalTax | number:'1.2-2' }}</span>
+          </div>
+          <hr class="my-2">
+          <div class="d-flex justify-content-between">
+            <span class="fw-600">Total bruto</span>
+            <span class="fw-700 fs-5 text-success">S/ {{ totalGross | number:'1.2-2' }}</span>
+          </div>
+          <div class="mt-2">
+            <small class="text-muted">{{ items.length }} ítem(s)</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions card -->
+      <div class="card border-0 shadow-sm actions-card">
+        <div class="card-body d-flex flex-column gap-2">
+          <button class="btn btn-primary w-100" [disabled]="saving()" (click)="save()">
+            @if (saving()) {
+              <span class="spinner-border spinner-border-sm me-1"></span>Guardando…
+            } @else {
+              <i class="bi bi-floppy me-1"></i>
+              {{ isEdit() ? 'Actualizar venta' : 'Registrar venta' }}
+            }
+          </button>
+          <a routerLink="/dashboard/sales" class="btn btn-outline-secondary w-100">
+            <i class="bi bi-x me-1"></i>Cancelar
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</app-page-state>

@@ -1,0 +1,134 @@
+<div class="page-header">
+  <h1><i class="bi bi-people me-2 text-primary"></i>Clientes</h1>
+  <a routerLink="new" class="btn btn-primary">
+    <i class="bi bi-person-plus me-1"></i>Nuevo cliente
+  </a>
+</div>
+
+<div class="filters-bar">
+  <div class="row g-2 align-items-center">
+    <div class="col-12 col-sm-6 col-md-4">
+      <input type="search" class="form-control form-control-sm" placeholder="Buscar nombre, DNI, email..."
+        [(ngModel)]="search" (input)="loadSearch()">
+    </div>
+    <div class="col-auto">
+      <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-outline-secondary" [class.active]="statusFilter() === 'all'" (click)="statusFilter.set('all'); onStatusChange()">Todos</button>
+        <button class="btn btn-outline-success"   [class.active]="statusFilter() === 'active'" (click)="statusFilter.set('active'); onStatusChange()">Activos</button>
+        <button class="btn btn-outline-danger"    [class.active]="statusFilter() === 'inactive'" (click)="statusFilter.set('inactive'); onStatusChange()">Inactivos</button>
+      </div>
+    </div>
+    @if (hasActiveFilters()) {
+      <div class="col-auto">
+        <button class="btn btn-sm btn-outline-secondary btn-clear-filters" (click)="clearFilters()" title="Limpiar filtros">
+          <i class="bi bi-x-circle me-1"></i>Limpiar
+        </button>
+      </div>
+    }
+    <div class="col text-end">
+      <small class="text-muted">{{ total() }} clientes en total</small>
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <app-page-state [loading]="loading()">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>DNI</th>
+            <th>Teléfono</th>
+            <th>Email</th>
+            <th>Provincia</th>
+            <th>Distrito</th>
+            <th class="text-center">Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="customer-avatar">{{ initials(row.full_name) }}</div>
+                  <span class="fw-500">{{ row.full_name }}</span>
+                </div>
+              </td>
+              <td class="text-muted">{{ row.dni ?? '—' }}</td>
+              <td class="text-muted">{{ row.phone ?? '—' }}</td>
+              <td class="text-muted">{{ row.email ?? '—' }}</td>
+              <td class="text-muted">{{ row.province?.name ?? '—' }}</td>
+              <td class="text-muted">{{ row.district?.name ?? '—' }}</td>
+              <td class="text-center">
+                <button class="status-toggle-btn" [class.is-active]="row.is_active !== false"
+                  [title]="row.is_active !== false ? 'Desactivar cliente' : 'Activar cliente'"
+                  (click)="toggleActive(row)">
+                  <i class="bi" [class]="row.is_active !== false ? 'bi-toggle-on' : 'bi-toggle-off'"></i>
+                  <span>{{ row.is_active !== false ? 'Activo' : 'Inactivo' }}</span>
+                </button>
+              </td>
+              <td>
+                <div class="d-flex gap-1">
+                  <a [routerLink]="[row.id]" class="btn btn-xs btn-outline-primary" title="Editar">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="deleteCustomer(row)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="8" class="text-center text-muted py-5">
+              <i class="bi bi-people fs-1 d-block mb-2 opacity-25"></i>No hay clientes registrados.
+            </td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">Mostrando {{ rows().length }} de {{ total() }}</span>
+        <nav><ul class="pagination pagination-sm mb-0">
+          <li class="page-item" [class.disabled]="currentPage === 1">
+            <button class="page-link" (click)="goToPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
+          </li>
+          @for (p of pageRange(); track p) {
+            <li class="page-item" [class.active]="p === currentPage">
+              <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+            </li>
+          }
+          <li class="page-item" [class.disabled]="currentPage === totalPages()">
+            <button class="page-link" (click)="goToPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
+          </li>
+        </ul></nav>
+      </div>
+    }
+  </app-page-state>
+</div>
+
+<!-- Confirm delete modal -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <div class="icon-circle-danger mb-3">
+            <i class="bi bi-person-x text-danger fs-4"></i>
+          </div>
+          <h6 class="fw-600 mb-1">¿Eliminar cliente?</h6>
+          <p class="text-muted small mb-0">{{ delConfirm()!.message }}</p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary" (click)="delConfirm.set(null)">Cancelar</button>
+          <button class="btn btn-danger" (click)="delConfirm()!.action(); delConfirm.set(null)">
+            <i class="bi bi-trash me-1"></i>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

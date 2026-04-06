@@ -1,0 +1,88 @@
+<div class="login-wrapper">
+
+  <!-- Panel izquierdo: imagen de marca -->
+  <div class="login-image-panel d-none d-lg-flex">
+    <img src="assets/img/hiitop.jpg" alt="Hiitop" class="brand-image" />
+  </div>
+
+  <!-- Panel derecho: formulario -->
+  <div class="login-form-panel">
+    <div class="form-card">
+
+      <!-- Logo / Brand -->
+      <div class="brand-block">
+        <span class="brand-name">Hiitop</span>
+        <span class="brand-dot"></span>
+      </div>
+
+      <h2 class="form-title">Bienvenido de nuevo</h2>
+      <p class="form-subtitle">Ingresa tus credenciales para continuar.</p>
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+
+        <!-- Correo -->
+        <div class="field-group">
+          <label for="email" class="field-label">
+            <i class="bi bi-envelope me-1"></i>Correo electr&oacute;nico
+          </label>
+          <input
+            id="email"
+            type="email"
+            class="form-control field-input"
+            [class.is-invalid]="form.get('email')?.invalid && form.get('email')?.touched"
+            formControlName="email"
+            autocomplete="email"
+            placeholder="tu&#64;correo.com"
+          />
+          @if (form.get('email')?.invalid && form.get('email')?.touched) {
+            <div class="invalid-feedback">Introduce un correo v&aacute;lido.</div>
+          }
+        </div>
+
+        <!-- Contrase&ntilde;a -->
+        <div class="field-group">
+          <div class="d-flex justify-content-between align-items-baseline">
+            <label for="password" class="field-label">
+              <i class="bi bi-lock me-1"></i>Contrase&ntilde;a
+            </label>
+            <a routerLink="/forgot-password" class="forgot-link">&iquest;La olvidaste?</a>
+          </div>
+          <input
+            id="password"
+            type="password"
+            class="form-control field-input"
+            [class.is-invalid]="form.get('password')?.invalid && form.get('password')?.touched"
+            formControlName="password"
+            autocomplete="current-password"
+            placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+          />
+          @if (form.get('password')?.invalid && form.get('password')?.touched) {
+            <div class="invalid-feedback">La contrase&ntilde;a es obligatoria.</div>
+          }
+        </div>
+
+        <!-- Error general -->
+        @if (error) {
+          <div class="login-error" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>{{ error }}</span>
+          </div>
+        }
+
+        <!-- Bot&oacute;n -->
+        <button type="submit" class="btn-login" [disabled]="loading">
+          @if (loading) {
+            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            Iniciando sesi&oacute;n...
+          } @else {
+            <i class="bi bi-box-arrow-in-right me-2"></i>Iniciar sesi&oacute;n
+          }
+        </button>
+
+      </form>
+    </div>
+
+    <p class="copyright">&copy; {{ year }} Hiitop Technologies &mdash; Todos los derechos reservados.</p>
+  </div>
+
+</div>

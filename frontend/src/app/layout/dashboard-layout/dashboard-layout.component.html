@@ -1,0 +1,79 @@
+﻿<div class="app-layout">
+
+  <!-- Sidebar: offcanvas-lg = inline on desktop, drawer on mobile -->
+  <aside class="sidebar offcanvas offcanvas-start offcanvas-lg" id="navSidebar" tabindex="-1">
+
+    <!-- Mobile header (offcanvas close button) -->
+    <div class="offcanvas-header d-lg-none border-bottom border-white border-opacity-10 py-3">
+      <div>
+        <span class="logo-text">Hiitop</span>
+        <span class="app-subtitle d-block">Panel de administración</span>
+      </div>
+      <button class="btn-close btn-close-white opacity-75" data-bs-dismiss="offcanvas"
+        data-bs-target="#navSidebar" aria-label="Cerrar"></button>
+    </div>
+
+    <!-- Desktop header -->
+    <div class="sidebar-header d-none d-lg-block">
+      <span class="logo-text">Hiitop</span>
+      <span class="app-subtitle">Panel de administración</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      @for (item of navItems(); track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          class="nav-item"
+          data-bs-dismiss="offcanvas"
+          data-bs-target="#navSidebar"
+        >
+          <i class="bi {{ item.icon }} nav-icon"></i>
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <i class="bi bi-person-circle fs-4"></i>
+        <div class="user-details">
+          <span class="user-name">{{ user()?.name ?? 'Usuario' }}</span>
+          <span class="user-email">{{ user()?.email ?? '' }}</span>
+        </div>
+      </div>
+      <button class="btn-logout" (click)="logout()">
+        <i class="bi bi-box-arrow-right me-1"></i> Salir
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- Contenido principal -->
+  <div class="main-wrapper">
+
+    <!-- Barra superior -->
+    <header class="topbar">
+      <button class="btn btn-outline-secondary btn-sm d-lg-none me-2 hamburger-btn" type="button"
+        data-bs-toggle="offcanvas" data-bs-target="#navSidebar"
+        aria-controls="navSidebar" aria-expanded="false" aria-label="Abrir menú">
+        <i class="bi bi-list fs-5"></i>
+      </button>
+      <span class="topbar-brand d-lg-none">Hiitop</span>
+
+      <div class="topbar-right ms-auto">
+        <div class="search-wrap d-none d-md-flex">
+          <i class="bi bi-search search-icon"></i>
+          <input type="text" class="form-control form-control-sm search-input"
+            placeholder="Buscar pedidos, clientes..." />
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <router-outlet />
+    </main>
+
+  </div>
+</div>

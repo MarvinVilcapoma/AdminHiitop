@@ -1,0 +1,67 @@
+.province-list {
+  max-height: 62vh;
+}
+
+.province-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .65rem;
+  border-bottom: 1px solid #eef2f7;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &.active {
+    background: #eef6ff;
+  }
+}
+
+.province-select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+}
+
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .42);
+  z-index: 1050;
+}
+
+.edit-modal,
+.confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1060;
+  width: min(520px, calc(100vw - 2rem));
+  background: #fff;
+  border-radius: .75rem;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .22);
+  padding: 1rem;
+}
+
+.confirm-modal {
+  width: min(440px, calc(100vw - 2rem));
+  text-align: center;
+}
+
+.confirm-modal-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, .1);
+  margin: 0 auto .75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+}

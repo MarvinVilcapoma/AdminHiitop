@@ -1,0 +1,88 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/customers" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    {{ isEdit() ? 'Editar cliente' : 'Nuevo cliente' }}
+  </h1>
+</div>
+
+<app-page-state [loading]="loading()">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      @if (error()) {
+        <div class="alert alert-danger alert-dismissible">
+          {{ error() }}
+          <button class="btn-close" (click)="error.set('')"></button>
+        </div>
+      }
+
+      <div class="form-section">
+        <h6 class="form-section-title">Información personal</h6>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Nombre completo <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" [(ngModel)]="form.full_name" placeholder="Ej. Juan Pérez García">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">DNI / Documento</label>
+            <input type="text" class="form-control" [(ngModel)]="form.dni" placeholder="12345678" maxlength="12">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Teléfono / Celular</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+              <input type="tel" class="form-control" [(ngModel)]="form.phone" placeholder="987654321">
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Email</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              <input type="email" class="form-control" [(ngModel)]="form.email" placeholder="cliente@email.com">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h6 class="form-section-title">Dirección</h6>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Provincia</label>
+            <select class="form-select" [(ngModel)]="form.province_id" (change)="onProvinceChange()">
+              <option value="">Seleccione provincia</option>
+              @for (p of provinces(); track p.id) {
+                <option [value]="p.id">{{ p.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Distrito</label>
+            <select class="form-select" [(ngModel)]="form.district_id" [disabled]="!form.province_id">
+              <option value="">Seleccione distrito</option>
+              @for (d of districts(); track d.id) {
+                <option [value]="d.id">{{ d.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Dirección</label>
+            <textarea class="form-control" rows="2" [(ngModel)]="form.address" placeholder="Av. Los Olivos 123, depto 4B..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end mt-3">
+        <a routerLink="/dashboard/customers" class="btn btn-outline-secondary">Cancelar</a>
+        <button class="btn btn-primary" [disabled]="saving()" (click)="save()">
+          @if (saving()) { <span class="spinner-border spinner-border-sm me-2"></span> }
+          <i class="bi bi-check-lg me-1"></i>
+          {{ isEdit() ? 'Guardar cambios' : 'Crear cliente' }}
+        </button>
+      </div>
+
+    </div>
+  </div>
+</app-page-state>

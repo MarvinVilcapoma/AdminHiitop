@@ -1,0 +1,64 @@
+<div class="ss-wrapper" [class.ss-open]="open()" [class.ss-disabled]="disabled">
+
+  <!-- Trigger -->
+  <button type="button" class="ss-trigger" [id]="inputId || null" (click)="toggle()" [disabled]="disabled">
+    @if (selectedOption(); as sel) {
+      <span class="ss-selected-label">
+        @if (sel.hex_code) {
+          <span class="ss-dot" [style.background]="sel.hex_code"></span>
+        }
+        {{ sel.name }}
+      </span>
+    } @else {
+      <span class="ss-placeholder">{{ placeholder }}</span>
+    }
+    <i class="bi bi-chevron-down ss-icon"></i>
+  </button>
+
+  <!-- Dropdown -->
+  @if (open()) {
+    <div class="ss-dropdown">
+      <!-- Search input -->
+      <div class="ss-search-wrap">
+        <i class="bi bi-search ss-search-icon"></i>
+        <input
+          class="ss-search-input"
+          type="text"
+          [placeholder]="searchPlaceholder"
+          [(ngModel)]="query"
+          (ngModelChange)="onQueryChange($event)"
+          (click)="$event.stopPropagation()"
+          autocomplete="off"
+        />
+        @if (query) {
+          <button type="button" class="ss-clear-btn" (click)="clearQuery()">
+            <i class="bi bi-x"></i>
+          </button>
+        }
+      </div>
+
+      <!-- Options -->
+      <ul class="ss-list" role="listbox">
+        <!-- Clear option -->
+        <li role="option" class="ss-option ss-option-clear" (click)="select(null)">
+          <span class="text-muted fst-italic">— Ninguno —</span>
+        </li>
+        @for (opt of filtered(); track opt.id) {
+          <li
+            role="option"
+            class="ss-option"
+            [class.ss-option-active]="opt.id === value"
+            (click)="select(opt)"
+          >
+            @if (opt.hex_code) {
+              <span class="ss-dot" [style.background]="opt.hex_code"></span>
+            }
+            {{ opt.name }}
+          </li>
+        } @empty {
+          <li class="ss-option ss-empty">Sin resultados</li>
+        }
+      </ul>
+    </div>
+  }
+</div>

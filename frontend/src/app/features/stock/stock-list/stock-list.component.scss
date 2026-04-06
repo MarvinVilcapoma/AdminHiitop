@@ -1,0 +1,136 @@
+.modal-overlay { background: rgba(0, 0, 0, .5); }
+
+.icon-circle-danger {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(220, 53, 69, .1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.filter-label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: .25rem;
+  letter-spacing: .01em;
+}
+
+.filters-bar {
+  .form-control,
+  .input-group-text {
+    border-radius: .5rem;
+  }
+}
+
+// ── Custom searchable select (shared with stock-form) ─────────────────────────
+
+.searchable-select {
+  position: relative;
+
+  .ss-input-wrap {
+    position: relative;
+
+    .ss-icon {
+      position: absolute;
+      left: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6c757d;
+      font-size: 0.75rem;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .ss-input { padding-left: 1.6rem; }
+  }
+
+  .ss-selected {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    user-select: none;
+    overflow: hidden;
+
+    &:hover { background: #f8f9fa; }
+
+    .ss-clear {
+      color: #adb5bd;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      cursor: pointer;
+      &:hover { color: #dc3545; }
+    }
+  }
+
+  .ss-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .ss-option {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &:hover  { background: #f8f9fa; }
+    &.active { background: #e7f3ff; color: #0d6efd; font-weight: 500; }
+  }
+
+  .ss-empty {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-style: italic;
+  }
+}
+
+// ── Grouped stock table ────────────────────────────────────────────────────────
+
+.stock-grouped-table {
+  .product-group-row {
+    cursor: pointer;
+    background: #f8fafc;
+
+    &:hover { background: #eff6ff; }
+
+    .expand-chevron {
+      transition: transform .2s;
+      font-size: .75rem;
+      color: #6c757d;
+    }
+  }
+
+  .variant-row {
+    background: #fff;
+
+    &:hover { background: #f9fbff; }
+
+    .variant-indent {
+      color: #9ca3af;
+    }
+  }
+}

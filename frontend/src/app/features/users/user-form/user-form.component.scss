@@ -1,0 +1,16 @@
+.role-card {
+	cursor: pointer;
+	background: #fff;
+	text-decoration: none;
+	transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+
+	&:hover {
+		border-color: #93c5fd;
+		background: #f8fbff;
+	}
+
+	&.border-primary {
+		box-shadow: 0 0 0 2px rgba(59, 130, 246, .15);
+		background: #eff6ff;
+	}
+}

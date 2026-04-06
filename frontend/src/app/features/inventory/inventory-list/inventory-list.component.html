@@ -1,0 +1,57 @@
+<div class="mb-4">
+  <h1 class="mb-1">Inventario</h1>
+  <p class="text-muted mb-0">Stock por producto, almacén, color y talla.</p>
+</div>
+
+<div class="table-wrap">
+  <app-page-state [loading]="loading()">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th>Almacén</th>
+            <th>Color</th>
+            <th>Talla</th>
+            <th class="text-end">Cantidad</th>
+            <th class="text-end">Reservado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td>{{ row.product?.name ?? '-' }}</td>
+              <td>{{ row.warehouse?.name ?? '-' }}</td>
+              <td>{{ row.color?.name ?? '-' }}</td>
+              <td>{{ row.size ?? '-' }}</td>
+              <td class="text-end">{{ row.quantity }}</td>
+              <td class="text-end">{{ row.reserved }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="6" class="text-center text-muted py-4">No hay registros de stock.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (totalPages() > 1) {
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">{{ rows().length }} de {{ total() }}</span>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage === 1">
+              <button class="page-link" (click)="goToPage(currentPage - 1)">&laquo;</button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="p === currentPage">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage + 1)">&raquo;</button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  </app-page-state>
+</div>

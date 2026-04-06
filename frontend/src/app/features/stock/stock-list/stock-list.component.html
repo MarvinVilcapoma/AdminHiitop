@@ -1,0 +1,274 @@
+﻿<div class="page-header">
+  <h1><i class="bi bi-boxes me-2 text-primary"></i>Stock</h1>
+  <div class="d-flex gap-2">
+    <button class="btn btn-success" (click)="openMovement('entry')">
+      <i class="bi bi-arrow-down-circle me-1"></i>Carga
+    </button>
+    <button class="btn btn-warning text-dark" (click)="openMovement('exit')">
+      <i class="bi bi-arrow-up-circle me-1"></i>Descarga
+    </button>
+    <a routerLink="/dashboard/stock/transfer" class="btn btn-primary">
+      <i class="bi bi-arrow-left-right me-1"></i>Transferir
+    </a>
+    <a routerLink="new" class="btn btn-outline-primary">
+      <i class="bi bi-plus-lg me-1"></i>Nuevo
+    </a>
+  </div>
+</div>
+
+<!-- Summary cards -->
+@if (summaries().length > 0) {
+  <div class="row g-3 mb-4">
+    @for (s of summaries(); track s.warehouse_id) {
+      <div class="col-6 col-md-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon" [class]="s.warehouse_type === 'store' ? 'bg-primary bg-opacity-10' : 'bg-success bg-opacity-10'">
+            <i class="bi" [class]="s.warehouse_type === 'store' ? 'bi-shop text-primary' : 'bi-building text-success'"></i>
+          </div>
+          <div>
+            <div class="stat-label">{{ s.warehouse_name }}</div>
+            <div class="stat-value">{{ s.total_quantity }}</div>
+            <div class="stat-sub">{{ s.total_items }} registros</div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}
+
+<!-- Warehouse filter buttons -->
+<div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+  <button class="btn btn-sm" [class]="activeWh() === 0 ? 'btn-primary' : 'btn-outline-secondary'" (click)="filterWh(0)">
+    <i class="bi bi-grid-3x3-gap me-1"></i>Todos
+  </button>
+  @for (w of storeWarehouses(); track w.id) {
+    <button class="btn btn-sm" [class]="activeWh() === w.id ? 'btn-primary' : 'btn-outline-secondary'" (click)="filterWh(w.id)">
+      <i class="bi bi-shop me-1"></i>{{ w.name }}
+    </button>
+  }
+  @if (depotWarehouses().length > 0) {
+    <div class="dropdown">
+      <button class="btn btn-sm dropdown-toggle" [class]="isDepotActive() ? 'btn-primary' : 'btn-outline-secondary'"
+        data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-building me-1"></i>Almacenes
+        <span class="badge bg-secondary ms-1">{{ depotWarehouses().length }}</span>
+      </button>
+      <ul class="dropdown-menu shadow-sm">
+        @for (w of depotWarehouses(); track w.id) {
+          <li>
+            <button class="dropdown-item" [class.active]="activeWh() === w.id" (click)="filterWh(w.id)">
+              <i class="bi bi-building me-2"></i>{{ w.name }}
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+  <a routerLink="/dashboard/settings/warehouses" [queryParams]="{returnUrl: '/dashboard/stock'}" class="btn btn-sm btn-outline-secondary ms-auto">
+    <i class="bi bi-plus me-1"></i>Agregar almacén
+  </a>
+</div>
+
+<!-- Filters -->
+<div class="filters-bar">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-sm-5 col-md-4">
+      <label class="filter-label" for="stock-search">Buscar</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input id="stock-search" type="search" class="form-control" placeholder="Producto o SKU..." [(ngModel)]="search" (input)="loadStocks()">
+      </div>
+    </div>
+    @if (colors().length > 0) {
+      <div class="col-6 col-sm-4 col-md-3">
+        <label class="filter-label" for="stock-color">Color</label>
+        <app-searchable-select
+          inputId="stock-color"
+          [options]="colors()"
+          [(ngModel)]="filterColorId"
+          (ngModelChange)="loadStocks()"
+          placeholder="Todos los colores"
+          searchPlaceholder="Buscar color…"
+        />
+      </div>
+    }
+    @if (productTypes().length > 0) {
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="filter-label" for="stock-type">Tipo</label>
+        <app-searchable-select
+          inputId="stock-type"
+          [options]="productTypes()"
+          [(ngModel)]="filterTypeId"
+          (ngModelChange)="loadStocks()"
+          placeholder="Todos los tipos"
+          searchPlaceholder="Buscar tipo…"
+        />
+      </div>
+    }
+    @if (collections().length > 0) {
+      <div class="col-6 col-sm-4 col-md-2">
+        <label class="filter-label" for="stock-collection">Colección</label>
+        <app-searchable-select
+          inputId="stock-collection"
+          [options]="collections()"
+          [(ngModel)]="filterCollectionId"
+          (ngModelChange)="loadStocks()"
+          placeholder="Todas las colecciones"
+          searchPlaceholder="Buscar colección…"
+        />
+      </div>
+    }
+    <div class="col-6 col-sm-3 col-md-2">
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" id="lowStock" [(ngModel)]="showLowStock" (change)="loadStocks()">
+        <label class="form-check-label small" for="lowStock">Stock bajo</label>
+      </div>
+    </div>
+    <div class="col-12 col-md-3 text-end d-flex align-items-center justify-content-end gap-2">
+      <small class="text-muted">{{ groupedStocks().length }} productos &middot; {{ stocks().length }} variantes</small>
+      @if (hasActiveFilters()) {
+        <button class="btn btn-sm btn-outline-secondary btn-clear-filters" (click)="clearFilters()" title="Limpiar filtros">
+          <i class="bi bi-x-circle me-1"></i>Limpiar
+        </button>
+      }
+      <button class="btn btn-xs btn-outline-secondary" (click)="expandAll()" title="Expandir todo"><i class="bi bi-chevron-expand"></i></button>
+      <button class="btn btn-xs btn-outline-secondary" (click)="collapseAll()" title="Contraer todo"><i class="bi bi-chevron-contract"></i></button>
+    </div>
+  </div>
+</div>
+
+<app-page-state [loading]="loading()">
+  <div class="table-wrap">
+    <table class="table stock-grouped-table">
+      <thead>
+        <tr>
+          <th>Producto</th><th>SKU</th><th>Color</th><th>Talla</th><th>Almacen</th>
+          <th class="text-end">Cantidad</th><th class="text-end">Reservado</th>
+          <th class="text-end">Disponible</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (groupedStocks().length === 0) {
+          <tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No hay registros</td></tr>
+        }
+        @for (g of pagedGroups(); track g.productId) {
+            <tr class="product-group-row"
+              tabindex="0"
+              (click)="toggleProduct(g.productId)"
+              (keydown.enter)="toggleProduct(g.productId)"
+              (keydown.space)="toggleProduct(g.productId); $event.preventDefault()">
+            <td class="fw-600">
+              <i class="bi expand-chevron me-1" [class]="isExpanded(g.productId) ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
+              <span [class]="g.totalQty === 0 ? 'text-danger' : g.lowStock ? 'text-warning' : ''">{{ g.productName }}</span>
+            </td>
+            <td><code class="text-muted small">{{ g.productSku || '-' }}</code></td>
+            <td class="text-muted small">-</td>
+            <td class="text-muted small">
+              <span class="badge bg-secondary-subtle text-secondary border">{{ g.variants.length }} presentación{{ g.variants.length !== 1 ? 'es' : '' }}</span>
+            </td>
+            <td></td>
+            <td class="text-end fw-bold" [class]="g.totalQty === 0 ? 'text-danger' : g.lowStock ? 'text-warning' : ''">{{ g.totalQty }}</td>
+            <td class="text-end text-muted">{{ g.totalReserved }}</td>
+            <td class="text-end">{{ g.totalAvailable }}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <button class="btn btn-xs btn-success" title="Carga" (click)="openMovement('entry'); $event.stopPropagation()"><i class="bi bi-arrow-down-circle"></i></button>
+                <button class="btn btn-xs btn-warning text-dark" title="Descarga" (click)="openMovement('exit'); $event.stopPropagation()"><i class="bi bi-arrow-up-circle"></i></button>
+              </div>
+            </td>
+          </tr>
+          @if (isExpanded(g.productId)) {
+            @for (s of g.variants; track s.id) {
+              <tr class="variant-row" [class.table-warning]="s.quantity > 0 && s.quantity <= 5" [class.table-danger]="s.quantity === 0">
+                <td class="ps-4 text-muted small variant-indent"><i class="bi bi-arrow-return-right me-1 opacity-40"></i>detalle</td>
+                <td></td>
+                <td>
+                  @if (s.color) {
+                    <span class="d-inline-flex align-items-center gap-1">
+                      <span class="color-dot border" [style.background]="s.color.hex_code"></span>{{ s.color.name }}
+                    </span>
+                  } @else { <span class="text-muted">-</span> }
+                </td>
+                <td>{{ s.size || '-' }}</td>
+                <td>
+                  <span class="badge" [class]="s.warehouse.type === 'store' ? 'bg-primary' : 'bg-success'">
+                    <i class="bi me-1" [class]="s.warehouse.type === 'store' ? 'bi-shop' : 'bi-building'"></i>{{ s.warehouse.name }}
+                  </span>
+                </td>
+                <td class="text-end fw-bold" [class]="s.quantity === 0 ? 'text-danger' : s.quantity <= 5 ? 'text-warning' : ''">{{ s.quantity }}</td>
+                <td class="text-end text-muted">{{ s.reserved }}</td>
+                <td class="text-end">{{ s.available }}</td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-xs btn-success" title="Carga" (click)="openMovement('entry', s); $event.stopPropagation()"><i class="bi bi-arrow-down-circle"></i></button>
+                    <button class="btn btn-xs btn-warning" title="Descarga" (click)="openMovement('exit', s); $event.stopPropagation()"><i class="bi bi-arrow-up-circle"></i></button>
+                    <button class="btn btn-xs btn-primary" title="Transferir a otro almacen" (click)="openMovement('transfer', s); $event.stopPropagation()"><i class="bi bi-arrow-left-right"></i></button>
+                    <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="deleteStock(s); $event.stopPropagation()"><i class="bi bi-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        }
+      </tbody>
+    </table>
+
+    @if (totalPages() > 1) {
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">Mostrando {{ pagedGroups().length }} de {{ groupedStocks().length }} productos</span>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" (click)="goToPage(1)">Primero</button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" (click)="goToPage(currentPage() - 1)"><i class="bi bi-chevron-left"></i></button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="p === currentPage()">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage() === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage() + 1)"><i class="bi bi-chevron-right"></i></button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === totalPages()">
+              <button class="page-link" (click)="goToPage(totalPages())">Último</button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  </div>
+</app-page-state>
+
+@if (movementMode()) {
+  <app-stock-movement-modal
+    [mode]="movementMode()!"
+    [preselectedItem]="movItem()"
+    [warehouses]="warehouses()"
+    [collections]="collections()"
+    (saved)="onMovementSaved()"
+    (closed)="closeModal()"
+  />
+}
+
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <div class="icon-circle-danger mb-3"><i class="bi bi-boxes text-danger fs-4"></i></div>
+          <h6 class="fw-600 mb-1">Eliminar registro de stock?</h6>
+          <p class="text-muted small mb-0">{{ delConfirm()!.message }}</p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary" (click)="delConfirm.set(null)">Cancelar</button>
+          <button class="btn btn-danger" (click)="delConfirm()!.action(); delConfirm.set(null)">
+            <i class="bi bi-trash me-1"></i>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

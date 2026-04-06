@@ -1,0 +1,282 @@
+<div class="page-container">
+
+  <!-- Header -->
+  <div class="page-header d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="mb-0"><i class="bi bi-receipt me-2"></i>Facturas Electrónicas</h2>
+      <small class="text-muted">Comprobantes emitidos vía SUNAT</small>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label mb-1 small fw-semibold">Buscar</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" placeholder="Número, cliente…"
+              [(ngModel)]="search" (keyup.enter)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1 small fw-semibold">Tipo</label>
+          <select class="form-select form-select-sm" [(ngModel)]="filterDocType" (change)="onFilterChange()">
+            <option value="">Todos</option>
+            <option value="01">Factura</option>
+            <option value="03">Boleta</option>
+            <option value="07">NC-Factura</option>
+            <option value="08">NC-Boleta</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1 small fw-semibold">Estado</label>
+          <select class="form-select form-select-sm" [(ngModel)]="filterStatus" (change)="onFilterChange()">
+            <option value="">Todos</option>
+            <option value="draft">Borrador</option>
+            <option value="pending">Enviando</option>
+            <option value="accepted">Aceptado</option>
+            <option value="rejected">Rechazado</option>
+            <option value="exception">Excepción</option>
+            <option value="error">Error</option>
+            <option value="cancelled">Anulado</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1 small fw-semibold">Desde</label>
+          <input type="date" class="form-control form-control-sm" [(ngModel)]="filterFrom" (change)="onFilterChange()" />
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1 small fw-semibold">Hasta</label>
+          <input type="date" class="form-control form-control-sm" [(ngModel)]="filterTo" (change)="onFilterChange()" />
+        </div>
+        <div class="col-md-1 text-end">
+          @if (hasFilters) {
+            <button class="btn btn-sm btn-outline-secondary btn-clear-filters" (click)="clearFilters()" title="Limpiar filtros">
+              <i class="bi bi-x-circle me-1"></i>Limpiar
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send result alert (toast-style) -->
+  @if (sendResult(); as result) {
+    <div class="alert alert-dismissible fade show mb-3"
+      [ngClass]="result.success ? 'alert-success' : 'alert-danger'" role="alert">
+      <i class="bi" [ngClass]="result.success ? 'bi-check-circle' : 'bi-exclamation-triangle'"></i>
+      {{ result.message }}
+      <button type="button" class="btn-close" (click)="sendResult.set(null)"></button>
+    </div>
+  }
+
+  <!-- Table -->
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Número</th>
+            <th>Tipo</th>
+            <th>Cliente</th>
+            <th>Doc. cliente</th>
+            <th class="text-end">Importe&nbsp;(S/)</th>
+            <th>Estado</th>
+            <th>Fecha</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading()) {
+            @for (_ of [1,2,3,4,5]; track $index) {
+              <tr>
+                @for (__ of [1,2,3,4,5,6,7,8]; track $index) {
+                  <td><span class="placeholder col-8 placeholder-sm rounded"></span></td>
+                }
+              </tr>
+            }
+          } @else if (invoices().length === 0) {
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">
+                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                @if (hasFilters) { No hay comprobantes con esos filtros. }
+                @else { No hay comprobantes emitidos aún. }
+              </td>
+            </tr>
+          } @else {
+            @for (inv of invoices(); track inv.id) {
+              <tr>
+                <td class="fw-semibold font-monospace small">{{ inv.full_number }}</td>
+                <td>
+                  <span class="badge text-bg-secondary">{{ docTypeLabel(inv.doc_type) }}</span>
+                </td>
+                <td class="text-truncate" style="max-width:180px">{{ inv.customer_name }}</td>
+                <td class="small text-muted">
+                  {{ inv.customer_doc_type === '6' ? 'RUC' : 'DNI' }}: {{ inv.customer_doc_number }}
+                </td>
+                <td class="text-end">{{ inv.mto_imp_venta | number:'1.2-2' }}</td>
+                <td>
+                  <span class="badge inv-status" [ngClass]="statusBadgeClass(inv.status)">
+                    {{ statusLabel(inv) }}
+                  </span>
+                </td>
+                <td class="small text-muted text-nowrap">{{ inv.issued_at | date:'dd/MM/yy HH:mm' }}</td>
+                <td class="text-center text-nowrap">
+
+                  <!-- Send -->
+                  @if (canSend(inv)) {
+                    <button class="btn btn-xs btn-outline-primary me-1"
+                      title="Enviar a SUNAT"
+                      [disabled]="sendingId() === inv.id"
+                      (click)="sendInvoice(inv)">
+                      @if (sendingId() === inv.id) {
+                        <span class="spinner-border spinner-border-sm"></span>
+                      } @else {
+                        <i class="bi bi-send"></i>
+                      }
+                    </button>
+                  }
+
+                  <!-- PDF -->
+                  <button class="btn btn-xs btn-outline-danger me-1"
+                    title="Descargar PDF"
+                    (click)="downloadPdf(inv)">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                  </button>
+
+                  <!-- XML -->
+                  @if (hasXml(inv)) {
+                    <button class="btn btn-xs btn-outline-secondary me-1"
+                      title="Descargar XML"
+                      (click)="downloadXml(inv)">
+                      <i class="bi bi-file-earmark-code"></i>
+                    </button>
+                  }
+
+                  <!-- CDR -->
+                  @if (inv.status === 'accepted') {
+                    <button class="btn btn-xs btn-outline-secondary me-1"
+                      title="Descargar CDR"
+                      (click)="downloadCdr(inv)">
+                      <i class="bi bi-file-earmark-zip"></i>
+                    </button>
+                  }
+
+                  <!-- Void -->
+                  @if (canVoid(inv)) {
+                    <button class="btn btn-xs btn-outline-warning"
+                      title="Anular (Nota de Crédito)"
+                      (click)="openVoid(inv)">
+                      <i class="bi bi-x-square"></i>
+                    </button>
+                  }
+
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages() > 1) {
+      <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">Página {{ currentPage }} de {{ totalPages() }} · {{ total() }} comprobantes</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage === 1">
+              <button class="page-link" (click)="goToPage(1)">Primero</button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage === 1">
+              <button class="page-link" (click)="goToPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="currentPage === p">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+              <button class="page-link" (click)="goToPage(totalPages())">Último</button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  </div>
+
+</div>
+
+<!-- ═══ Void / Nota de Crédito Modal ═══ -->
+@if (voidInvoice(); as inv) {
+  <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-x-square me-2 text-warning"></i>Anular comprobante</h5>
+          <button type="button" class="btn-close" (click)="cancelVoid()" [disabled]="saving()"></button>
+        </div>
+
+        @if (voidResult(); as res) {
+          <div class="modal-body">
+            <div class="alert" [ngClass]="res.success ? 'alert-success' : 'alert-danger'" role="alert">
+              <i class="bi" [ngClass]="res.success ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'"></i>
+              {{ res.message }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="cancelVoid()">Cerrar</button>
+          </div>
+        } @else {
+          <div class="modal-body">
+            <p class="mb-3">
+              Se emitirá una <strong>Nota de Crédito</strong> para anular el comprobante<br>
+              <span class="font-monospace fw-semibold">{{ inv.full_number }}</span>
+            </p>
+
+            @if (voidError()) {
+              <div class="alert alert-danger py-2 small">{{ voidError() }}</div>
+            }
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Motivo de anulación</label>
+              <select class="form-select form-select-sm" [(ngModel)]="voidForm.note_motive" (change)="onNoteMotive()">
+                @for (m of noteMotives; track m.value) {
+                  <option [value]="m.value">{{ m.value }} – {{ m.label }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Descripción del motivo</label>
+              <input type="text" class="form-control form-control-sm"
+                [(ngModel)]="voidForm.note_motive_desc"
+                placeholder="Descripción libre del motivo" />
+            </div>
+
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="autoSend"
+                [(ngModel)]="voidForm.auto_send" />
+              <label class="form-check-label small" for="autoSend">
+                Enviar automáticamente a SUNAT
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="cancelVoid()" [disabled]="saving()">Cancelar</button>
+            <button class="btn btn-warning" (click)="confirmVoid()" [disabled]="saving()">
+              @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+              Emitir Nota de Crédito
+            </button>
+          </div>
+        }
+
+      </div>
+    </div>
+  </div>
+}

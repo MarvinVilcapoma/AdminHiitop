@@ -1,0 +1,246 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/settings" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi bi-shield-check me-2 text-primary"></i>Roles
+  </h1>
+  <button class="btn btn-primary" (click)="toggleForm()">
+    <i class="bi" [class]="showForm() ? 'bi-x-lg' : 'bi-plus-lg'"></i>
+    {{ showForm() ? 'Cancelar' : 'Nuevo rol' }}
+  </button>
+</div>
+
+<p class="text-muted mb-3">Controla los accesos por módulo y separa POS de Guías.</p>
+
+<div class="row g-2 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="role-metric">
+      <div>
+        <small>Total roles</small>
+        <strong>{{ totalRoles() }}</strong>
+      </div>
+      <i class="bi bi-shield-check"></i>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="role-metric">
+      <div>
+        <small>Roles con usuarios</small>
+        <strong>{{ rolesWithUsers() }}</strong>
+      </div>
+      <i class="bi bi-people"></i>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="role-metric">
+      <div>
+        <small>Módulos disponibles</small>
+        <strong>{{ totalVisibleModules() }}</strong>
+      </div>
+      <i class="bi bi-grid"></i>
+    </div>
+  </div>
+</div>
+
+@if (showForm()) {
+  <div class="form-section mb-3">
+    <h6 class="form-section-title">Crear rol y seleccionar módulos</h6>
+
+    @if (formError()) {
+      <div class="alert alert-danger py-2 small">{{ formError() }}</div>
+    }
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-4">
+        <div class="form-label">Nombre del rol</div>
+        <input
+          type="text"
+          class="form-control"
+          [(ngModel)]="newName"
+          placeholder="Ej. vendedor tienda"
+          (keyup.enter)="create()" />
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="form-label">Módulos visibles</div>
+        @if (availableModules().length === 0) {
+          <div class="alert alert-warning py-2 mb-0 small">
+            No hay permisos base disponibles. Verifica la tabla de permisos.
+          </div>
+        } @else {
+          <div class="module-grid">
+            @for (module of availableModules(); track module.permission) {
+              <label class="module-card" [ngClass]="{ selected: hasCreateModule(module.permission) }">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  [checked]="hasCreateModule(module.permission)"
+                  (change)="toggleCreateModule(module.permission)" />
+                <div class="module-content">
+                  <div class="module-title">
+                    <i class="bi me-1" [class]="module.icon"></i>
+                    {{ module.label }}
+                  </div>
+                  <small class="text-muted">{{ module.description }}</small>
+                </div>
+              </label>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="col-12 d-flex justify-content-end">
+        <button class="btn btn-primary" [disabled]="saving()" (click)="create()">
+          @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-check-lg me-1"></i>Guardar rol
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="table-wrap">
+  <app-page-state [loading]="loading()">
+    <div class="row g-2 mb-2">
+      <div class="col-12 col-md-5 ms-md-auto">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input
+            class="form-control"
+            placeholder="Buscar rol o módulo..."
+            [ngModel]="searchTerm()"
+            (ngModelChange)="searchTerm.set($event)" />
+        </div>
+      </div>
+    </div>
+
+    @if (roles().length === 0) {
+      <div class="text-center text-muted py-5">
+        <i class="bi bi-shield fs-1 d-block mb-2 opacity-25"></i>
+        No hay roles registrados.
+      </div>
+    } @else if (filteredRoles().length === 0) {
+      <div class="text-center text-muted py-4">
+        <i class="bi bi-search fs-3 d-block mb-2 opacity-50"></i>
+        No hay roles que coincidan con la búsqueda.
+      </div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Rol</th>
+              <th>Módulos</th>
+              <th class="text-center">Usuarios</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (role of filteredRoles(); track role.id) {
+              <tr>
+                <td class="text-muted small">{{ role.id }}</td>
+                <td>
+                  <span class="role-chip">
+                    <i class="bi bi-shield me-1"></i>{{ role.name }}
+                  </span>
+                </td>
+                <td>
+                  @if (roleModules(role).length === 0) {
+                    <span class="text-muted small">Sin módulos</span>
+                  } @else {
+                    <div class="d-flex flex-wrap gap-1">
+                      @for (m of roleModules(role); track m.permission) {
+                        <span class="badge text-bg-light border module-badge">{{ m.label }}</span>
+                      }
+                    </div>
+                  }
+                </td>
+                <td class="text-center">
+                  <span class="badge bg-primary bg-opacity-10 text-primary">{{ role.users_count ?? 0 }}</span>
+                </td>
+                <td class="text-end">
+                  <div class="d-flex gap-1 justify-content-end">
+                    <button class="btn btn-xs btn-outline-primary" title="Editar" (click)="startEdit(role)">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="delete(role)">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-page-state>
+</div>
+
+@if (editRole(); as edit) {
+  <button type="button" class="modal-backdrop-blur" aria-label="Cerrar" (click)="closeEdit()"></button>
+  <div class="role-dialog card shadow-lg">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">Editar rol</h6>
+        <button class="btn btn-sm btn-light" (click)="closeEdit()">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      @if (editError()) {
+        <div class="alert alert-danger py-2 small">{{ editError() }}</div>
+      }
+
+      <div class="mb-3">
+        <div class="form-label">Nombre del rol</div>
+        <input class="form-control" [(ngModel)]="edit.name" />
+      </div>
+
+      <div class="form-label">Módulos visibles</div>
+      <div class="module-grid">
+        @for (module of availableModules(); track module.permission) {
+          <label class="module-card" [ngClass]="{ selected: hasEditModule(module.permission) }">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              [checked]="hasEditModule(module.permission)"
+              (change)="toggleEditModule(module.permission)" />
+            <div class="module-content">
+              <div class="module-title">
+                <i class="bi me-1" [class]="module.icon"></i>
+                {{ module.label }}
+              </div>
+              <small class="text-muted">{{ module.description }}</small>
+            </div>
+          </label>
+        }
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end mt-3">
+        <button class="btn btn-sm btn-outline-secondary" (click)="closeEdit()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" [disabled]="saving()" (click)="saveEdit()">
+          @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-check-lg me-1"></i>Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (delConfirm(); as d) {
+  <button type="button" class="modal-backdrop-blur" aria-label="Cerrar" (click)="delConfirm.set(null)"></button>
+  <div class="confirm-dialog card shadow-lg">
+    <div class="card-body">
+      <p class="mb-3">{{ d.message }}</p>
+      <div class="d-flex gap-2 justify-content-end">
+        <button class="btn btn-sm btn-outline-secondary" (click)="delConfirm.set(null)">Cancelar</button>
+        <button class="btn btn-sm btn-danger" (click)="d.action()">
+          <i class="bi bi-trash3 me-1"></i>Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+}

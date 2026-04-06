@@ -1,0 +1,182 @@
+<div class="page-header">
+  <h1><i class="bi bi-box-seam me-2 text-primary"></i>Productos</h1>
+  <a routerLink="/dashboard/products/new" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Nuevo producto
+  </a>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Total</div>
+      <div class="stat-value">{{ products().length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Activos</div>
+      <div class="stat-value text-success">{{ activeCount() }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Inactivos</div>
+      <div class="stat-value text-danger">{{ inactiveCount() }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Unidades Stock</div>
+      <div class="stat-value">{{ totalStock() }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filters-bar mb-3 d-flex flex-wrap align-items-center gap-2">
+  <input class="form-control filter-search" placeholder="Buscar por nombre o SKU…"
+    [(ngModel)]="search" (ngModelChange)="onSearch()" />
+
+  <div class="btn-group">
+    <button class="btn btn-outline-secondary btn-sm" [class.active]="statusFilter() === 'all'"
+      (click)="statusFilter.set('all'); onSearch()">Todos</button>
+    <button class="btn btn-outline-success btn-sm" [class.active]="statusFilter() === 'active'"
+      (click)="statusFilter.set('active'); onSearch()">Activos</button>
+    <button class="btn btn-outline-danger btn-sm" [class.active]="statusFilter() === 'inactive'"
+      (click)="statusFilter.set('inactive'); onSearch()">Inactivos</button>
+  </div>
+
+  <select class="form-select form-select-sm filter-type"
+    [(ngModel)]="typeFilter" (ngModelChange)="onSearch()">
+    <option value="">Todos los tipos</option>
+    @for (t of productTypes(); track t.id) {
+      <option [value]="t.id">{{ t.name }}</option>
+    }
+  </select>
+
+  @if (hasActiveFilters()) {
+    <button class="btn btn-sm btn-outline-secondary btn-clear-filters" (click)="clearFilters()" title="Limpiar filtros">
+      <i class="bi bi-x-circle me-1"></i>Limpiar
+    </button>
+  }
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <app-page-state [loading]="loading()">
+  @if (filtered().length === 0) {
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-box fs-1 d-block mb-2"></i>
+      No se encontraron productos.
+    </div>
+  } @else {
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Producto</th>
+          <th>SKU</th>
+          <th>Tipo</th>
+          <th>Colección</th>
+          <th class="text-end">Costo unit.</th>
+          <th class="text-end">Precio base</th>
+          <th class="text-center">Stock</th>
+          <th class="text-center">Estado</th>
+          <th class="text-center">Colores</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (p of pagedProducts(); track p.id) {
+          <tr>
+            <td class="fw-500">{{ p.name }}</td>
+            <td><code class="text-muted small">{{ p.sku }}</code></td>
+            <td>{{ p.product_type?.name ?? '—' }}</td>
+            <td>{{ p.collection?.name ?? '—' }}</td>
+            <td class="text-end">S/ {{ (p.unit_cost ?? 0) | number:'1.2-2' }}</td>
+            <td class="text-end">S/ {{ p.base_price | number:'1.2-2' }}</td>
+            <td class="text-center">
+              <span class="badge" [class]="(p.total_stock ?? 0) > 0 ? 'bg-light text-dark border' : 'bg-danger-subtle text-danger'">
+                {{ p.total_stock ?? 0 }}
+              </span>
+            </td>
+            <td class="text-center">
+              <button class="status-toggle-btn" [class.is-active]="p.is_active"
+                [title]="p.is_active ? 'Desactivar producto' : 'Activar producto'"
+                (click)="toggleActive(p)">
+                <i class="bi" [class]="p.is_active ? 'bi-toggle-on' : 'bi-toggle-off'"></i>
+                <span>{{ p.is_active ? 'Activo' : 'Inactivo' }}</span>
+              </button>
+            </td>
+            <td>
+              <div class="d-flex gap-1 flex-wrap justify-content-center">
+                @for (c of (p.colors ?? []); track c.name) {
+                  <span class="color-swatch" [style.background]="c.hex_code" [title]="c.name"></span>
+                }
+              </div>
+            </td>
+            <td class="text-end">
+              <a [routerLink]="['/dashboard/products', p.id]" class="btn btn-xs btn-outline-primary me-1" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="delete(p)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    @if (totalPages() > 1) {
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">Mostrando {{ pagedProducts().length }} de {{ filtered().length }} productos</span>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" (click)="goToPage(1)">Primero</button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" (click)="goToPage(currentPage() - 1)"><i class="bi bi-chevron-left"></i></button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="p === currentPage()">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage() === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage() + 1)"><i class="bi bi-chevron-right"></i></button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === totalPages()">
+              <button class="page-link" (click)="goToPage(totalPages())">Último</button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  }
+  </app-page-state>
+</div>
+
+<!-- Confirm delete modal -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <div class="icon-circle-danger mb-3">
+            <i class="bi bi-box text-danger fs-4"></i>
+          </div>
+          <h6 class="fw-600 mb-1">¿Eliminar producto?</h6>
+          <p class="text-muted small mb-0">{{ delConfirm()!.message }}</p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary" (click)="delConfirm.set(null)">Cancelar</button>
+          <button class="btn btn-danger" (click)="delConfirm()!.action(); delConfirm.set(null)">
+            <i class="bi bi-trash me-1"></i>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

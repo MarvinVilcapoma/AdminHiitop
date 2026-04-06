@@ -1,0 +1,77 @@
+/* Product Form Component Styles */
+
+.card-header {
+  font-size: .9rem;
+
+  .fw-600 { font-weight: 600; }
+}
+
+/* Color picker grid */
+.colors-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 2px solid #dee2e6;
+  background: #fff;
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 500;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+
+  &:hover {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, .1);
+  }
+
+  &.selected {
+    border-color: #0d9488;
+    background: #f0fdfa;
+  }
+}
+
+.color-dot {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, .15);
+  flex-shrink: 0;
+}
+
+.color-label {
+  line-height: 1;
+}
+
+.check-icon {
+  color: #0d9488;
+  font-size: .85rem;
+}
+
+/* Sticky actions card on large screens */
+@media (min-width: 992px) {
+  .actions-card {
+    position: sticky;
+    top: 80px;
+  }
+}
+
+/* IGV preview input */
+.bg-success-subtle {
+  background-color: #d1fae5 !important;
+}
+
+.font-monospace {
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+}
+
+.price-help {
+  min-height: 1rem;
+}

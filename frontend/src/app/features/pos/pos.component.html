@@ -1,0 +1,357 @@
+<div class="page-header">
+  <h1>
+    <i class="bi bi-shop-window me-2 text-primary"></i>
+    Punto de venta
+  </h1>
+  <div class="d-flex gap-2 flex-wrap">
+    <a [routerLink]="['/dashboard/orders']" [queryParams]="{ source: 'pos' }" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-graph-up-arrow me-1"></i>Ver ventas POS
+    </a>
+    <a routerLink="/dashboard/guides" class="btn btn-outline-success btn-sm">
+      <i class="bi bi-truck me-1"></i>Guías de remisión
+    </a>
+    <a routerLink="/dashboard/orders" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Pedidos
+    </a>
+  </div>
+</div>
+
+@if (error()) {
+  <div class="alert alert-danger py-2 mb-3">{{ error() }}</div>
+}
+@if (success()) {
+  <div class="alert alert-success py-2 mb-3">{{ success() }}</div>
+}
+@if (info()) {
+  <div class="alert alert-info py-2 mb-3">{{ info() }}</div>
+}
+
+<div class="pos-kpis d-xl-none mb-3">
+  <div class="kpi-chip">
+    <small>Almacén</small>
+    <strong>{{ selectedWarehouseName() }}</strong>
+  </div>
+  <div class="kpi-chip">
+    <small>Documento</small>
+    <strong>{{ selectedDocumentTypeName() }}</strong>
+  </div>
+  <div class="kpi-chip">
+    <small>Total</small>
+    <strong>S/ {{ total() | number:'1.2-2' }}</strong>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white py-3 fw-semibold d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span><i class="bi bi-lightning-charge me-2 text-primary"></i>Venta rápida</span>
+        <span class="badge bg-light text-dark border">
+          <i class="bi bi-shop me-1"></i>{{ selectedWarehouseName() }}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <label for="pos-warehouse" class="form-label">Tienda</label>
+            <select id="pos-warehouse" class="form-select" [(ngModel)]="selectedWarehouseId" (ngModelChange)="onWarehouseChange()">
+              @for (w of warehouses(); track w.id) {
+                <option [ngValue]="w.id">{{ w.name }}</option>
+              }
+            </select>
+            @if (hasMultiplePosStores()) {
+              <small class="text-muted d-block mt-1">Puedes cambiar de tienda para vender/facturar.</small>
+            }
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label for="pos-document-type" class="form-label">Tipo de documento</label>
+            <select id="pos-document-type" class="form-select" [(ngModel)]="selectedDocumentTypeId" (ngModelChange)="onDocumentTypeChange()">
+              @for (doc of documentTypes(); track doc.id) {
+                <option [ngValue]="doc.id">{{ doc.name }}</option>
+              }
+            </select>
+            <small class="text-muted d-block mt-1">Solo se muestran documentos de venta para tienda.</small>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label for="pos-payment" class="form-label">Método de pago</label>
+            <select id="pos-payment" class="form-select" [(ngModel)]="selectedPaymentMethodId">
+              <option [ngValue]="null">— Seleccionar —</option>
+              @for (m of paymentMethods(); track m.id) {
+                <option [ngValue]="m.id">{{ m.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label for="pos-product-search" class="form-label fw-semibold">Buscar producto o SKU</label>
+            <div class="pos-search-wrap">
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input
+                  id="pos-product-search"
+                  class="form-control"
+                  [(ngModel)]="productSearch"
+                  (input)="onProductSearchInput()"
+                  placeholder="Ej. Polo negro M o SKU..."
+                  autocomplete="off"
+                />
+                @if (productSearch || selectedColorId) {
+                  <button class="btn btn-outline-secondary" type="button" (click)="clearSearch()">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                }
+              </div>
+
+              <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+                <div class="color-filter-wrap">
+                  <label for="pos-color-filter" class="form-label small text-muted mb-1">Filtrar por color</label>
+                  <select id="pos-color-filter" class="form-select form-select-sm" [(ngModel)]="selectedColorId" (ngModelChange)="onColorFilterChange()">
+                    <option [ngValue]="null">Todos los colores</option>
+                    @for (color of colors(); track color.id) {
+                      <option [ngValue]="color.id">{{ color.name }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+
+              @if (searching()) {
+                <div class="search-state text-muted small py-2 px-1">Buscando productos...</div>
+              }
+
+              @if (!searching() && (productSearch.trim().length >= 2 || selectedColorId)) {
+                <div class="search-results shadow-sm">
+                  @if (searchResults().length > 0) {
+                    @for (item of searchResults(); track item.stock_id) {
+                      <button type="button" class="search-item" (click)="addVariantToCart(item)">
+                        <div class="search-item-main">
+                          <span class="fw-semibold">{{ item.product_name }}</span>
+                          @if (item.variant_label) {
+                            <span class="text-muted small"> · {{ item.variant_label }}</span>
+                          }
+                          @if (item.sku) {
+                            <small class="text-muted d-block">SKU: {{ item.sku }}</small>
+                          }
+                        </div>
+                        <div class="search-item-meta">
+                          <span class="badge bg-light text-dark border mb-1">Disp: {{ item.available_qty }}</span>
+                          <strong>S/ {{ item.unit_price | number:'1.2-2' }}</strong>
+                        </div>
+                      </button>
+                    }
+                  } @else {
+                    <div class="search-empty">No se encontraron variantes con stock disponible.</div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input
+                id="pos-customer-switch"
+                class="form-check-input"
+                type="checkbox"
+                [(ngModel)]="includeCustomerData"
+              />
+              <label for="pos-customer-switch" class="form-check-label fw-semibold">Añadir datos del cliente</label>
+            </div>
+          </div>
+
+          @if (requiresCustomerData()) {
+            <div class="col-12 col-md-4">
+              <label for="pos-customer" class="form-label">Cliente</label>
+              <input id="pos-customer" class="form-control" [(ngModel)]="customerName" placeholder="Nombre del cliente" />
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label for="pos-dni" class="form-label">DNI / RUC</label>
+              <input id="pos-dni" class="form-control" [(ngModel)]="customerDni" placeholder="Documento" />
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label for="pos-phone" class="form-label">Teléfono (opcional)</label>
+              <input id="pos-phone" class="form-control" [(ngModel)]="customerPhone" placeholder="Teléfono" />
+            </div>
+
+            <div class="col-12">
+              <label for="pos-address" class="form-label">Dirección (opcional)</label>
+              <input id="pos-address" class="form-control" [(ngModel)]="customerAddress" placeholder="Dirección del cliente" />
+            </div>
+          }
+
+          <div class="col-12">
+            <label for="pos-note" class="form-label">Observaciones</label>
+            <textarea id="pos-note" class="form-control" rows="2" [(ngModel)]="note" placeholder="Notas de la venta..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-3 fw-semibold d-flex align-items-center justify-content-between gap-2">
+        <span><i class="bi bi-bag-check me-2 text-primary"></i>Carrito</span>
+        @if (lines().length > 0) {
+          <button class="btn btn-sm btn-outline-secondary" (click)="clearCart()">
+            <i class="bi bi-trash3 me-1"></i>Vaciar
+          </button>
+        }
+      </div>
+      <div class="card-body p-0">
+        @if (lines().length === 0) {
+          <div class="empty-cart text-center text-muted py-4">
+            <i class="bi bi-basket fs-2 d-block mb-2 opacity-50"></i>
+            Busca productos y agrégalos al carrito.
+          </div>
+        } @else {
+          <div class="cart-list">
+            @for (line of lines(); track line.stock_id; let i = $index) {
+              <div class="cart-item">
+                <div class="cart-item-header">
+                  <div class="min-w-0">
+                    <div class="fw-semibold text-truncate">{{ line.product_name }}</div>
+                    @if (line.variant_label) {
+                      <small class="text-muted">{{ line.variant_label }}</small>
+                    }
+                  </div>
+                  <button type="button" class="btn btn-xs btn-outline-danger" (click)="removeLine(i)" title="Quitar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+
+                <div class="cart-item-body">
+                  <div>
+                    <small class="text-muted d-block mb-1">Disponible</small>
+                    <span class="badge bg-light text-dark border">{{ line.available_qty }}</span>
+                  </div>
+
+                  <div>
+                    <small class="text-muted d-block mb-1">Cantidad</small>
+                    <input
+                      type="number"
+                      class="form-control form-control-sm"
+                      [(ngModel)]="line.quantity"
+                      [ngModelOptions]="{ standalone: true }"
+                      min="1"
+                      [max]="line.available_qty"
+                      (ngModelChange)="onLineChange(i)"
+                    />
+                  </div>
+
+                  <div>
+                    <small class="text-muted d-block mb-1">Precio</small>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">S/</span>
+                      <input
+                        type="number"
+                        class="form-control text-end"
+                        [(ngModel)]="line.unit_price"
+                        [ngModelOptions]="{ standalone: true }"
+                        min="0"
+                        step="0.01"
+                        (ngModelChange)="onLineChange(i)"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <small class="text-muted d-block mb-1">Subtotal</small>
+                    <div class="fw-semibold text-end">S/ {{ line.subtotal | number:'1.2-2' }}</div>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm sticky-card">
+      <div class="card-header bg-white py-3 fw-semibold">
+        <i class="bi bi-calculator me-2 text-primary"></i>Cobro
+      </div>
+      <div class="card-body">
+        <div class="summary-row">
+          <span>Ítems</span>
+          <strong>{{ lineCount() }}</strong>
+        </div>
+        <div class="summary-row">
+          <span>Subtotal venta</span>
+          <strong>S/ {{ total() | number:'1.2-2' }}</strong>
+        </div>
+        <div class="summary-row">
+          <span>Costo estimado</span>
+          <strong>S/ {{ totalCost() | number:'1.2-2' }}</strong>
+        </div>
+        <div class="summary-row total-row">
+          <span>Utilidad estimada</span>
+          <strong [class.text-success]="totalProfit() >= 0" [class.text-danger]="totalProfit() < 0">
+            S/ {{ totalProfit() | number:'1.2-2' }}
+          </strong>
+        </div>
+
+        <div class="form-check mt-3">
+          <input id="printAfterSave" class="form-check-input" type="checkbox" [(ngModel)]="printAfterSave" />
+          <label for="printAfterSave" class="form-check-label small">Imprimir comprobante al registrar</label>
+        </div>
+
+        @if (printAfterSave) {
+          <div class="print-format-wrap mt-2">
+            <label for="pos-print-format" class="form-label small mb-1">Formato de impresión</label>
+            <select id="pos-print-format" class="form-select form-select-sm" [(ngModel)]="selectedPrintFormatId">
+              @for (format of getPrintFormatsForSelectedDocument(); track format.id) {
+                <option [ngValue]="format.id">{{ format.label }}</option>
+              }
+            </select>
+            <small class="text-muted d-block mt-1">{{ selectedPrintFormatDescription() }}</small>
+          </div>
+        }
+
+        <div class="d-grid gap-2 mt-3">
+          <button class="btn btn-outline-secondary btn-sm" (click)="printCurrentTicketTest()" [disabled]="lines().length === 0 || loading() || saving()">
+            <i class="bi bi-printer me-1"></i>Probar impresión local
+          </button>
+          <button class="btn btn-outline-info btn-sm" (click)="testBluetoothPrinter()" [disabled]="btTesting() || loading() || saving()">
+            @if (btTesting()) {
+              <span class="spinner-border spinner-border-sm me-1"></span>
+            } @else {
+              <i class="bi bi-bluetooth me-1"></i>
+            }
+            Probar impresora Bluetooth
+          </button>
+        </div>
+        <small class="text-muted d-block mt-2">Empareja la impresora en Windows antes de ejecutar la prueba Bluetooth.</small>
+
+        <button class="btn btn-primary w-100 mt-3" (click)="saveSale()" [disabled]="saving() || loading()">
+          @if (saving()) {
+            <span class="spinner-border spinner-border-sm me-1"></span> Registrando...
+          } @else {
+            <i class="bi bi-check2-circle me-1"></i>Cobrar y registrar venta
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (lines().length > 0) {
+  <div class="mobile-checkout-bar d-xl-none">
+    <div class="mobile-checkout-total">
+      <small>Total</small>
+      <strong>S/ {{ total() | number:'1.2-2' }}</strong>
+    </div>
+    <button class="btn btn-primary" (click)="saveSale()" [disabled]="saving() || loading()">
+      @if (saving()) {
+        <span class="spinner-border spinner-border-sm me-1"></span>
+      } @else {
+        <i class="bi bi-check2-circle me-1"></i>
+      }
+      Cobrar
+    </button>
+  </div>
+}

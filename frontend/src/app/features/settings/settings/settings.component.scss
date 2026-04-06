@@ -1,0 +1,19 @@
+.config-card {
+  display: block;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  color: inherit;
+  transition: box-shadow .2s, border-color .2s;
+
+  &:hover {
+    border-color: #0d9488;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, .15);
+  }
+}
+
+.config-icon {
+  font-size: 1.75rem;
+  color: #0d9488;
+}

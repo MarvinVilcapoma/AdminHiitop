@@ -1,0 +1,306 @@
+// ─── Dashboard ──────────────────────────────────────────────────────────────
+
+:host {
+  display: block;
+}
+
+// ── Header ───────────────────────────────────────────────────────────────────
+.dash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+
+  .dash-title {
+    h4 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: .15rem;
+    }
+    .dash-subtitle {
+      font-size: .825rem;
+      color: #64748b;
+    }
+  }
+
+  .dash-filters {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+  }
+}
+
+// ── KPI Cards ────────────────────────────────────────────────────────────────
+.kpi-outer {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,.07);
+  height: 100%;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.kpi-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  position: relative;
+
+  .kpi-label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .3rem;
+  }
+
+  .kpi-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1;
+    margin-bottom: .4rem;
+  }
+
+  .kpi-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .18rem .45rem;
+    border-radius: 20px;
+    background: #dcfce7;
+    color: #16a34a;
+  }
+
+  .kpi-corner {
+    position: absolute;
+    top: .75rem;
+    right: .75rem;
+    font-size: .9rem;
+  }
+}
+
+// ── Chart card ───────────────────────────────────────────────────────────────
+.chart-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,.07);
+  height: 100%;
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .75rem;
+  }
+
+  .card-title {
+    font-size: .875rem;
+    font-weight: 600;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+
+  .chart-area {
+    position: relative;
+    min-height: 200px;
+    canvas { width: 100% !important; }
+  }
+}
+
+// ── Donut legend ─────────────────────────────────────────────────────────────
+.donut-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  .donut-canvas-wrap {
+    width: 160px;
+    height: 160px;
+    position: relative;
+  }
+
+  .donut-legend {
+    width: 100%;
+    margin-top: .75rem;
+    font-size: .78rem;
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .2rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      &:last-child { border-bottom: none; }
+    }
+
+    .dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-right: .4rem;
+      flex-shrink: 0;
+    }
+
+    .legend-label {
+      flex: 1;
+      color: #475569;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .legend-val {
+      font-weight: 600;
+      color: #1e293b;
+      white-space: nowrap;
+      margin-left: .5rem;
+    }
+  }
+}
+
+// ── Ranking bars ─────────────────────────────────────────────────────────────
+.rank-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    padding: .45rem 0;
+    border-bottom: 1px solid #f8fafc;
+    &:last-child { border-bottom: none; }
+  }
+
+  .rank-row {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: .2rem;
+  }
+
+  .rank-name {
+    font-size: .79rem;
+    color: #334155;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rank-val {
+    font-size: .78rem;
+    font-weight: 600;
+    color: #1e293b;
+    white-space: nowrap;
+  }
+
+  .rank-bar-bg {
+    background: #f1f5f9;
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+  }
+
+  .rank-bar-fill {
+    height: 6px;
+    border-radius: 4px;
+    background: #3b82f6;
+    transition: width .4s ease;
+  }
+}
+
+// ── Seller cards ─────────────────────────────────────────────────────────────
+.seller-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    padding: .6rem .25rem;
+    border-bottom: 1px solid #f1f5f9;
+    &:last-child { border-bottom: none; }
+  }
+
+  .seller-info {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: .25rem;
+  }
+
+  .seller-name {
+    font-size: .83rem;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .seller-revenue {
+    font-size: .83rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .seller-meta {
+    font-size: .72rem;
+    color: #94a3b8;
+    margin-bottom: .2rem;
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  text-align: center;
+
+  i {
+    font-size: 2.5rem;
+    color: #cbd5e1;
+    margin-bottom: .75rem;
+  }
+
+  p {
+    font-size: .82rem;
+    color: #94a3b8;
+    max-width: 260px;
+    line-height: 1.5;
+    margin: 0;
+  }
+}
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+.btn-xs {
+  padding: .18rem .5rem;
+  font-size: .72rem;
+  border-radius: 6px;
+}
+
+.section-gap {
+  margin-bottom: 1.25rem;
+}

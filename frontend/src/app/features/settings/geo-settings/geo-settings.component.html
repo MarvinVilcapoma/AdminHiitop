@@ -1,0 +1,211 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/settings" class="btn btn-sm btn-outline-secondary me-2" title="Volver">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi bi-geo-alt me-2 text-primary"></i>
+    Provincias y distritos
+  </h1>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span class="fw-semibold">Provincias</span>
+        <button class="btn btn-sm btn-primary" (click)="openProvinceCreate()">
+          <i class="bi bi-plus-lg me-1"></i>Nueva provincia
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="input-group input-group-sm mb-3">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input
+            class="form-control"
+            [(ngModel)]="provinceSearch"
+            (input)="onProvinceSearch()"
+            placeholder="Buscar por nombre o código..." />
+        </div>
+
+        @if (loadingProvinces()) {
+          <div class="text-center text-muted py-4">Cargando provincias...</div>
+        } @else {
+          <div class="province-list border rounded overflow-auto">
+            @for (p of provinces(); track p.id) {
+              <div class="province-row" [class.active]="selectedProvince()?.id === p.id">
+                <button type="button" class="province-select" (click)="selectProvince(p)">
+                  <div class="fw-semibold">{{ p.name }}</div>
+                  <small class="text-muted">{{ p.code || 'Sin código' }}</small>
+                </button>
+
+                <div class="d-flex gap-1">
+                  <button class="btn btn-xs btn-outline-primary" (click)="openProvinceEdit(p)" title="Editar provincia">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-xs btn-outline-danger" (click)="requestDeleteProvince(p)" title="Eliminar provincia">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            } @empty {
+              <div class="text-center text-muted py-4">No se encontraron provincias.</div>
+            }
+          </div>
+
+          @if (provincePageCount() > 1) {
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <button class="btn btn-sm btn-outline-secondary" (click)="goProvincePage(provincePage - 1)" [disabled]="provincePage === 1">Anterior</button>
+              <small class="text-muted">Página {{ provincePage }} de {{ provincePageCount() }}</small>
+              <button class="btn btn-sm btn-outline-secondary" (click)="goProvincePage(provincePage + 1)" [disabled]="provincePage === provincePageCount()">Siguiente</button>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <div>
+          <div class="fw-semibold">Distritos</div>
+          <small class="text-muted">{{ selectedProvince()?.name || 'Selecciona una provincia' }}</small>
+        </div>
+
+        <button class="btn btn-sm btn-primary" (click)="openDistrictCreate()" [disabled]="!selectedProvince()">
+          <i class="bi bi-plus-lg me-1"></i>Nuevo distrito
+        </button>
+      </div>
+
+      <div class="card-body">
+        @if (!selectedProvince()) {
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-geo-alt fs-2 d-block mb-2 opacity-50"></i>
+            Selecciona una provincia para ver sus distritos.
+          </div>
+        } @else {
+          <div class="input-group input-group-sm mb-3">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input
+              class="form-control"
+              [(ngModel)]="districtSearch"
+              (input)="onDistrictSearch()"
+              placeholder="Buscar distrito por nombre o código..." />
+          </div>
+
+          @if (loadingDistricts()) {
+            <div class="text-center text-muted py-4">Cargando distritos...</div>
+          } @else {
+            <div class="table-responsive border rounded">
+              <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Código</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (d of districts(); track d.id) {
+                    <tr>
+                      <td>{{ d.name }}</td>
+                      <td class="text-muted">{{ d.code || '—' }}</td>
+                      <td class="text-end">
+                        <button class="btn btn-xs btn-outline-primary me-1" (click)="openDistrictEdit(d)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-xs btn-outline-danger" (click)="requestDeleteDistrict(d)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-4">No hay distritos registrados para esta provincia.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (districtPageCount() > 1) {
+              <div class="d-flex justify-content-between align-items-center mt-3">
+                <button class="btn btn-sm btn-outline-secondary" (click)="goDistrictPage(districtPage - 1)" [disabled]="districtPage === 1">Anterior</button>
+                <small class="text-muted">Página {{ districtPage }} de {{ districtPageCount() }}</small>
+                <button class="btn btn-sm btn-outline-secondary" (click)="goDistrictPage(districtPage + 1)" [disabled]="districtPage === districtPageCount()">Siguiente</button>
+              </div>
+            }
+          }
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+@if (provinceModalOpen()) {
+  <div class="modal-backdrop-custom" (click)="closeProvinceModal()"></div>
+  <div class="edit-modal">
+    <h5 class="mb-3">{{ editingProvinceId ? 'Editar provincia' : 'Nueva provincia' }}</h5>
+    <div class="mb-2">
+      <label class="form-label">Nombre</label>
+      <input class="form-control" [(ngModel)]="provinceForm.name" />
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Código</label>
+      <input class="form-control" [(ngModel)]="provinceForm.code" maxlength="10" />
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-outline-secondary" (click)="closeProvinceModal()" [disabled]="saving()">Cancelar</button>
+      <button class="btn btn-primary" (click)="saveProvince()" [disabled]="saving()">
+        @if (saving()) {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Guardar
+      </button>
+    </div>
+  </div>
+}
+
+@if (districtModalOpen()) {
+  <div class="modal-backdrop-custom" (click)="closeDistrictModal()"></div>
+  <div class="edit-modal">
+    <h5 class="mb-3">{{ editingDistrictId ? 'Editar distrito' : 'Nuevo distrito' }}</h5>
+    <div class="mb-2">
+      <label class="form-label">Nombre</label>
+      <input class="form-control" [(ngModel)]="districtForm.name" />
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Código</label>
+      <input class="form-control" [(ngModel)]="districtForm.code" maxlength="20" />
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-outline-secondary" (click)="closeDistrictModal()" [disabled]="saving()">Cancelar</button>
+      <button class="btn btn-primary" (click)="saveDistrict()" [disabled]="saving()">
+        @if (saving()) {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Guardar
+      </button>
+    </div>
+  </div>
+}
+
+@if (confirmDelete(); as del) {
+  <div class="modal-backdrop-custom" (click)="cancelDelete()"></div>
+  <div class="confirm-modal">
+    <div class="confirm-modal-icon text-danger"><i class="bi bi-trash3-fill"></i></div>
+    <h5 class="mb-2">¿Eliminar {{ del.type === 'province' ? 'provincia' : 'distrito' }}?</h5>
+    <p class="text-muted mb-3">
+      Esta acción eliminará <strong>{{ del.name }}</strong>.
+    </p>
+    <div class="d-flex justify-content-center gap-2">
+      <button class="btn btn-outline-secondary" (click)="cancelDelete()" [disabled]="saving()">Cancelar</button>
+      <button class="btn btn-danger" (click)="executeDelete()" [disabled]="saving()">
+        @if (saving()) {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Eliminar
+      </button>
+    </div>
+  </div>
+}

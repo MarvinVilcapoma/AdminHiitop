@@ -1,0 +1,114 @@
+<div class="page-header">
+  <h1>
+    <i class="bi bi-tags me-2 text-primary"></i>Promociones
+  </h1>
+  <a routerLink="/dashboard/promotions/new" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Nueva promoción
+  </a>
+</div>
+
+<app-page-state [loading]="loading()">
+
+<div class="filters-bar mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <div class="btn-group btn-group-sm" role="group">
+      <button class="btn btn-outline-secondary" [class.active]="statusFilter() === 'all'" (click)="statusFilter.set('all')">Todas</button>
+      <button class="btn btn-outline-success"   [class.active]="statusFilter() === 'active'" (click)="statusFilter.set('active')">Activas</button>
+      <button class="btn btn-outline-danger"    [class.active]="statusFilter() === 'inactive'" (click)="statusFilter.set('inactive')">Inactivas</button>
+    </div>
+    <small class="text-muted ms-auto">{{ filtered().length }} promoción(es)</small>
+  </div>
+</div>
+
+@if (!filtered().length) {
+  <div class="empty-state">
+    <i class="bi bi-tags display-4 text-muted mb-3"></i>
+    <p class="text-muted">No hay promociones registradas.</p>
+    <a routerLink="/dashboard/promotions/new" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Crear primera promoción
+    </a>
+  </div>
+} @else {
+  <div class="row g-3">
+    @for (p of filtered(); track p.id) {
+      <div class="col-sm-6 col-xl-4">
+        <div class="card promo-card border-0 shadow-sm h-100" [class.inactive]="!p.is_active">
+          <div class="card-body">
+            <div class="d-flex align-items-start gap-2 mb-2">
+              <div class="promo-icon">
+                <i class="bi bi-gift"></i>
+              </div>
+              <div class="flex-grow-1 min-w-0">
+                <h6 class="fw-600 mb-0 text-truncate">{{ p.name }}</h6>
+                @if (p.description) {
+                  <small class="text-muted">{{ p.description }}</small>
+                }
+              </div>
+              <button class="status-toggle-btn" [class.is-active]="p.is_active"
+                [title]="p.is_active ? 'Desactivar promoción' : 'Activar promoción'"
+                (click)="toggleActive(p)">
+                <i class="bi" [class]="p.is_active ? 'bi-toggle-on' : 'bi-toggle-off'"></i>
+                <span>{{ p.is_active ? 'Activa' : 'Inactiva' }}</span>
+              </button>
+            </div>
+
+            <!-- items preview -->
+            @if (p.items?.length) {
+              <ul class="item-list mb-2">
+                @for (item of p.items; track $index) {
+                  <li>
+                    <span class="qty-badge">{{ item.quantity }}×</span>
+                    {{ item.product?.name ?? ('Producto #' + item.product_id) }}
+                    @if (item.unit_price) {
+                      <span class="text-muted ms-1">S/ {{ item.unit_price | number:'1.2-2' }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+
+            <!-- fixed price -->
+            @if (p.fixed_price) {
+              <div class="fixed-price-row">
+                <img src="" alt="" class="d-none">
+                <span class="small text-muted">Precio fijo:</span>
+                <span class="fw-700 text-success ms-1">S/ {{ p.fixed_price | number:'1.2-2' }}</span>
+              </div>
+            }
+          </div>
+          <div class="card-footer bg-transparent border-0 d-flex gap-2 pt-0">
+            <a [routerLink]="['/dashboard/promotions', p.id]" class="btn btn-sm btn-outline-primary flex-grow-1">
+              <i class="bi bi-pencil me-1"></i>Editar
+            </a>
+            <button class="btn btn-sm btn-outline-danger" title="Eliminar" (click)="confirmDelete(p)">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}
+</app-page-state>
+
+<!-- Delete modal -->
+@if (delTarget()) {
+  <div class="modal-overlay" (click)="cancelDelete()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="icon-circle-danger mb-3">
+        <i class="bi bi-trash3-fill"></i>
+      </div>
+      <h5 class="fw-600 mb-1">Eliminar promoción</h5>
+      <p class="text-muted small mb-4">
+        ¿Seguro quieres eliminar <strong>{{ delTarget()!.name }}</strong>? Esta acción no se puede deshacer.
+      </p>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary flex-grow-1" (click)="cancelDelete()">Cancelar</button>
+        <button class="btn btn-danger flex-grow-1" [disabled]="deleting()" (click)="doDelete()">
+          @if (deleting()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+}

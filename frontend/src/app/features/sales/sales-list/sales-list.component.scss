@@ -1,0 +1,24 @@
+.modal-overlay { background: rgba(0, 0, 0, .5); }
+
+.icon-circle-danger {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, .1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sale-row {
+  cursor: pointer;
+  &:hover td { background: #f0fdf4 !important; }
+}
+
+.expanded-row td { background: #f9fafb; }
+
+.items-table-wrap {
+  border-top: 2px solid #0d9488;
+  .table { font-size: .8rem; }
+  .table th { font-size: .7rem; }
+}

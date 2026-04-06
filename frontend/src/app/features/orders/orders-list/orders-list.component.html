@@ -1,0 +1,428 @@
+<!-- Page header -->
+<div class="page-header">
+  <h1><i class="bi bi-bag me-2 text-primary"></i>Pedidos</h1>
+  <a routerLink="/dashboard/orders/new" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Nuevo pedido
+  </a>
+</div>
+
+@if (guideNotice(); as notice) {
+  <div class="alert" [class.alert-success]="notice.type === 'success'" [class.alert-danger]="notice.type === 'danger'" role="alert">
+    <i class="bi me-2" [class.bi-check-circle-fill]="notice.type === 'success'" [class.bi-exclamation-triangle-fill]="notice.type === 'danger'"></i>
+    {{ notice.message }}
+  </div>
+}
+
+<!-- Summary cards -->
+@if (summary(); as s) {
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-sm-4">
+      <div class="stat-card d-flex align-items-center gap-3">
+        <div class="stat-icon bg-primary bg-opacity-10">
+          <i class="bi bi-bag-check text-primary"></i>
+        </div>
+        <div>
+          <div class="stat-label">Total pedidos</div>
+          <div class="stat-value">{{ s.total_orders | number }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4">
+      <div class="stat-card d-flex align-items-center gap-3">
+        <div class="stat-icon icon-orange">
+          <i class="bi bi-clock-history"></i>
+        </div>
+        <div>
+          <div class="stat-label">Pendientes de envío</div>
+          <div class="stat-value text-warning">{{ s.pending_shipping | number }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="stat-card d-flex align-items-center gap-3">
+        <div class="stat-icon icon-yellow">
+          <i class="bi bi-currency-dollar"></i>
+        </div>
+        <div>
+          <div class="stat-label">Ingresos totales</div>
+          <div class="stat-value">S/ {{ s.total_revenue | number:'1.2-2' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Filters -->
+<div class="filter-wrap mb-3 p-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label small text-muted mb-1">Buscar</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" class="form-control form-control-sm"
+               placeholder="Nº pedido, cliente, DNI, teléfono…"
+               [(ngModel)]="search" (input)="onSearchInput()">
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Estado</label>
+      <app-searchable-select
+        [(ngModel)]="filterStatusId"
+        (ngModelChange)="onFilterChange()"
+        [options]="orderStatuses()"
+        placeholder="Todos"
+        searchPlaceholder="Buscar estado...">
+      </app-searchable-select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Colección</label>
+      <app-searchable-select
+        [(ngModel)]="filterCollectionId"
+        (ngModelChange)="onFilterChange()"
+        [options]="collections()"
+        placeholder="Todas"
+        searchPlaceholder="Buscar colección...">
+      </app-searchable-select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Tipo producto</label>
+      <app-searchable-select
+        [(ngModel)]="filterTypeId"
+        (ngModelChange)="onFilterChange()"
+        [options]="productTypes()"
+        placeholder="Todos"
+        searchPlaceholder="Buscar tipo...">
+      </app-searchable-select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Canal</label>
+      <select class="form-select form-select-sm" [(ngModel)]="filterSource" (change)="onFilterChange()">
+        <option value="">Todos</option>
+        <option value="pos">Solo POS</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Desde</label>
+      <input type="date" class="form-control form-control-sm" [(ngModel)]="filterFromDate" (change)="onFilterChange()">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Hasta</label>
+      <input type="date" class="form-control form-control-sm" [(ngModel)]="filterToDate" (change)="onFilterChange()">
+    </div>
+    <div class="col-6 col-md-2 d-flex align-items-end">
+      @if (hasFilters) {
+        <button class="btn btn-sm btn-outline-secondary btn-clear-filters w-100" (click)="clearFilters()">
+          <i class="bi bi-x-circle me-1"></i>Limpiar
+        </button>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <app-page-state [loading]="loading()">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Estado</th>
+            <th>Agencia</th>
+            <th>DNI</th>
+            <th>Cliente</th>
+            <th>Provincia</th>
+            <th>Distrito</th>
+            <th>Registrado por</th>
+            <th class="text-end">Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of orders(); track row.id) {
+            <tr>
+              <td class="text-muted">{{ row.order_date | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                @if (editingStatusOrderId() === row.id) {
+                  <select class="form-select form-select-xs status-select"
+                          [ngModel]="row.order_status_id"
+                          (ngModelChange)="changeStatus(row, $event)"
+                          (blur)="cancelEditStatus()"
+                          #statusSel
+                          autofocus>
+                    @for (s of orderStatuses(); track s.id) {
+                      <option [value]="s.id">{{ s.name }}</option>
+                    }
+                  </select>
+                } @else {
+                  @if (isStatusLocked(row)) {
+                    <span class="badge text-white status-badge"
+                          [style.background]="row.order_status?.color || '#6b7280'"
+                          title="Estado bloqueado">
+                      {{ row.order_status?.name }}
+                      <i class="bi bi-lock-fill ms-1 opacity-75" style="font-size:.65rem"></i>
+                    </span>
+                  } @else {
+                    <span class="badge text-white status-badge"
+                          [style.background]="row.order_status?.color || '#6b7280'"
+                          title="Click para cambiar estado"
+                          (click)="startEditStatus(row)">
+                      {{ row.order_status?.name }}
+                      <i class="bi bi-pencil-fill ms-1 opacity-50" style="font-size:.65rem"></i>
+                    </span>
+                  }
+                }
+              </td>
+              <td class="text-muted small">{{ row.shipping_agency?.name ?? '—' }}</td>
+              <td class="text-muted">{{ row.dni ?? '—' }}</td>
+              <td class="fw-500">{{ row.customer_name ?? '—' }}</td>
+              <td class="text-muted small">{{ row.province?.name ?? '—' }}</td>
+              <td class="text-muted small">{{ row.district?.name ?? '—' }}</td>
+              <td class="text-muted small">
+                @if (row.user) {
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                    <i class="bi bi-person me-1"></i>{{ row.user.name }}
+                  </span>
+                } @else { — }
+              </td>
+              <td class="text-end fw-500">S/ {{ row.total | number:'1.2-2' }}</td>
+              <td class="text-end">
+                <div class="d-flex gap-1 justify-content-end">
+                  @if (isGuideOrder(row)) {
+                    <button class="btn btn-xs btn-outline-success" title="Emitir guía de remisión"
+                      (click)="emitGuide(row)"
+                      [disabled]="guideBusyId() === row.id || row.guide_status === 'accepted'">
+                      @if (guideBusyId() === row.id) {
+                        <span class="spinner-border spinner-border-sm"></span>
+                      } @else {
+                        <i class="bi bi-truck"></i>
+                      }
+                    </button>
+                  } @else if (canEmit(row)) {
+                  <button class="btn btn-xs btn-outline-success" title="Emitir comprobante"
+                    (click)="openEmit(row)">
+                    <i class="bi bi-receipt"></i>
+                  </button>
+                  } @else {
+                  <span class="btn btn-xs btn-outline-secondary disabled" title="Ya tiene comprobante emitido">
+                    <i class="bi bi-receipt-cutoff"></i>
+                  </span>
+                  }
+                  <a [routerLink]="['/dashboard/orders', row.id]" class="btn btn-xs btn-outline-primary" title="Editar">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  @if (canDelete(row)) {
+                    <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="requestDelete(row)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="10" class="text-center text-muted py-5">
+              <i class="bi bi-bag fs-1 d-block mb-2 opacity-25"></i>No hay pedidos registrados.
+            </td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">Mostrando {{ orders().length }} de {{ total() }} pedidos</span>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage === 1">
+              <button class="page-link" (click)="goToPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="p === currentPage">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  </app-page-state>
+</div>
+
+<!-- Delete confirmation modal -->
+@if (confirmDeleteOrder(); as order) {
+  <div class="modal-backdrop-custom" (click)="cancelDelete()"></div>
+  <div class="confirm-modal">
+    <div class="confirm-modal-icon text-danger"><i class="bi bi-trash3-fill"></i></div>
+    <h5 class="mb-1">¿Eliminar pedido?</h5>
+    <p class="text-muted small mb-3">
+      Se eliminará el pedido de <strong>{{ order.customer_name || 'cliente desconocido' }}</strong>
+      ({{ order.order_number || '#' + order.id }}). Esta acción no se puede deshacer.
+    </p>
+    <div class="d-flex gap-2 justify-content-center">
+      <button class="btn btn-sm btn-secondary" (click)="cancelDelete()" [disabled]="saving()">Cancelar</button>
+      <button class="btn btn-sm btn-danger" (click)="confirmDelete()" [disabled]="saving()">
+        @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        Eliminar
+      </button>
+    </div>
+  </div>
+}
+
+<!-- ═══ Emit Invoice Modal ═══ -->
+@if (emitOrder(); as order) {
+  <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-receipt me-2 text-success"></i>
+            Emitir comprobante — Pedido #{{ order.order_number ?? order.id }}
+          </h5>
+          <button type="button" class="btn-close" (click)="cancelEmit()" [disabled]="emitLoading()"></button>
+        </div>
+
+        @if (emitResult(); as res) {
+          <!-- Result view -->
+          <div class="modal-body">
+            <div class="alert" [class.alert-success]="res.success" [class.alert-warning]="!res.success" role="alert">
+              <i class="bi me-2"
+                [class.bi-check-circle-fill]="res.success"
+                [class.bi-exclamation-triangle-fill]="!res.success"></i>
+              @if (res.success) { Comprobante emitido correctamente. }
+              @else { Comprobante guardado con estado pendiente. }
+              @if (res.description) { <br><small>{{ res.description }}</small> }
+              @if (res.code) { <br><small class="text-muted">Código SUNAT: {{ res.code }}</small> }
+            </div>
+            <p class="text-muted small mb-0">
+              Puedes ver y descargar el comprobante desde
+              <a routerLink="/dashboard/invoices" (click)="cancelEmit()">Facturas Electrónicas</a>.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="cancelEmit()">Cerrar</button>
+            <a class="btn btn-outline-primary btn-sm" routerLink="/dashboard/invoices" (click)="cancelEmit()">
+              <i class="bi bi-receipt me-1"></i>Ver facturas
+            </a>
+          </div>
+
+        } @else {
+          <!-- Form view -->
+          <div class="modal-body">
+            @if (emitError()) {
+              <div class="alert alert-danger py-2 small">{{ emitError() }}</div>
+            }
+
+            <div class="row g-3">
+              <!-- Doc type -->
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Tipo de comprobante</label>
+                <select class="form-select form-select-sm"
+                  [(ngModel)]="emitForm.doc_type"
+                  (change)="onEmitDocTypeChange()">
+                  <option value="01">Factura (01)</option>
+                  <option value="03">Boleta (03)</option>
+                </select>
+              </div>
+              <!-- Series (auto-seleccionada) -->
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Serie</label>
+                @if (filteredSeries().length > 0) {
+                  <div class="form-control form-control-sm bg-light text-muted" style="cursor:default">
+                    <i class="bi bi-check-circle-fill text-success me-1"></i>
+                    {{ filteredSeries()[0].serie }} &nbsp;·&nbsp; Nº {{ filteredSeries()[0].next_number }}
+                  </div>
+                  <small class="text-muted">Asignada automáticamente</small>
+                } @else {
+                  <div class="form-control form-control-sm bg-light">—</div>
+                  <small class="text-danger">No hay series activas para este tipo.</small>
+                }
+              </div>
+              <!-- Payment -->
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Forma de pago</label>
+                <select class="form-select form-select-sm" [(ngModel)]="emitForm.form_of_payment">
+                  <option value="contado">Contado</option>
+                  <option value="credito">Crédito</option>
+                </select>
+              </div>
+              <!-- Payment method -->
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Método de pago</label>
+                <select class="form-select form-select-sm" [(ngModel)]="emitForm.payment_method_id">
+                  <option [ngValue]="null">— Sin especificar —</option>
+                  @for (pm of paymentMethods(); track pm.id) {
+                    <option [ngValue]="pm.id">{{ pm.name }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="col-12"><hr class="my-0"></div>
+
+              <!-- Customer doc type -->
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Doc. cliente</label>
+                <select class="form-select form-select-sm" [(ngModel)]="emitForm.customer_doc_type"
+                  [disabled]="emitForm.doc_type === '01'">
+                  <option value="1">DNI</option>
+                  <option value="6">RUC</option>
+                  <option value="4">CE</option>
+                  <option value="7">Pasaporte</option>
+                  <option value="-">Sin doc.</option>
+                </select>
+                @if (emitForm.doc_type === '01') {
+                  <div class="form-text text-warning fw-semibold">
+                    <i class="bi bi-lock-fill me-1"></i>Factura requiere RUC
+                  </div>
+                }
+              </div>
+              <!-- Customer doc number -->
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Número doc.</label>
+                <input type="text" class="form-control form-control-sm"
+                  [(ngModel)]="emitForm.customer_doc_number"
+                  [class.is-invalid]="emitRucInvalid"
+                  placeholder="{{ emitForm.customer_doc_type === '6' ? 'RUC (11 dígitos)' : 'DNI' }}"
+                  maxlength="20" />
+                @if (emitRucInvalid) {
+                  <div class="invalid-feedback">El RUC debe tener 11 dígitos.</div>
+                }
+              </div>
+              <!-- Customer name -->
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">
+                  {{ emitForm.customer_doc_type === '6' ? 'Razón social' : 'Nombre y apellidos' }}
+                </label>
+                <input type="text" class="form-control form-control-sm"
+                  [(ngModel)]="emitForm.customer_name"
+                  placeholder="Nombre completo" maxlength="200" />
+              </div>
+
+              <!-- Auto send -->
+              <div class="col-12">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="autoSendEmit"
+                    [(ngModel)]="emitForm.auto_send" />
+                  <label class="form-check-label small" for="autoSendEmit">
+                    Enviar automáticamente a SUNAT al emitir
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="cancelEmit()" [disabled]="emitLoading()">Cancelar</button>
+            <button class="btn btn-success" (click)="submitEmit()"
+              [disabled]="emitLoading() || filteredSeries().length === 0 || !emitFormValid">
+              @if (emitLoading()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+              <i class="bi bi-receipt me-1"></i>Emitir comprobante
+            </button>
+          </div>
+        }
+
+      </div>
+    </div>
+  </div>
+}

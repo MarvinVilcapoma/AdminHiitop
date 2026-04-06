@@ -1,0 +1,66 @@
+# Node.js
+node_modules/
+
+# Laravel
+/vendor/
+.env
+.phpunit.result.cache
+/storage/
+/public/hot
+/public/storage
+/public/mix-manifest.json
+
+# Cache
+*.log
+*.cache
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml
+
+# Angular
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.angular/cache/
+
+# Additional Laravel exclusions
+/storage/app/public
+/storage/framework/cache/data
+/storage/logs
+
+# Composer
+composer.phar
+
+# NPM
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.old
+*.orig
+
+# Build artifacts
+/build/
+/dist/
+
+# Coverage reports
+/coverage/
+
+# Miscellaneous
+*.lock
+*.pid
+*.seed
+*.pid.lock
