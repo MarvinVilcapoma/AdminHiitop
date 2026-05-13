@@ -1,0 +1,6 @@
+@AdminHiitop.Api_HostAddress = http://localhost:5224
+
+GET {{AdminHiitop.Api_HostAddress}}/api/dashboard
+Accept: application/json
+
+###

@@ -1,66 +1,73 @@
-# Node.js
-node_modules/
-
-# Laravel
-/vendor/
+# Environment
 .env
-.phpunit.result.cache
-/storage/
-/public/hot
-/public/storage
-/public/mix-manifest.json
+.env.*
+!.env.example
+!.env.docker.example
 
-# Cache
-*.log
-*.cache
-
-# IDE
-.vscode/
-.idea/
-
-# Docker
-docker-compose.override.yml
-
-# Angular
+# Dependencies
+/api/vendor/
 /frontend/node_modules/
+
+# Build output
 /frontend/dist/
-/frontend/.angular/cache/
+/frontend/.angular/
+/build/
+/dist/
+/coverage/
 
-# Additional Laravel exclusions
-/storage/app/public
-/storage/framework/cache/data
-/storage/logs
+# Laravel runtime files
+/api/storage/*.key
+/api/storage/logs/*
+/api/storage/framework/cache/*
+/api/storage/framework/sessions/*
+/api/storage/framework/testing/*
+/api/storage/framework/views/*
+/api/bootstrap/cache/*
+!/api/storage/logs/.gitignore
+!/api/storage/framework/cache/.gitignore
+!/api/storage/framework/sessions/.gitignore
+!/api/storage/framework/testing/.gitignore
+!/api/storage/framework/views/.gitignore
+!/api/bootstrap/cache/.gitignore
 
-# Composer
-composer.phar
+# Public generated files
+/api/public/hot
+/api/public/storage
+/api/public/mix-manifest.json
 
-# NPM
+# Secrets and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.pid
+*.pid.lock
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# OS generated files
+# .NET build artifacts
+/api-dotnet/.vs/
+/api-dotnet/**/bin/
+/api-dotnet/**/obj/
+*.user
+
+# Editor / OS files
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
-
-# Logs and temporary files
-*.log
-*.tmp
 *.swp
 *.swo
 *.bak
 *.old
 *.orig
 
-# Build artifacts
-/build/
-/dist/
-
-# Coverage reports
-/coverage/
-
-# Miscellaneous
-*.lock
-*.pid
-*.seed
-*.pid.lock
+# Docker override
+docker-compose.override.yml

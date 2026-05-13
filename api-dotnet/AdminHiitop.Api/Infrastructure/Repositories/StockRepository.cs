@@ -1,0 +1,224 @@
+using AdminHiitop.Api.Application.DTOs.Stocks;
+using AdminHiitop.Api.Application.Helpers;
+using AdminHiitop.Api.Application.Interfaces.Repositories;
+using AdminHiitop.Api.Domain.Inventory.Entities;
+using AdminHiitop.Api.Infrastructure.Persistence;
+using AdminHiitop.Api.Shared.Helpers;
+using AdminHiitop.Api.Shared.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace AdminHiitop.Api.Infrastructure.Repositories;
+
+public sealed class StockRepository : IStockRepository
+{
+    private readonly AdminHiitopDbContext _context;
+
+    public StockRepository(AdminHiitopDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<PagedResponse<StockResponse>> GetPagedAsync(StockQueryRequest request)
+    {
+        IQueryable<Stock> query = BuildBaseQuery();
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            string term = request.Search.Trim();
+            query = query.Where(item => item.Product.Name.Contains(term) || (item.Product.Sku != null && item.Product.Sku.Contains(term)));
+        }
+
+        if (request.WarehouseId.HasValue)
+        {
+            query = query.Where(item => item.WarehouseId == request.WarehouseId.Value);
+        }
+
+        if (request.ColorId.HasValue)
+        {
+            query = query.Where(item => item.ColorId == request.ColorId.Value);
+        }
+
+        if (request.ProductTypeId.HasValue)
+        {
+            query = query.Where(item => item.Product.ProductTypeId == request.ProductTypeId.Value);
+        }
+
+        if (request.CollectionId.HasValue)
+        {
+            query = query.Where(item => item.Product.CollectionId == request.CollectionId.Value);
+        }
+
+        if (request.LowStock)
+        {
+            query = query.Where(item => item.Quantity <= 5);
+        }
+
+        IQueryable<StockResponse> shapedQuery = query.Select(item => new StockResponse
+        {
+            Id = item.Id,
+            ProductId = item.ProductId,
+            WarehouseId = item.WarehouseId,
+            ColorId = item.ColorId,
+            Size = item.Size,
+            Quantity = item.Quantity,
+            Reserved = item.Reserved,
+            Available = item.Quantity - item.Reserved,
+            Product = new StockProductReferenceResponse
+            {
+                Id = item.Product.Id,
+                Name = item.Product.Name,
+                Sku = item.Product.Sku,
+                ProductType = item.Product.ProductType == null
+                    ? null
+                    : new StockCatalogReferenceResponse
+                    {
+                        Id = item.Product.ProductType.Id,
+                        Name = item.Product.ProductType.Name
+                    },
+                Collection = item.Product.Collection == null
+                    ? null
+                    : new StockCatalogReferenceResponse
+                    {
+                        Id = item.Product.Collection.Id,
+                        Name = item.Product.Collection.Name
+                    }
+            },
+            Warehouse = new StockWarehouseReferenceResponse
+            {
+                Id = item.Warehouse.Id,
+                Name = item.Warehouse.Name,
+                Type = item.Warehouse.Type
+            },
+            Color = item.Color == null
+                ? null
+                : new StockColorReferenceResponse
+                {
+                    Id = item.Color.Id,
+                    Name = item.Color.Name,
+                    HexCode = item.Color.HexCode
+                }
+        });
+
+        return await PaginationHelper.CreateAsync(shapedQuery, request.Page, request.PerPage);
+    }
+
+    public async Task<IReadOnlyList<StockSummaryResponse>> GetSummaryAsync()
+    {
+        return await _context.Stocks
+            .AsNoTracking()
+            .GroupBy(item => new { item.WarehouseId, item.Warehouse.Name, item.Warehouse.Type })
+            .Select(group => new StockSummaryResponse
+            {
+                WarehouseId = group.Key.WarehouseId,
+                WarehouseName = group.Key.Name,
+                WarehouseType = group.Key.Type,
+                TotalQuantity = group.Sum(item => item.Quantity),
+                TotalItems = group.Count()
+            })
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<StockResponse>> GetAvailableAsync(int? productId)
+    {
+        IQueryable<Stock> query = BuildBaseQuery().Where(item => item.Quantity - item.Reserved > 0);
+
+        if (productId.HasValue)
+        {
+            query = query.Where(item => item.ProductId == productId.Value);
+        }
+
+        List<Stock> stocks = await query.ToListAsync();
+        return stocks.Select(InventoryMappingHelper.MapStock).ToList();
+    }
+
+    public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search)
+    {
+        IQueryable<Stock> query = BuildBaseQuery();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string term = search.Trim();
+            query = query.Where(item => item.Product.Name.Contains(term) || (item.Product.Sku != null && item.Product.Sku.Contains(term)));
+        }
+
+        return await query
+            .Select(item => new StockLookupResponse
+            {
+                StockId = item.Id,
+                ProductId = item.ProductId,
+                ProductName = item.Product.Name,
+                Sku = item.Product.Sku,
+                WarehouseId = item.WarehouseId,
+                WarehouseName = item.Warehouse.Name,
+                ColorId = item.ColorId,
+                ColorName = item.Color != null ? item.Color.Name : null,
+                Size = item.Size,
+                AvailableQty = item.Quantity - item.Reserved,
+                UnitPrice = item.Product.BasePrice,
+                UnitCost = item.Product.UnitCost,
+                VariantLabel = ((item.Color != null ? item.Color.Name : string.Empty) + " " + (item.Size ?? string.Empty)).Trim()
+            })
+            .ToListAsync();
+    }
+
+    public Task<Stock?> GetByIdAsync(int id)
+    {
+        return _context.Stocks
+            .Include(item => item.Product)
+            .ThenInclude(item => item.ProductType)
+            .Include(item => item.Product)
+            .ThenInclude(item => item.Collection)
+            .Include(item => item.Warehouse)
+            .Include(item => item.Color)
+            .FirstOrDefaultAsync(item => item.Id == id);
+    }
+
+    public async Task<StockResponse?> GetDetailByIdAsync(int id)
+    {
+        Stock? stock = await GetByIdAsync(id);
+        return stock is null ? null : InventoryMappingHelper.MapStock(stock);
+    }
+
+    public Task<Stock?> FindTransferTargetAsync(int productId, int warehouseId, int? colorId, string? size)
+    {
+        return _context.Stocks.FirstOrDefaultAsync(
+            item => item.ProductId == productId &&
+                    item.WarehouseId == warehouseId &&
+                    item.ColorId == colorId &&
+                    item.Size == size);
+    }
+
+    public Task AddAsync(Stock stock)
+    {
+        return _context.Stocks.AddAsync(stock).AsTask();
+    }
+
+    public Task AddRangeAsync(IReadOnlyCollection<Stock> stocks)
+    {
+        return _context.Stocks.AddRangeAsync(stocks);
+    }
+
+    public Task DeleteAsync(Stock stock)
+    {
+        _context.Stocks.Remove(stock);
+        return Task.CompletedTask;
+    }
+
+    public Task SaveChangesAsync()
+    {
+        return _context.SaveChangesAsync();
+    }
+
+    private IQueryable<Stock> BuildBaseQuery()
+    {
+        return _context.Stocks
+            .AsNoTracking()
+            .Include(item => item.Product)
+            .ThenInclude(item => item.ProductType)
+            .Include(item => item.Product)
+            .ThenInclude(item => item.Collection)
+            .Include(item => item.Warehouse)
+            .Include(item => item.Color)
+            .OrderBy(item => item.Product.Name);
+    }
+}

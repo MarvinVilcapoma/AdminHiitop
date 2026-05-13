@@ -1,0 +1,101 @@
+using AdminHiitop.Api.Application.DTOs.Common;
+using AdminHiitop.Api.Application.DTOs.Stocks;
+using AdminHiitop.Api.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Mvc;
+
+namespace AdminHiitop.Api.Controllers;
+
+[Route("api/stocks")]
+public sealed class StocksController : BaseApiController
+{
+    private readonly IStockService _stockService;
+
+    public StocksController(IStockService stockService)
+    {
+        _stockService = stockService;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Get([FromQuery] StockQueryRequest request)
+    {
+        object response = await _stockService.GetAsync(request);
+        return Ok(response);
+    }
+
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary()
+    {
+        IReadOnlyList<StockSummaryResponse> response = await _stockService.GetSummaryAsync();
+        return Ok(response);
+    }
+
+    [HttpGet("available")]
+    public async Task<IActionResult> Available([FromQuery(Name = "product_id")] int? productId = null)
+    {
+        IReadOnlyList<StockResponse> response = await _stockService.GetAvailableAsync(productId);
+        return Ok(response);
+    }
+
+    [HttpGet("lookup")]
+    public async Task<IActionResult> Lookup([FromQuery] string? search = null)
+    {
+        IReadOnlyList<StockLookupResponse> response = await _stockService.GetLookupAsync(search);
+        return Ok(response);
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        StockResponse response = await _stockService.GetByIdAsync(id);
+        return Ok(response);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] StockUpsertRequest request)
+    {
+        StockResponse response = await _stockService.CreateAsync(request);
+        return Ok(response);
+    }
+
+    [HttpPost("bulk")]
+    public async Task<IActionResult> Bulk([FromBody] List<StockUpsertRequest> request)
+    {
+        SuccessResponse response = await _stockService.BulkCreateAsync(request);
+        return Ok(response);
+    }
+
+    [HttpPost("bulk-transfer")]
+    public async Task<IActionResult> BulkTransfer([FromBody] StockBulkTransferRequest request)
+    {
+        SuccessResponse response = await _stockService.BulkTransferAsync(request);
+        return Ok(response);
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> Update(int id, [FromBody] StockUpsertRequest request)
+    {
+        StockResponse response = await _stockService.UpdateAsync(id, request);
+        return Ok(response);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        await _stockService.DeleteAsync(id);
+        return Ok(new SuccessResponse());
+    }
+
+    [HttpPost("{id:int}/adjust")]
+    public async Task<IActionResult> Adjust(int id, [FromBody] StockAdjustRequest request)
+    {
+        StockResponse response = await _stockService.AdjustAsync(id, request);
+        return Ok(response);
+    }
+
+    [HttpPost("{id:int}/transfer")]
+    public async Task<IActionResult> Transfer(int id, [FromBody] StockTransferRequest request)
+    {
+        SuccessResponse response = await _stockService.TransferAsync(id, request);
+        return Ok(response);
+    }
+}
