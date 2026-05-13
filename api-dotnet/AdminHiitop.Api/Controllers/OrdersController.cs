@@ -19,10 +19,10 @@ public sealed class OrdersController : BaseApiController
         [FromQuery] string? search,
         [FromQuery(Name = "per_page")] int? perPage,
         [FromQuery] int page = 1,
-        [FromQuery(Name = "with_summary")] bool withSummary = false,
+        [FromQuery(Name = "with_summary")]    int? withSummary  = null,
         [FromQuery(Name = "order_status_id")] int? orderStatusId = null)
     {
-        return Ok(await _orderService.GetAsync(search, perPage, page, withSummary, orderStatusId));
+        return Ok(await _orderService.GetAsync(search, perPage, page, withSummary == 1, orderStatusId));
     }
 
     [HttpGet("{id:int}")]

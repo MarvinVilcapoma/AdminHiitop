@@ -20,7 +20,7 @@ public sealed class ProductsController : BaseApiController
         [FromQuery(Name = "per_page")]    int? perPage      = null,
         [FromQuery]                       int  page          = 1,
         [FromQuery]                       string? search     = null,
-        [FromQuery(Name = "active_only")] bool activeOnly    = false,
+        [FromQuery(Name = "active_only")]   int? activeOnly   = null,
         [FromQuery(Name = "collection_id")] int? collectionId = null,
         [FromQuery(Name = "warehouse_id")]  int? warehouseId  = null)
     {
@@ -29,7 +29,7 @@ public sealed class ProductsController : BaseApiController
             PerPage      = perPage,
             Page         = page,
             Search       = search,
-            ActiveOnly   = activeOnly,
+            ActiveOnly   = activeOnly == 1,
             CollectionId = collectionId,
             WarehouseId  = warehouseId,
         };

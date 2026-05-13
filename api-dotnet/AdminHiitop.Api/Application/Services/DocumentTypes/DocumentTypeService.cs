@@ -19,7 +19,7 @@ public sealed class DocumentTypeService : IDocumentTypeService
         _context = context;
     }
 
-    public async Task<object> GetAsync(int? perPage, int page, string? search)
+    public async Task<object> GetAsync(int? perPage, int page, string? search, bool activeOnly = false)
     {
         if (!perPage.HasValue)
         {
@@ -36,6 +36,9 @@ public sealed class DocumentTypeService : IDocumentTypeService
             string term = search.Trim();
             query = query.Where(item => item.Name.Contains(term) || item.Code.Contains(term));
         }
+
+        if (activeOnly)
+            query = query.Where(item => item.IsActive);
 
         return await PaginationHelper.CreateAsync(query, page, perPage.Value);
     }

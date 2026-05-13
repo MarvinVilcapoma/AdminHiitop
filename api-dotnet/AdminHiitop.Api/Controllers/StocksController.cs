@@ -16,8 +16,27 @@ public sealed class StocksController : BaseApiController
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get([FromQuery] StockQueryRequest request)
+    public async Task<IActionResult> Get(
+        [FromQuery(Name = "per_page")]       int  perPage       = 15,
+        [FromQuery]                          int  page          = 1,
+        [FromQuery]                          string? search     = null,
+        [FromQuery(Name = "warehouse_id")]   int? warehouseId   = null,
+        [FromQuery(Name = "color_id")]       int? colorId       = null,
+        [FromQuery(Name = "product_type_id")] int? productTypeId = null,
+        [FromQuery(Name = "collection_id")]  int? collectionId  = null,
+        [FromQuery(Name = "low_stock")]      int? lowStock      = null)
     {
+        var request = new StockQueryRequest
+        {
+            PerPage       = perPage,
+            Page          = page,
+            Search        = search,
+            WarehouseId   = warehouseId,
+            ColorId       = colorId,
+            ProductTypeId = productTypeId,
+            CollectionId  = collectionId,
+            LowStock      = lowStock == 1,
+        };
         object response = await _stockService.GetAsync(request);
         return Ok(response);
     }

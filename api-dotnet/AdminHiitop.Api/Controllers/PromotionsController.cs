@@ -17,10 +17,10 @@ public sealed class PromotionsController : ControllerBase
         [FromQuery(Name = "per_page")] int perPage = 15,
         [FromQuery] int page = 1,
         [FromQuery] string? search = null,
-        [FromQuery(Name = "active_only")] bool activeOnly = false,
-        [FromQuery(Name = "inactive_only")] bool inactiveOnly = false,
+        [FromQuery(Name = "active_only")]   int? activeOnly   = null,
+        [FromQuery(Name = "inactive_only")] int? inactiveOnly = null,
         CancellationToken cancellationToken = default)
-        => Ok(await _promotionService.GetAsync(perPage, page, search, activeOnly, inactiveOnly, cancellationToken));
+        => Ok(await _promotionService.GetAsync(perPage, page, search, activeOnly == 1, inactiveOnly == 1, cancellationToken));
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)

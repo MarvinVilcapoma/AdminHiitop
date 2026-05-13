@@ -15,9 +15,13 @@ public sealed class DocumentTypesController : BaseApiController
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get([FromQuery(Name = "per_page")] int? perPage, [FromQuery] int page = 1, [FromQuery] string? search = null)
+    public async Task<IActionResult> Get(
+        [FromQuery(Name = "per_page")]   int? perPage    = null,
+        [FromQuery]                      int  page       = 1,
+        [FromQuery]                      string? search  = null,
+        [FromQuery(Name = "active_only")] int? activeOnly = null)
     {
-        return Ok(await _documentTypeService.GetAsync(perPage, page, search));
+        return Ok(await _documentTypeService.GetAsync(perPage, page, search, activeOnly == 1));
     }
 
     [HttpGet("{id:int}")]
