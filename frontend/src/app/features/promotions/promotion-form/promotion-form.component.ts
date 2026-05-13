@@ -5,6 +5,7 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ProductType, Promotion, PromotionItem, Page } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 interface PromoItem {
   product_type_id: number | null;
@@ -28,6 +29,7 @@ export class PromotionFormComponent implements OnInit {
   private readonly api    = inject(ApiService);
   private readonly router = inject(Router);
   private readonly route  = inject(ActivatedRoute);
+  private readonly toast  = inject(ToastService);
 
   isEdit  = signal(false);
   loading = signal(false);
@@ -116,11 +118,16 @@ export class PromotionFormComponent implements OnInit {
       : this.api.post('promotions', payload);
 
     req.subscribe({
-      next: () => this.router.navigate(['/dashboard/promotions']),
+      next: () => {
+        this.toast.success(this.isEdit() ? 'Promocion actualizada correctamente.' : 'Promocion creada correctamente.');
+        this.router.navigate(['/dashboard/promotions']);
+      },
       error: e => {
         const msg = e?.error?.message ?? e?.error?.errors ?? 'Error al guardar.';
-        this.error.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.error.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }

@@ -16,30 +16,70 @@ import { PageStateComponent } from '../../../core/components';
 export class PromotionsListComponent implements OnInit {
   private readonly api = inject(ApiService);
 
-  promotions = signal<Promotion[]>([]);
-  loading    = signal(false);
-  delTarget  = signal<Promotion | null>(null);
-  deleting   = signal(false);
-  statusFilter = signal<'all' | 'active' | 'inactive'>('all');
+  promotions  = signal<Promotion[]>([]);
+  loading     = signal(false);
+  delTarget   = signal<Promotion | null>(null);
+  deleting    = signal(false);
+  error       = signal('');
 
-  filtered = computed(() => {
-    const f = this.statusFilter();
-    if (f === 'all') return this.promotions();
-    return this.promotions().filter(p => f === 'active' ? p.is_active : !p.is_active);
+  statusFilter = signal<'all' | 'active' | 'inactive'>('all');
+  search       = '';
+  currentPage  = 1;
+  readonly pageSize = 12;
+  total        = signal(0);
+  lastPage     = signal(1);
+
+  totalPages = computed(() => this.lastPage());
+  pageRange  = computed(() => {
+    const tp = this.totalPages();
+    const cur = this.currentPage;
+    const delta = 2;
+    const range: number[] = [];
+    for (let i = Math.max(1, cur - delta); i <= Math.min(tp, cur + delta); i++) range.push(i);
+    return range;
   });
 
   ngOnInit(): void { this.load(); }
 
   load(): void {
     this.loading.set(true);
-    this.api.get<Page<Promotion>>('promotions?per_page=500').subscribe({
-      next: r => { this.promotions.set(r.data ?? r); this.loading.set(false); },
-      error: () => this.loading.set(false),
+    this.error.set('');
+    const params: Record<string, any> = { per_page: this.pageSize, page: this.currentPage };
+    if (this.search.trim()) params['search'] = this.search.trim();
+    if (this.statusFilter() === 'active')   params['active_only']   = 1;
+    if (this.statusFilter() === 'inactive') params['inactive_only'] = 1;
+
+    this.api.get<Page<Promotion>>('promotions', params).subscribe({
+      next: r => {
+        const page = r as any;
+        this.promotions.set(page.data ?? (Array.isArray(r) ? r : []));
+        this.total.set(page.total ?? 0);
+        this.lastPage.set(page.last_page ?? 1);
+        this.loading.set(false);
+      },
+      error: () => { this.loading.set(false); this.error.set('Error al cargar promociones.'); },
     });
   }
 
+  setFilter(f: 'all' | 'active' | 'inactive'): void {
+    this.statusFilter.set(f);
+    this.currentPage = 1;
+    this.load();
+  }
+
+  onSearchInput(): void {
+    this.currentPage = 1;
+    this.load();
+  }
+
+  goToPage(p: number): void {
+    if (p < 1 || p > this.totalPages()) return;
+    this.currentPage = p;
+    this.load();
+  }
+
   confirmDelete(p: Promotion): void { this.delTarget.set(p); }
-  cancelDelete(): void { this.delTarget.set(null); }
+  cancelDelete(): void  { this.delTarget.set(null); }
 
   doDelete(): void {
     const t = this.delTarget();
@@ -48,6 +88,7 @@ export class PromotionsListComponent implements OnInit {
     this.api.delete(`promotions/${t.id}`).subscribe({
       next: () => {
         this.promotions.update(list => list.filter(p => p.id !== t.id));
+        this.total.update(n => Math.max(0, n - 1));
         this.delTarget.set(null);
         this.deleting.set(false);
       },

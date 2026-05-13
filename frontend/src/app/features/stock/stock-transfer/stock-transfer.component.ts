@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Collection, Color, Page, Product, Size, Warehouse } from '../../../core/models';
+import { ToastService } from '../../../core/services/toast.service';
 
 export interface TransferLine {
   collection_id:       number | '';
@@ -45,6 +46,7 @@ export const TRANSFER_REASONS = [
 export class StockTransferComponent implements OnInit {
   private api    = inject(ApiService);
   private router = inject(Router);
+  private toast  = inject(ToastService);
 
   loading      = signal(false);
   saving       = signal(false);
@@ -303,14 +305,18 @@ export class StockTransferComponent implements OnInit {
         this.successCount.set(res.saved?.length ?? 0);
         this.errorLines.set(res.errors ?? []);
         if ((res.errors ?? []).length === 0) {
+          this.toast.success('Transferencia registrada correctamente.');
           this.router.navigate(['/dashboard/stock']);
         } else {
           this.saving.set(false);
+          this.toast.warning('Se guardo la transferencia parcialmente. Revisa las lineas con error.');
         }
       },
       error: e => {
-        this.error.set(e?.error?.message ?? 'Error al guardar la transferencia.');
+        const message = e?.error?.message ?? 'Error al guardar la transferencia.';
+        this.error.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }

@@ -2,8 +2,11 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { catchError, forkJoin, of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
+import { AppUser } from '../../../core/models';
 
 interface PermissionRow {
   id: number;
@@ -24,6 +27,12 @@ interface RoleDraft {
   permissions: string[];
 }
 
+interface RoleDetailResponse {
+  id: number;
+  name: string;
+  permissions?: PermissionRow[];
+}
+
 interface ModuleOption {
   permission: string;
   label: string;
@@ -40,6 +49,7 @@ interface ModuleOption {
 })
 export class RolesListComponent implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
 
   loading = signal(false);
   saving = signal(false);
@@ -60,12 +70,15 @@ export class RolesListComponent implements OnInit {
 
   readonly moduleCatalog: ModuleOption[] = [
     { permission: 'dashboard.view', label: 'Dashboard', description: 'Inicio y métricas', icon: 'bi-grid-1x2' },
+    { permission: 'pos.view', label: 'Punto de venta', description: 'Caja, emisión y cobro en tienda', icon: 'bi-shop-window' },
     { permission: 'orders.view', label: 'Pedidos', description: 'Gestión de pedidos', icon: 'bi-bag' },
     { permission: 'guides.view', label: 'Guías', description: 'Guías de remisión', icon: 'bi-truck' },
     { permission: 'products.view', label: 'Productos', description: 'Catálogo de productos', icon: 'bi-box-seam' },
     { permission: 'stocks.view', label: 'Stock', description: 'Inventario y ajustes', icon: 'bi-boxes' },
     { permission: 'customers.view', label: 'Clientes', description: 'Base de clientes', icon: 'bi-people' },
     { permission: 'sales.view', label: 'Ventas', description: 'Ventas, promociones y reportes', icon: 'bi-graph-up' },
+    { permission: 'invoices.view', label: 'Comprobantes', description: 'Comprobantes electrónicos y SUNAT', icon: 'bi-receipt' },
+    { permission: 'promotions.view', label: 'Promociones', description: 'Campañas y descuentos comerciales', icon: 'bi-tags' },
     { permission: 'users.view', label: 'Usuarios', description: 'Usuarios y roles', icon: 'bi-person-badge' },
     { permission: 'config.order-statuses', label: 'Configuración', description: 'Catálogos y ajustes', icon: 'bi-gear' },
   ];
@@ -95,19 +108,92 @@ export class RolesListComponent implements OnInit {
     this.loadRoles();
   }
 
+  private normalizeArray<T>(response: T[] | { data?: T[] } | null | undefined): T[] {
+    if (Array.isArray(response)) {
+      return response;
+    }
+
+    if (Array.isArray(response?.data)) {
+      return response.data;
+    }
+
+    return [];
+  }
+
+  private toPermissionIds(permissionNames: string[]): number[] {
+    const catalog = new Map(this.permissions().map((permission) => [permission.name, permission.id]));
+
+    return permissionNames
+      .map((permissionName) => catalog.get(permissionName))
+      .filter((permissionId): permissionId is number => typeof permissionId === 'number' && permissionId > 0);
+  }
+
   loadPermissions(): void {
-    this.api.get<PermissionRow[]>('roles/permissions').subscribe({
-      next: (rows) => this.permissions.set(Array.isArray(rows) ? rows : []),
+    this.api.get<PermissionRow[] | { data: PermissionRow[] }>('roles/permissions').subscribe({
+      next: (rows) => this.permissions.set(this.normalizeArray(rows)),
       error: () => this.permissions.set([]),
     });
   }
 
   loadRoles(): void {
     this.loading.set(true);
-    this.api.get<RoleRow[]>('roles').subscribe({
-      next: (r) => {
-        this.roles.set(Array.isArray(r) ? r : (r as any).data ?? []);
-        this.loading.set(false);
+
+    forkJoin({
+      roles: this.api.get<RoleRow[] | { data: RoleRow[] }>('roles'),
+      users: this.api.get<AppUser[] | { data: AppUser[] }>('users').pipe(
+        catchError(() => of([] as AppUser[]))
+      ),
+    }).subscribe({
+      next: ({ roles, users }) => {
+        const baseRoles = this.normalizeArray(roles);
+        const allUsers = this.normalizeArray(users);
+
+        if (baseRoles.length === 0) {
+          this.roles.set([]);
+          this.loading.set(false);
+          return;
+        }
+
+        const usersCountByRole = new Map<number, number>();
+        allUsers.forEach((user) =>
+          (user.roles ?? []).forEach((role) => {
+            usersCountByRole.set(role.id, (usersCountByRole.get(role.id) ?? 0) + 1);
+          })
+        );
+
+        forkJoin(
+          baseRoles.map((role) =>
+            this.api.get<RoleDetailResponse>(`roles/${role.id}`).pipe(
+              catchError(() => of<RoleDetailResponse | null>(null))
+            )
+          )
+        ).subscribe({
+          next: (details) => {
+            const detailByRoleId = new Map(
+              details
+                .filter((detail): detail is RoleDetailResponse => detail !== null)
+                .map((detail) => [detail.id, detail])
+            );
+
+            this.roles.set(
+              baseRoles.map((role) => ({
+                ...role,
+                permissions: detailByRoleId.get(role.id)?.permissions ?? role.permissions ?? [],
+                users_count: usersCountByRole.get(role.id) ?? role.users_count ?? 0,
+              }))
+            );
+            this.loading.set(false);
+          },
+          error: () => {
+            this.roles.set(
+              baseRoles.map((role) => ({
+                ...role,
+                users_count: usersCountByRole.get(role.id) ?? role.users_count ?? 0,
+              }))
+            );
+            this.loading.set(false);
+          },
+        });
       },
       error: () => this.loading.set(false),
     });
@@ -143,21 +229,32 @@ export class RolesListComponent implements OnInit {
     }
 
     this.saving.set(true);
+    const permissionIds = this.toPermissionIds(this.newPermissions());
+
+    if (permissionIds.length !== this.newPermissions().length) {
+      this.formError.set('No se pudieron resolver todos los permisos seleccionados.');
+      this.saving.set(false);
+      return;
+    }
+
     this.api.post('roles', {
       name: this.newName.trim(),
-      permissions: this.newPermissions(),
+      permissionIds,
     }).subscribe({
       next: () => {
         this.saving.set(false);
         this.showForm.set(false);
         this.newName = '';
         this.newPermissions.set([]);
+        this.toast.success('Rol creado correctamente.');
         this.loadRoles();
       },
       error: (e) => {
         const msg = e?.error?.message ?? e?.error?.errors?.name?.[0] ?? 'Error al crear el rol.';
-        this.formError.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.formError.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }
@@ -171,6 +268,7 @@ export class RolesListComponent implements OnInit {
       },
       error: () => {
         this.editError.set('No se pudo cargar el detalle del rol.');
+        this.toast.error('No se pudo cargar el detalle del rol.');
       },
     });
   }
@@ -203,19 +301,30 @@ export class RolesListComponent implements OnInit {
     }
 
     this.saving.set(true);
+    const permissionIds = this.toPermissionIds(draft.permissions);
+
+    if (permissionIds.length !== draft.permissions.length) {
+      this.editError.set('No se pudieron resolver todos los permisos seleccionados.');
+      this.saving.set(false);
+      return;
+    }
+
     this.api.put(`roles/${draft.id}`, {
       name: draft.name.trim(),
-      permissions: draft.permissions,
+      permissionIds,
     }).subscribe({
       next: () => {
         this.saving.set(false);
         this.editRole.set(null);
+        this.toast.success('Rol actualizado correctamente.');
         this.loadRoles();
       },
       error: (e) => {
         const msg = e?.error?.message ?? e?.error?.errors?.name?.[0] ?? 'Error al guardar.';
-        this.editError.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.editError.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }
@@ -232,9 +341,10 @@ export class RolesListComponent implements OnInit {
         this.api.delete(`roles/${role.id}`).subscribe({
           next: () => {
             this.delConfirm.set(null);
+            this.toast.success('Rol eliminado correctamente.');
             this.loadRoles();
           },
-          error: (e) => alert(e?.error?.message ?? 'No se pudo eliminar el rol.'),
+          error: (e) => this.toast.error(e?.error?.message ?? 'No se pudo eliminar el rol.'),
         });
       },
     });

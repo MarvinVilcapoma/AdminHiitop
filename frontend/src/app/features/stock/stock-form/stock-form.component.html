@@ -70,17 +70,23 @@
         <!-- Tipo de movimiento -->
         <div class="col-md-4">
           <label class="form-label fw-semibold">Tipo de movimiento</label>
-          <div class="btn-group w-100" role="group">
-            <input type="radio" class="btn-check" name="movType" id="movEntry" autocomplete="off"
-              [(ngModel)]="movementType" value="entry" (ngModelChange)="onMovementTypeChange()">
-            <label class="btn btn-outline-success" for="movEntry">
+          <div class="movement-toggle" role="group" aria-label="Tipo de movimiento">
+            <button
+              type="button"
+              class="btn"
+              [class.btn-success]="movementType === 'entry'"
+              [class.btn-outline-success]="movementType !== 'entry'"
+              (click)="setMovementType('entry')">
               <i class="bi bi-box-arrow-in-down me-1"></i>Carga
-            </label>
-            <input type="radio" class="btn-check" name="movType" id="movExit" autocomplete="off"
-              [(ngModel)]="movementType" value="exit" (ngModelChange)="onMovementTypeChange()">
-            <label class="btn btn-outline-danger" for="movExit">
+            </button>
+            <button
+              type="button"
+              class="btn"
+              [class.btn-danger]="movementType === 'exit'"
+              [class.btn-outline-danger]="movementType !== 'exit'"
+              (click)="setMovementType('exit')">
               <i class="bi bi-box-arrow-up me-1"></i>Descarga
-            </label>
+            </button>
           </div>
         </div>
 

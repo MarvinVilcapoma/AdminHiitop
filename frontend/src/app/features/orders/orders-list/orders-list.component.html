@@ -326,15 +326,16 @@
                   <option value="03">Boleta (03)</option>
                 </select>
               </div>
-              <!-- Series (auto-seleccionada) -->
+              <!-- Series -->
               <div class="col-md-4">
                 <label class="form-label fw-semibold">Serie</label>
                 @if (filteredSeries().length > 0) {
-                  <div class="form-control form-control-sm bg-light text-muted" style="cursor:default">
-                    <i class="bi bi-check-circle-fill text-success me-1"></i>
-                    {{ filteredSeries()[0].serie }} &nbsp;·&nbsp; Nº {{ filteredSeries()[0].next_number }}
-                  </div>
-                  <small class="text-muted">Asignada automáticamente</small>
+                  <select class="form-select form-select-sm" [(ngModel)]="emitForm.invoice_series_id">
+                    @for (series of filteredSeries(); track series.id) {
+                      <option [ngValue]="series.id">{{ series.serie }} · Siguiente {{ series.next_number }}</option>
+                    }
+                  </select>
+                  <small class="text-muted">Puedes elegir la serie con la que deseas emitir.</small>
                 } @else {
                   <div class="form-control form-control-sm bg-light">—</div>
                   <small class="text-danger">No hay series activas para este tipo.</small>

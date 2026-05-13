@@ -34,6 +34,12 @@ public sealed class ProductRepository : IProductRepository
             query = query.Where(item => item.Name.Contains(term) || (item.Sku != null && item.Sku.Contains(term)));
         }
 
+        if (request.ActiveOnly)
+            query = query.Where(item => item.IsActive);
+
+        if (request.CollectionId.HasValue)
+            query = query.Where(item => item.CollectionId == request.CollectionId.Value);
+
         IQueryable<ProductPagedItemResponse> shapedQuery = query.Select(item => new ProductPagedItemResponse
         {
             Id = item.Id,

@@ -38,12 +38,12 @@
   <input class="form-control filter-search" placeholder="Buscar por nombre o SKU…"
     [(ngModel)]="search" (ngModelChange)="onSearch()" />
 
-  <div class="btn-group">
-    <button class="btn btn-outline-secondary btn-sm" [class.active]="statusFilter() === 'all'"
+  <div class="btn-group btn-group-sm">
+    <button class="btn btn-outline-secondary" [class.active]="statusFilter() === 'all'"
       (click)="statusFilter.set('all'); onSearch()">Todos</button>
-    <button class="btn btn-outline-success btn-sm" [class.active]="statusFilter() === 'active'"
+    <button class="btn btn-outline-success" [class.active]="statusFilter() === 'active'"
       (click)="statusFilter.set('active'); onSearch()">Activos</button>
-    <button class="btn btn-outline-danger btn-sm" [class.active]="statusFilter() === 'inactive'"
+    <button class="btn btn-outline-danger" [class.active]="statusFilter() === 'inactive'"
       (click)="statusFilter.set('inactive'); onSearch()">Inactivos</button>
   </div>
 
@@ -79,7 +79,7 @@
           <th>Tipo</th>
           <th>Colección</th>
           <th class="text-end">Costo unit.</th>
-          <th class="text-end">Precio base</th>
+          <th class="text-end">Precio venta</th>
           <th class="text-center">Stock</th>
           <th class="text-center">Estado</th>
           <th class="text-center">Colores</th>

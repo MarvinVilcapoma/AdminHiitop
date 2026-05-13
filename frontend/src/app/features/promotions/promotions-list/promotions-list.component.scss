@@ -34,6 +34,16 @@
   font-size: .85rem;
 }
 
+.status-toggle-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid #dee2e6; border-radius: 20px;
+  padding: 2px 10px; font-size: .78rem;
+  background: #f8f9fa; color: #6c757d; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
+  transition: background .15s, color .15s, border-color .15s;
+  &.is-active { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+}
+
 .empty-state {
   text-align: center;
   padding: 80px 20px;

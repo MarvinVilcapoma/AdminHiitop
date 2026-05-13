@@ -1,4 +1,5 @@
 using AdminHiitop.Api.Application.DTOs.Invoices;
+using AdminHiitop.Api.Application.Helpers;
 using AdminHiitop.Api.Application.Interfaces.ElectronicBilling;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Sales.Entities;
@@ -34,7 +35,7 @@ public sealed class InvoiceService : IInvoiceService
         return await PaginationHelper.CreateAsync(query, page, perPage, cancellationToken);
     }
 
-    public async Task<IEnumerable<InvoiceSeries>> GetSeriesAsync(CancellationToken cancellationToken)
+    public async Task<object> GetSeriesAsync(CancellationToken cancellationToken)
         => await _context.InvoiceSeries.AsNoTracking().Where(item => item.IsActive).OrderBy(item => item.Serie).ToListAsync(cancellationToken);
 
     public Task<Invoice?> GetByIdAsync(int id, CancellationToken cancellationToken)
@@ -42,7 +43,7 @@ public sealed class InvoiceService : IInvoiceService
 
     public async Task<object> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken)
     {
-        InvoiceSeries? series = await _context.InvoiceSeries.FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId, cancellationToken);
+        var series = await _context.InvoiceSeries.FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId, cancellationToken);
         if (series is null) return new { error = true, message = "Serie no encontrada." };
 
         Order? order = request.OrderId.HasValue

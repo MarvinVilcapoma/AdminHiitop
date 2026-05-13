@@ -109,6 +109,9 @@ export class OrdersListComponent implements OnInit {
     const source = this.route.snapshot.queryParamMap.get('source');
     this.filterSource = source === 'pos' ? 'pos' : '';
 
+    const searchParam = this.route.snapshot.queryParamMap.get('search');
+    if (searchParam) this.search = searchParam;
+
     this.loadOrders();
     this.loadLookups();
   }
@@ -346,6 +349,13 @@ export class OrdersListComponent implements OnInit {
   }
 
   private autoSelectSeries(): void {
+    if (this.emitForm.invoice_series_id) {
+      const existing = this.filteredSeries().find(series => series.id === this.emitForm.invoice_series_id);
+      if (existing) {
+        return;
+      }
+    }
+
     const matching = this.invoiceSeries().find(
       s => s.doc_type === this.emitForm.doc_type && s.is_active
     );
@@ -379,8 +389,8 @@ export class OrdersListComponent implements OnInit {
   submitEmit(): void {
     const order = this.emitOrder();
     if (!order) return;
-    // Always auto-select the first matching series
-    const matched = this.filteredSeries()[0];
+    const matched = this.filteredSeries().find(series => series.id === this.emitForm.invoice_series_id)
+      ?? this.filteredSeries()[0];
     if (!matched) {
       this.emitError.set('No hay series activas para este tipo de comprobante.');
       return;

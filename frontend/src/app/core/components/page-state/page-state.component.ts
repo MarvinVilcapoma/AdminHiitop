@@ -1,4 +1,5 @@
 import { Component, input, output } from '@angular/core';
+import { LoadingStateComponent } from '../loading-state/loading-state.component';
 
 /**
  * Reusable page-state shell.
@@ -15,13 +16,10 @@ import { Component, input, output } from '@angular/core';
 @Component({
   selector: 'app-page-state',
   standalone: true,
+  imports: [LoadingStateComponent],
   template: `
     @if (loading()) {
-      <div class="text-center py-5">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Cargando...</span>
-        </div>
-      </div>
+      <app-loading-state mode="page" text="Cargando información..." />
     } @else {
       @if (error()) {
         <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">

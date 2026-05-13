@@ -1,9 +1,10 @@
-﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 interface Catalog { id: number; name: string; }
 
@@ -18,6 +19,7 @@ export class ProductFormComponent implements OnInit {
   private readonly api    = inject(ApiService);
   private readonly route  = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast  = inject(ToastService);
 
   isEdit   = signal(false);
   loading  = signal(true);
@@ -28,7 +30,22 @@ export class ProductFormComponent implements OnInit {
   collections    = signal<Catalog[]>([]);
   colors         = signal<(Catalog & { hex_code: string })[]>([]);
   selectedColors = signal<number[]>([]);
+
+  // ── Fiscal settings ──────────────────────────────────────
+  igvActive        = signal(false);
+  igvRate          = signal(18);
   pricesIncludeIgv = signal(false);
+
+  /** Label for the sale price field, driven by fiscal config */
+  salePriceLabel = computed(() => {
+    if (!this.igvActive() || this.pricesIncludeIgv()) return 'Precio de venta (S/)';
+    return 'Precio sin IGV (S/)';
+  });
+
+  /** IGV badge text */
+  igvBadgeText = computed(() =>
+    this.igvActive() ? `IGV ${this.igvRate()}%` : null
+  );
 
   // ── Inline color creation ────────────────────────────────
   addingColor  = signal(false);
@@ -50,22 +67,43 @@ export class ProductFormComponent implements OnInit {
 
   private productId: number | null = null;
 
-  /** Returns price including IGV (18%) formatted to 2 decimals */
+  /** Net price (before IGV) — used for margin calculations */
+  private netPrice(): number {
+    const price = Number(this.form.base_price) || 0;
+    if (!this.igvActive()) return price;
+    if (this.pricesIncludeIgv()) {
+      return +(price / (1 + this.igvRate() / 100)).toFixed(4);
+    }
+    return price;
+  }
+
+  /** Price including IGV for display when prices don't include it */
   priceWithIgv(): string {
+    if (!this.igvActive() || this.pricesIncludeIgv()) return '';
     const p = Number(this.form.base_price) || 0;
-    return (p * 1.18).toFixed(2);
+    return (p * (1 + this.igvRate() / 100)).toFixed(2);
+  }
+
+  /** Helper label: "= precio × 1.XX" */
+  igvMultiplierLabel(): string {
+    return `= precio × ${(1 + this.igvRate() / 100).toFixed(2)}`;
   }
 
   unitMargin(): number {
-    const sale = Number(this.form.base_price) || 0;
+    const net  = this.netPrice();
     const cost = Number(this.form.unit_cost) || 0;
-    return +(sale - cost).toFixed(2);
+    return +(net - cost).toFixed(2);
   }
 
   unitMarginPct(): number | null {
-    const sale = Number(this.form.base_price) || 0;
-    if (sale <= 0) return null;
-    return +(((sale - (Number(this.form.unit_cost) || 0)) / sale) * 100).toFixed(2);
+    const net = this.netPrice();
+    if (net <= 0) return null;
+    const cost = Number(this.form.unit_cost) || 0;
+    return +(((net - cost) / net) * 100).toFixed(2);
+  }
+
+  isNegativeMargin(): boolean {
+    return this.unitMargin() < 0;
   }
 
   ngOnInit(): void {
@@ -81,6 +119,13 @@ export class ProductFormComponent implements OnInit {
     this.api.get<any>('colors?per_page=100').subscribe(r => this.colors.set(r.data ?? r));
     this.api.get<Record<string, { value: unknown }>>('settings').subscribe({
       next: (settings) => {
+        this.igvActive.set(this.toBool(settings?.['igv_enabled']?.value));
+        // igv_rate stored as decimal (0.18 = 18%) — convert to percentage
+        const rawRate = parseFloat(String(settings?.['igv_rate']?.value ?? 0.18));
+        const pctRate = Number.isFinite(rawRate) && rawRate > 0
+          ? (rawRate < 1 ? rawRate * 100 : rawRate)
+          : 18;
+        this.igvRate.set(+pctRate.toFixed(2));
         this.pricesIncludeIgv.set(this.toBool(settings?.['prices_include_igv']?.value));
       },
     });
@@ -160,10 +205,13 @@ export class ProductFormComponent implements OnInit {
         this.newColorHex  = '#000000';
         this.addingColor.set(false);
         this.savingColor.set(false);
+        this.toast.success('Color creado correctamente.');
       },
       error: (e) => {
         this.savingColor.set(false);
-        this.colorError.set(e?.error?.message ?? 'Error al crear el color.');
+        const message = e?.error?.message ?? 'Error al crear el color.';
+        this.colorError.set(message);
+        this.toast.error(message);
       },
     });
   }
@@ -186,10 +234,15 @@ export class ProductFormComponent implements OnInit {
       : this.api.post('products', payload);
 
     req.subscribe({
-      next:  () => this.router.navigate(['/dashboard/products']),
+      next:  () => {
+        this.toast.success(this.isEdit() ? 'Producto actualizado correctamente.' : 'Producto creado correctamente.');
+        this.router.navigate(['/dashboard/products']);
+      },
       error: (e) => {
         this.saving.set(false);
-        this.error.set(e?.error?.message ?? 'Error al guardar el producto.');
+        const message = e?.error?.message ?? 'Error al guardar el producto.';
+        this.error.set(message);
+        this.toast.error(message);
       },
     });
   }

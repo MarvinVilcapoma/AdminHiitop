@@ -130,16 +130,6 @@
 </div>
 
 <!-- Toast -->
-@if (toast()) {
-  <div class="position-fixed bottom-0 end-0 p-3 toast-wrap">
-    <div class="toast show align-items-center border-0" [class]="'text-bg-' + toast()!.type" role="alert">
-      <div class="d-flex">
-        <div class="toast-body">{{ toast()!.text }}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" (click)="toast.set(null)"></button>
-      </div>
-    </div>
-  </div>
-}
 
 <!-- Confirm delete modal -->
 @if (delConfirm()) {

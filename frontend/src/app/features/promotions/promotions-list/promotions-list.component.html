@@ -7,20 +7,27 @@
   </a>
 </div>
 
-<app-page-state [loading]="loading()">
+<app-page-state [loading]="loading()" [error]="error()" (dismissed)="error.set('')">
 
 <div class="filters-bar mb-3">
   <div class="d-flex flex-wrap align-items-center gap-2">
     <div class="btn-group btn-group-sm" role="group">
-      <button class="btn btn-outline-secondary" [class.active]="statusFilter() === 'all'" (click)="statusFilter.set('all')">Todas</button>
-      <button class="btn btn-outline-success"   [class.active]="statusFilter() === 'active'" (click)="statusFilter.set('active')">Activas</button>
-      <button class="btn btn-outline-danger"    [class.active]="statusFilter() === 'inactive'" (click)="statusFilter.set('inactive')">Inactivas</button>
+      <button class="btn btn-outline-secondary" [class.active]="statusFilter() === 'all'"      (click)="setFilter('all')">Todas</button>
+      <button class="btn btn-outline-success"   [class.active]="statusFilter() === 'active'"   (click)="setFilter('active')">Activas</button>
+      <button class="btn btn-outline-danger"    [class.active]="statusFilter() === 'inactive'" (click)="setFilter('inactive')">Inactivas</button>
     </div>
-    <small class="text-muted ms-auto">{{ filtered().length }} promoción(es)</small>
+
+    <div class="input-group input-group-sm" style="max-width:240px">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input class="form-control" [(ngModel)]="search" (ngModelChange)="onSearchInput()"
+        placeholder="Buscar promoción…" />
+    </div>
+
+    <small class="text-muted ms-auto">{{ total() }} promoción(es)</small>
   </div>
 </div>
 
-@if (!filtered().length) {
+@if (!promotions().length && !loading()) {
   <div class="empty-state">
     <i class="bi bi-tags display-4 text-muted mb-3"></i>
     <p class="text-muted">No hay promociones registradas.</p>
@@ -30,7 +37,7 @@
   </div>
 } @else {
   <div class="row g-3">
-    @for (p of filtered(); track p.id) {
+    @for (p of promotions(); track p.id) {
       <div class="col-sm-6 col-xl-4">
         <div class="card promo-card border-0 shadow-sm h-100" [class.inactive]="!p.is_active">
           <div class="card-body">
@@ -52,7 +59,6 @@
               </button>
             </div>
 
-            <!-- items preview -->
             @if (p.items?.length) {
               <ul class="item-list mb-2">
                 @for (item of p.items; track $index) {
@@ -67,10 +73,8 @@
               </ul>
             }
 
-            <!-- fixed price -->
             @if (p.fixed_price) {
               <div class="fixed-price-row">
-                <img src="" alt="" class="d-none">
                 <span class="small text-muted">Precio fijo:</span>
                 <span class="fw-700 text-success ms-1">S/ {{ p.fixed_price | number:'1.2-2' }}</span>
               </div>
@@ -88,10 +92,30 @@
       </div>
     }
   </div>
+
+  @if (totalPages() > 1) {
+    <div class="d-flex justify-content-between align-items-center mt-4 pt-2 border-top">
+      <span class="text-muted small">Mostrando {{ promotions().length }} de {{ total() }} promociones</span>
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          <li class="page-item" [class.disabled]="currentPage === 1">
+            <button class="page-link" (click)="goToPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
+          </li>
+          @for (p of pageRange(); track p) {
+            <li class="page-item" [class.active]="p === currentPage">
+              <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+            </li>
+          }
+          <li class="page-item" [class.disabled]="currentPage === totalPages()">
+            <button class="page-link" (click)="goToPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  }
 }
 </app-page-state>
 
-<!-- Delete modal -->
 @if (delTarget()) {
   <div class="modal-overlay" (click)="cancelDelete()">
     <div class="modal-box" (click)="$event.stopPropagation()">

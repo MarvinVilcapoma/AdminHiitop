@@ -16,10 +16,24 @@ public sealed class ProductsController : BaseApiController
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get([FromQuery] ProductQueryRequest request)
+    public async Task<IActionResult> Get(
+        [FromQuery(Name = "per_page")]    int? perPage      = null,
+        [FromQuery]                       int  page          = 1,
+        [FromQuery]                       string? search     = null,
+        [FromQuery(Name = "active_only")] bool activeOnly    = false,
+        [FromQuery(Name = "collection_id")] int? collectionId = null,
+        [FromQuery(Name = "warehouse_id")]  int? warehouseId  = null)
     {
-        object response = await _productService.GetAsync(request);
-        return Ok(response);
+        var request = new ProductQueryRequest
+        {
+            PerPage      = perPage,
+            Page         = page,
+            Search       = search,
+            ActiveOnly   = activeOnly,
+            CollectionId = collectionId,
+            WarehouseId  = warehouseId,
+        };
+        return Ok(await _productService.GetAsync(request));
     }
 
     [HttpGet("{id:int}")]

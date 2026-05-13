@@ -5,6 +5,7 @@ import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { Stock } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 interface ItemRow {
   sku: string;
@@ -55,6 +56,7 @@ export class SaleFormComponent implements OnInit {
   private readonly api    = inject(ApiService);
   private readonly router = inject(Router);
   private readonly route  = inject(ActivatedRoute);
+  private readonly toast  = inject(ToastService);
 
   isEdit  = signal(false);
   loading = signal(false);
@@ -254,11 +256,16 @@ export class SaleFormComponent implements OnInit {
       : this.api.post('sales', payload);
 
     req.subscribe({
-      next: () => this.router.navigate(['/dashboard/sales']),
+      next: () => {
+        this.toast.success(this.isEdit() ? 'Venta actualizada correctamente.' : 'Venta creada correctamente.');
+        this.router.navigate(['/dashboard/sales']);
+      },
       error: e => {
         const msg = e?.error?.message ?? e?.error?.errors ?? 'Error al guardar.';
-        this.error.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.error.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }

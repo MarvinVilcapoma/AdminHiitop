@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AppUser, Role } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-users-list',
@@ -15,6 +16,7 @@ import { PageStateComponent } from '../../../core/components';
 })
 export class UsersListComponent implements OnInit {
   private api = inject(ApiService);
+  private toastService = inject(ToastService);
 
   loading = signal(false);
   users   = signal<AppUser[]>([]);
@@ -48,7 +50,6 @@ export class UsersListComponent implements OnInit {
   }
 
   delConfirm = signal<{ message: string; user: AppUser } | null>(null);
-  toast      = signal<{ text: string; type: 'success' | 'danger' } | null>(null);
 
   openConfirm(u: AppUser): void {
     this.delConfirm.set({ message: `Se eliminará permanentemente a "${u.name}" (${u.email}).`, user: u });
@@ -59,21 +60,23 @@ export class UsersListComponent implements OnInit {
     if (!u) return;
     this.delConfirm.set(null);
     this.api.delete(`users/${u.id}`).subscribe({
-      next:  () => { this.load(); this.showToast('Usuario eliminado.', 'success'); },
-      error: (e: any) => this.showToast(e?.error?.message ?? 'Error al eliminar.', 'danger'),
+      next:  () => {
+        this.load();
+        this.toastService.success('Usuario eliminado correctamente.');
+      },
+      error: (e: any) => this.toastService.error(e?.error?.message ?? 'Error al eliminar.'),
     });
   }
 
   toggleActive(u: AppUser): void {
     this.api.put(`users/${u.id}`, { is_active: !u.is_active }).subscribe({
-      next: (updated: any) => this.users.update(list =>
-        list.map(x => x.id === u.id ? { ...x, is_active: updated.is_active } : x)
-      ),
+      next: (updated: any) => {
+        this.users.update(list =>
+          list.map(x => x.id === u.id ? { ...x, is_active: updated.is_active } : x)
+        );
+        this.toastService.success(`Usuario ${u.is_active ? 'desactivado' : 'activado'} correctamente.`);
+      },
+      error: (e) => this.toastService.error(e?.error?.message ?? 'No se pudo actualizar el usuario.'),
     });
-  }
-
-  showToast(text: string, type: 'success' | 'danger'): void {
-    this.toast.set({ text, type });
-    setTimeout(() => this.toast.set(null), 4000);
   }
 }

@@ -4,6 +4,7 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AppUser } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-user-form',
@@ -16,6 +17,7 @@ export class UserFormComponent implements OnInit {
   private api    = inject(ApiService);
   private router = inject(Router);
   private route  = inject(ActivatedRoute);
+  private toast  = inject(ToastService);
 
   loading        = signal(false);
   saving         = signal(false);
@@ -89,11 +91,16 @@ export class UserFormComponent implements OnInit {
       : this.api.post('users', payload);
 
     req.subscribe({
-      next:  () => this.router.navigate(['/dashboard/users']),
+      next:  () => {
+        this.toast.success(this.isEdit() ? 'Usuario actualizado correctamente.' : 'Usuario creado correctamente.');
+        this.router.navigate(['/dashboard/users']);
+      },
       error: (e) => {
         const msg = e?.error?.message ?? e?.error?.errors ?? 'Error al guardar.';
-        this.error.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.error.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }

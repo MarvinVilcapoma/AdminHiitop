@@ -1,0 +1,100 @@
+<div class="product-lookup" [class.is-disabled]="disabled()" [class.is-panel]="mode() === 'panel'">
+  <div class="product-lookup__bar">
+    <div class="product-lookup__icon">
+      <i class="bi bi-upc-scan"></i>
+    </div>
+
+    <div class="product-lookup__field">
+      <input
+        class="product-lookup__input"
+        [(ngModel)]="query"
+        (input)="onInputChange()"
+        (focus)="onInputChange()"
+        (blur)="closeDropdown()"
+        [placeholder]="placeholder()"
+        [disabled]="disabled()"
+        autocomplete="off"
+      />
+      <small>{{ hint() }}</small>
+    </div>
+
+    <button class="product-lookup__action" type="button" (click)="onInputChange()" [disabled]="disabled()">
+      <i class="bi bi-search"></i>
+    </button>
+  </div>
+
+  @if (mode() === 'panel') {
+    <section class="product-lookup__panel">
+      <div class="product-lookup__panel-head">
+        <strong>{{ panelTitle() }}</strong>
+      </div>
+
+      <div class="product-lookup__panel-body">
+        @if (searching()) {
+          <div class="product-lookup__state">
+            <app-loading-state mode="inline" text="Buscando productos..." />
+          </div>
+        } @else if (results().length > 0) {
+          @for (item of results(); track item.stock_id ?? item.product_id) {
+            <button type="button" class="product-lookup__item is-panel-item" (click)="selectItem(item)">
+              <div class="product-lookup__main">
+                <span class="fw-semibold">{{ item.product_name }}</span>
+                @if (item.variant_label) {
+                  <span class="text-muted small"> · {{ item.variant_label }}</span>
+                }
+                @if (item.sku) {
+                  <small class="text-muted d-block">SKU: {{ item.sku }}</small>
+                }
+                @if (item.warehouse_name) {
+                  <small class="text-muted d-block">Almacen: {{ item.warehouse_name }}</small>
+                }
+              </div>
+              <div class="product-lookup__meta">
+                @if (item.available_qty !== undefined) {
+                  <span class="badge bg-light text-dark border mb-1">Disp: {{ item.available_qty }}</span>
+                }
+                @if (item.unit_price !== undefined) {
+                  <strong>S/ {{ item.unit_price | number:'1.2-2' }}</strong>
+                }
+              </div>
+            </button>
+          }
+        } @else {
+          <div class="product-lookup__state">{{ emptyText() }}</div>
+        }
+      </div>
+    </section>
+  } @else if (opened()) {
+    <div class="product-lookup__dropdown shadow-sm">
+      @if (searching()) {
+        <div class="product-lookup__state">
+          <app-loading-state mode="inline" text="Buscando productos..." />
+        </div>
+      } @else if (results().length > 0) {
+        @for (item of results(); track item.stock_id ?? item.product_id) {
+          <button type="button" class="product-lookup__item" (mousedown)="selectItem(item)">
+            <div class="product-lookup__main">
+              <span class="fw-semibold">{{ item.product_name }}</span>
+              @if (item.variant_label) {
+                <span class="text-muted small"> · {{ item.variant_label }}</span>
+              }
+              @if (item.sku) {
+                <small class="text-muted d-block">SKU: {{ item.sku }}</small>
+              }
+            </div>
+            <div class="product-lookup__meta">
+              @if (item.available_qty !== undefined) {
+                <span class="badge bg-light text-dark border mb-1">Disp: {{ item.available_qty }}</span>
+              }
+              @if (item.unit_price !== undefined) {
+                <strong>S/ {{ item.unit_price | number:'1.2-2' }}</strong>
+              }
+            </div>
+          </button>
+        }
+      } @else {
+        <div class="product-lookup__state">{{ emptyText() }}</div>
+      }
+    </div>
+  }
+</div>

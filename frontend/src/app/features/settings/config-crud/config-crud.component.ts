@@ -4,13 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { LowerCasePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { ToastService } from '../../../core/services/toast.service';
+import { LoadingStateComponent } from '../../../core/components';
+import { Province, District } from '../../../core/models';
 
 export interface ColDef { key: string; label: string; type?: 'text'|'color'|'number'|'textarea'|'slug'|'boolean'; }
 
 @Component({
   selector: 'app-config-crud',
   standalone: true,
-  imports: [RouterLink, FormsModule, LowerCasePipe],
+  imports: [RouterLink, FormsModule, LowerCasePipe, LoadingStateComponent],
   templateUrl: './config-crud.component.html',
   styleUrl: './config-crud.component.scss',
 })
@@ -19,6 +22,7 @@ export class ConfigCrudComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly api    = inject(ApiService);
   private readonly auth   = inject(AuthService);
+  private readonly toast  = inject(ToastService);
 
   endpoint   = signal('');
   title      = signal('Catálogo');
@@ -70,6 +74,7 @@ export class ConfigCrudComponent implements OnInit {
 
     this.resetForm();
     this.load();
+    this.loadProvinces();
   }
 
   private resetForm(): void {
@@ -139,11 +144,19 @@ export class ConfigCrudComponent implements OnInit {
     }
     this.saving.set(true);
     this.api.post(this.endpoint(), this.newRow).subscribe({
-      next: () => { this.saving.set(false); this.showForm.set(false); this.resetForm(); this.load(); },
+      next: () => {
+        this.saving.set(false);
+        this.showForm.set(false);
+        this.resetForm();
+        this.toast.success('Registro creado correctamente.');
+        this.load();
+      },
       error: e => {
         const msg = e?.error?.message ?? e?.error?.errors ?? 'Error al guardar.';
-        this.formError.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.formError.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }
@@ -155,6 +168,10 @@ export class ConfigCrudComponent implements OnInit {
 
     this.editError.set('');
     this.editRow.set({ ...row });
+
+    if (this.isWarehouseEndpoint() && row.province_id) {
+      this.onWarehouseProvinceChange(row.province_id, this.editRow()!);
+    }
   }
 
   saveEdit(): void {
@@ -163,11 +180,18 @@ export class ConfigCrudComponent implements OnInit {
     if (!row) return;
     this.saving.set(true);
     this.api.put(`${this.endpoint()}/${row.id}`, row).subscribe({
-      next: () => { this.saving.set(false); this.editRow.set(null); this.load(); },
+      next: () => {
+        this.saving.set(false);
+        this.editRow.set(null);
+        this.toast.success('Registro actualizado correctamente.');
+        this.load();
+      },
       error: e => {
         const msg = e?.error?.message ?? 'Error al guardar.';
-        this.editError.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.editError.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }
@@ -185,8 +209,10 @@ export class ConfigCrudComponent implements OnInit {
           if (shouldGoPrevPage) {
             this.currentPage.update((p) => Math.max(1, p - 1));
           }
+          this.toast.success('Registro eliminado correctamente.');
           this.load();
         },
+        error: (e) => this.toast.error(e?.error?.message ?? 'No se pudo eliminar el registro.'),
       });
     });
   }
@@ -265,7 +291,11 @@ export class ConfigCrudComponent implements OnInit {
     }
 
     this.api.put(`${this.endpoint()}/${row.id}`, { is_active: !row.is_active }).subscribe({
-      next: () => this.load(),
+      next: () => {
+        this.toast.success(`Registro ${row.is_active ? 'desactivado' : 'activado'} correctamente.`);
+        this.load();
+      },
+      error: (e) => this.toast.error(e?.error?.message ?? 'No se pudo actualizar el estado.'),
     });
   }
 
@@ -282,10 +312,37 @@ export class ConfigCrudComponent implements OnInit {
 
     if (endpoint === 'document-types') {
       const code = String(row?.code ?? '').toUpperCase();
-      return ['BOLETA', 'FACTURA', 'TICKET', 'NOTA_CRED', 'NOTA_VENTA', 'GUIA_REMISION'].includes(code);
+      return ['BOLETA', 'FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'GUIA_REMISION', 'COTIZACION', 'ORDEN_VENTA'].includes(code);
+    }
+
+    if (endpoint === 'document-print-formats') {
+      const code = String(row?.code ?? '').toUpperCase();
+      return ['A4', 'TICKET', 'PDF'].includes(code);
     }
 
     return false;
+  }
+
+  // ── Warehouse geo selects (only for warehouses endpoint) ─────────────────
+
+  isWarehouseEndpoint = computed(() => this.endpoint() === 'warehouses');
+  provinces           = signal<Province[]>([]);
+  warehouseDistricts  = signal<District[]>([]);
+
+  loadProvinces(): void {
+    if (!this.isWarehouseEndpoint() || this.provinces().length > 0) return;
+    this.api.get<any>('provinces?per_page=500').subscribe({
+      next: r => this.provinces.set(Array.isArray(r) ? r : (r?.data ?? [])),
+    });
+  }
+
+  onWarehouseProvinceChange(provinceId: string | number | null, row: Record<string, any>): void {
+    row['district_id'] = '';
+    this.warehouseDistricts.set([]);
+    if (!provinceId) return;
+    this.api.get<any>(`districts?province_id=${provinceId}&per_page=500`).subscribe({
+      next: r => this.warehouseDistricts.set(Array.isArray(r) ? r : (r?.data ?? [])),
+    });
   }
 
   // ── Sizes management (only for product-types) ────────────────────────────
@@ -307,8 +364,12 @@ export class ConfigCrudComponent implements OnInit {
         this.rows.update(rs => rs.map(r => r.id === row.id ? { ...r, sizes: updated.sizes ?? [] } : r));
         this.sizeSaving.set(false);
         this.newSizeName = '';
+        this.toast.success('Tallas actualizadas correctamente.');
       },
-      error: () => this.sizeSaving.set(false),
+      error: (e) => {
+        this.sizeSaving.set(false);
+        this.toast.error(e?.error?.message ?? 'No se pudieron actualizar las tallas.');
+      },
     });
   }
 

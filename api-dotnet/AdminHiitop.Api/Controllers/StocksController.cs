@@ -30,9 +30,11 @@ public sealed class StocksController : BaseApiController
     }
 
     [HttpGet("available")]
-    public async Task<IActionResult> Available([FromQuery(Name = "product_id")] int? productId = null)
+    public async Task<IActionResult> Available(
+        [FromQuery(Name = "product_id")]   int? productId   = null,
+        [FromQuery(Name = "warehouse_id")] int? warehouseId = null)
     {
-        IReadOnlyList<StockResponse> response = await _stockService.GetAvailableAsync(productId);
+        object response = await _stockService.GetAvailableGroupedAsync(productId, warehouseId);
         return Ok(response);
     }
 

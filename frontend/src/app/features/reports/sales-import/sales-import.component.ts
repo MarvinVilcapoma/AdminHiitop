@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe, DatePipe, SlicePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 interface BatchSummary {
   import_batch: string;
@@ -21,42 +22,55 @@ interface BatchSummary {
 })
 export class SalesImportComponent implements OnInit {
   private api = inject(ApiService);
+  private toast = inject(ToastService);
 
-  rawText      = '';
-  rows         = signal<string[][]>([]);
-  importing    = signal(false);
+  rawText = '';
+  rows = signal<string[][]>([]);
+  importing = signal(false);
   loadingBatches = signal(false);
-  batches      = signal<BatchSummary[]>([]);
-  importError  = signal('');
-  importSuccess= signal('');
+  batches = signal<BatchSummary[]>([]);
+  importError = signal('');
+  importSuccess = signal('');
 
-  ngOnInit(): void { this.loadBatches(); }
+  delConfirm = signal<{ message: string; action: () => void } | null>(null);
+
+  ngOnInit(): void {
+    this.loadBatches();
+  }
 
   preview(): void {
     const lines = this.rawText.trim().split('\n');
-    const parsed = lines.map(line => line.split('\t'));
+    const parsed = lines.map((line) => line.split('\t'));
     this.rows.set(parsed);
     this.importError.set('');
     this.importSuccess.set('');
   }
 
   importData(): void {
-    const r = this.rows();
-    if (r.length < 2) { this.importError.set('No hay datos para importar.'); return; }
+    const rows = this.rows();
+    if (rows.length < 2) {
+      this.importError.set('No hay datos para importar.');
+      return;
+    }
+
     this.importing.set(true);
     this.importError.set('');
     this.importSuccess.set('');
-    this.api.post('sale-imports/import', { rows: r }).subscribe({
+
+    this.api.post('sale-imports/import', { rows }).subscribe({
       next: (res: any) => {
         this.importing.set(false);
-        this.importSuccess.set(`Importación exitosa: ${res.imported ?? r.length - 1} filas procesadas.`);
+        this.importSuccess.set(`Importacion exitosa: ${res.imported ?? rows.length - 1} filas procesadas.`);
+        this.toast.success(this.importSuccess());
         this.rawText = '';
         this.rows.set([]);
         this.loadBatches();
       },
       error: (e) => {
         this.importing.set(false);
-        this.importError.set(e?.error?.message ?? 'Error al importar.');
+        const message = e?.error?.message ?? 'Error al importar.';
+        this.importError.set(message);
+        this.toast.error(message);
       },
     });
   }
@@ -71,29 +85,28 @@ export class SalesImportComponent implements OnInit {
   loadBatches(): void {
     this.loadingBatches.set(true);
     this.api.get<BatchSummary[]>('sale-imports').subscribe({
-      next:  b  => { this.batches.set(b); this.loadingBatches.set(false); },
+      next: (batches) => {
+        this.batches.set(batches);
+        this.loadingBatches.set(false);
+      },
       error: () => this.loadingBatches.set(false),
     });
   }
-
-  delConfirm = signal<{ message: string; action: () => void } | null>(null);
-  toast      = signal<{ text: string; type: 'success' | 'danger' } | null>(null);
 
   openConfirm(message: string, action: () => void): void {
     this.delConfirm.set({ message, action });
   }
 
-  deleteBatch(b: BatchSummary): void {
+  deleteBatch(batch: BatchSummary): void {
     this.openConfirm(
-      `Se eliminará el lote de ${b.row_count} filas del ${b.imported_at ?? ''}.`,
-      () => this.api.delete(`sale-imports/${b.import_batch}/batch`).subscribe({
-        next:  () => { this.loadBatches(); this.showToast('Lote eliminado correctamente.', 'success'); },
-        error: (e) => this.showToast(e?.error?.message ?? 'Error al eliminar.', 'danger'),
+      `Se eliminara el lote de ${batch.row_count} filas del ${batch.imported_at ?? ''}.`,
+      () => this.api.delete(`sale-imports/${batch.import_batch}/batch`).subscribe({
+        next: () => {
+          this.loadBatches();
+          this.toast.success('Lote eliminado correctamente.');
+        },
+        error: (e) => this.toast.error(e?.error?.message ?? 'Error al eliminar.'),
       })
     );
-  }
-  showToast(text: string, type: 'success' | 'danger'): void {
-    this.toast.set({ text, type });
-    setTimeout(() => this.toast.set(null), 4000);
   }
 }

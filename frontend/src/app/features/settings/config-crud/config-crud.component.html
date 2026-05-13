@@ -57,6 +57,31 @@
           </div>
         }
       }
+
+      <!-- Warehouse geo selects -->
+      @if (isWarehouseEndpoint()) {
+        <div class="col-12 col-sm-4">
+          <label class="form-label" for="create-province_id">Departamento</label>
+          <select id="create-province_id" class="form-select form-select-sm" [(ngModel)]="newRow['province_id']"
+            (ngModelChange)="onWarehouseProvinceChange($event, newRow)">
+            <option value="">— Seleccionar —</option>
+            @for (p of provinces(); track p.id) {
+              <option [value]="p.id">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-12 col-sm-4">
+          <label class="form-label" for="create-district_id">Distrito</label>
+          <select id="create-district_id" class="form-select form-select-sm" [(ngModel)]="newRow['district_id']"
+            [disabled]="!newRow['province_id']">
+            <option value="">— Seleccionar —</option>
+            @for (d of warehouseDistricts(); track d.id) {
+              <option [value]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </div>
+      }
+
       <div class="col-12 col-sm-auto">
         <button class="btn btn-primary w-100" [disabled]="saving()" (click)="create()">
           @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
@@ -100,7 +125,7 @@
 <!-- Table -->
 <div class="table-wrap">
   @if (loading()) {
-    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    <app-loading-state mode="table" text="Cargando registros..." />
   } @else {
     <div class="table-responsive">
       <table class="table">
@@ -302,6 +327,29 @@
                   }
                 </div>
               }
+            }
+            <!-- Warehouse geo selects in edit modal -->
+            @if (isWarehouseEndpoint()) {
+              <div class="col-12 col-sm-6">
+                <label class="form-label" for="edit-province_id">Departamento</label>
+                <select id="edit-province_id" class="form-select" [(ngModel)]="editRow()!['province_id']"
+                  (ngModelChange)="onWarehouseProvinceChange($event, editRow()!)">
+                  <option [ngValue]="null">— Seleccionar —</option>
+                  @for (p of provinces(); track p.id) {
+                    <option [value]="p.id">{{ p.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="form-label" for="edit-district_id">Distrito</label>
+                <select id="edit-district_id" class="form-select" [(ngModel)]="editRow()!['district_id']"
+                  [disabled]="!editRow()!['province_id']">
+                  <option [ngValue]="null">— Seleccionar —</option>
+                  @for (d of warehouseDistricts(); track d.id) {
+                    <option [value]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </div>
             }
           </div>
         </div>

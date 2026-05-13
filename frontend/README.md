@@ -16,7 +16,7 @@ npm install
 
 ## Configuración
 
-Editar `src/environments/environment.ts` y ajustar `apiUrl` si la API no está en `http://localhost:8000/api`.
+Editar `src/environments/environment.ts` y ajustar `apiUrl` si la API no está en `http://localhost:5224/api`.
 
 ## Desarrollo
 

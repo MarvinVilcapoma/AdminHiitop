@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { ToastService } from './toast.service';
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -14,6 +15,7 @@ export interface PaginatedResponse<T> {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
+  private readonly toast = inject(ToastService);
   private readonly base = environment.apiUrl;
 
   get<T>(path: string, params?: Record<string, string | number | boolean>): Observable<T> {
@@ -28,6 +30,10 @@ export class ApiService {
 
   post<T>(path: string, body: unknown): Observable<T> {
     return this.http.post<T>(`${this.base}/${path}`, body);
+  }
+
+  postForm<T>(path: string, formData: FormData): Observable<T> {
+    return this.http.post<T>(`${this.base}/${path}`, formData);
   }
 
   put<T>(path: string, body: unknown): Observable<T> {
@@ -61,7 +67,7 @@ export class ApiService {
           ? 'No disponible aún. Envía el comprobante a SUNAT primero.'
           : (err?.message ?? 'Error al descargar el archivo.');
         if (onError) onError(msg);
-        else alert(msg);
+        else this.toast.error(msg);
       },
     });
   }

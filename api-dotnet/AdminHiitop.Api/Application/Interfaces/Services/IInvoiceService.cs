@@ -8,7 +8,7 @@ public record InvoiceFileContent(byte[] Content, string FileName);
 public interface IInvoiceService
 {
     Task<object> GetAsync(int perPage, int page, CancellationToken cancellationToken);
-    Task<IEnumerable<InvoiceSeries>> GetSeriesAsync(CancellationToken cancellationToken);
+    Task<object> GetSeriesAsync(CancellationToken cancellationToken);
     Task<Invoice?> GetByIdAsync(int id, CancellationToken cancellationToken);
     Task<object> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken);
     Task<object> TestConnectionAsync();

@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { ToastService } from '../../../core/services/toast.service';
 import { SearchableSelectComponent } from '../../../core/components/searchable-select/searchable-select.component';
 import {
   Collection, Color, OrderStatus, Promotion, PromotionItem,
@@ -49,6 +50,7 @@ export class OrderFormComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
 
   id               = signal<number | null>(null);
   orderStatuses    = signal<OrderStatus[]>([]);
@@ -84,6 +86,9 @@ export class OrderFormComponent implements OnInit {
   guideMode       = signal(false);
   backRoute       = signal('/dashboard/orders');
   guideDocumentName = signal('Guía de remisión');
+
+  discountType = signal<'percent' | 'fixed'>('percent');
+  discountValue = signal(0);
 
   private searchTimers: Record<number, ReturnType<typeof setTimeout>> = {};
 
@@ -167,7 +172,7 @@ export class OrderFormComponent implements OnInit {
     this.api.get<ShippingAgency[]>('shipping-agencies').subscribe(r => this.shippingAgencies.set(pick(r)));
     this.api.get<PurchaseType[]>('purchase-types').subscribe(r   => this.purchaseTypes.set(pick(r)));
     this.api.get<Province[]>('provinces').subscribe(r            => this.provinces.set(pick(r)));
-    this.api.get<DocumentType[]>('document-types?per_page=200').subscribe(r => {
+    this.api.get<DocumentType[]>('document-types?active_only=1&per_page=200').subscribe(r => {
       const docs = pick(r);
       const guideDoc = docs.find((d: any) => String(d.code ?? '').toUpperCase() === 'GUIA_REMISION') ?? null;
 
@@ -184,11 +189,11 @@ export class OrderFormComponent implements OnInit {
         this.form.get('document_type_id')?.enable({ emitEvent: false });
 
         if (!this.id() && !this.form.get('document_type_id')?.value) {
-          const noteSale = availableDocs.find((d: any) => String(d.code ?? '').toUpperCase() === 'NOTA_VENTA');
+          const orderSale = availableDocs.find((d: any) => String(d.code ?? '').toUpperCase() === 'ORDEN_VENTA');
+          const quote = availableDocs.find((d: any) => String(d.code ?? '').toUpperCase() === 'COTIZACION');
           const factura = availableDocs.find((d: any) => String(d.code ?? '').toUpperCase() === 'FACTURA');
           const boleta = availableDocs.find((d: any) => String(d.code ?? '').toUpperCase() === 'BOLETA');
-          const ticket = availableDocs.find((d: any) => String(d.code ?? '').toUpperCase() === 'TICKET');
-          const selectedId = noteSale?.id ?? factura?.id ?? boleta?.id ?? ticket?.id ?? availableDocs[0]?.id ?? null;
+          const selectedId = orderSale?.id ?? quote?.id ?? factura?.id ?? boleta?.id ?? availableDocs[0]?.id ?? null;
           this.form.patchValue({ document_type_id: selectedId }, { emitEvent: false });
         }
       }
@@ -312,8 +317,7 @@ export class OrderFormComponent implements OnInit {
   onProductSearchInput(line: OrderLine, idx: number): void {
     clearTimeout(this.searchTimers[idx]);
     const term = line.productSearch?.trim() ?? '';
-    const hasContext = !!(this.warehouseId || this.filterCollectionId);
-    if (!term && !hasContext) {
+    if (!term) {
       line.product_id    = null;
       line.searchResults = [];
       line.dropdownOpen  = false;
@@ -321,8 +325,7 @@ export class OrderFormComponent implements OnInit {
     }
     line.searching = true;
     this.searchTimers[idx] = setTimeout(() => {
-      const params: Record<string, any> = { active_only: 1, per_page: 20 };
-      if (term) params['search'] = term;
+      const params: Record<string, any> = { active_only: 1, per_page: 20, search: term };
       if (this.warehouseId) params['warehouse_id'] = this.warehouseId;
       if (this.filterCollectionId) params['collection_id'] = this.filterCollectionId;
       this.api.get<any>('products', params).subscribe({
@@ -337,8 +340,8 @@ export class OrderFormComponent implements OnInit {
   }
 
   onProductFocus(line: OrderLine, idx: number): void {
-    if (line.product_id) return; // already selected
-    if (!!(this.warehouseId || this.filterCollectionId)) {
+    if (line.product_id) return;
+    if (line.productSearch?.trim()) {
       this.onProductSearchInput(line, idx);
     } else if (line.searchResults.length > 0) {
       line.dropdownOpen = true;
@@ -419,6 +422,14 @@ export class OrderFormComponent implements OnInit {
     return +(this.lines().reduce((sum, l) => sum + l.subtotal, 0)).toFixed(2);
   }
 
+  discountAmount(): number {
+    const v = this.discountValue();
+    if (v <= 0) return 0;
+    const sub = this.itemsTotal();
+    if (this.discountType() === 'percent') return +(sub * Math.min(v, 100) / 100).toFixed(2);
+    return +Math.min(v, sub).toFixed(2);
+  }
+
   collectionOptions(): { id: number; name: string }[] {
     return this.collections().map(c => ({ id: c.id, name: c.name }));
   }
@@ -427,7 +438,7 @@ export class OrderFormComponent implements OnInit {
     if (this.totalManualMode) return;
     const delivery = +(this.form.get('delivery_cost')?.value ?? 0);
     this.form.get('total')?.setValue(
-      +(this.itemsTotal() + delivery).toFixed(2), { emitEvent: false }
+      +(this.itemsTotal() + delivery - this.discountAmount()).toFixed(2), { emitEvent: false }
     );
   }
 
@@ -545,17 +556,27 @@ export class OrderFormComponent implements OnInit {
       if (!statusId) return;
       this.loading.set(true);
       this.api.put<unknown>(`orders/${this.id()}`, { order_status_id: statusId }).subscribe({
-        next: () => { this.loading.set(false); this.router.navigate(['/dashboard/orders']); },
-        error: () => this.loading.set(false),
+        next: () => {
+          this.loading.set(false);
+          this.toast.success('Estado del pedido actualizado correctamente.');
+          this.router.navigate(['/dashboard/orders']);
+        },
+        error: (e) => {
+          this.loading.set(false);
+          this.toast.error(e?.error?.message ?? 'No se pudo actualizar el estado del pedido.');
+        },
       });
       return;
     }
 
     if (this.form.invalid) return;
-    if (!this.lines().length) { alert('Agrega al menos un ítem al pedido.'); return; }
+    if (!this.lines().length) {
+      this.toast.warning('Agrega al menos un item al pedido.');
+      return;
+    }
 
     if (this.guideMode() && !this.form.getRawValue().document_type_id) {
-      alert('No se encontró el tipo de documento Guía de Remisión.');
+      this.toast.error('No se encontro el tipo de documento Guia de Remision.');
       return;
     }
 
@@ -591,12 +612,20 @@ export class OrderFormComponent implements OnInit {
       unit_price:          l.unit_price,
       subtotal:            l.subtotal,
     }));
+    const discountAmt = this.discountAmount();
     const req = id
-      ? this.api.put<unknown>(`orders/${id}`,    { ...body, items })
-      : this.api.post<unknown>('orders',          { ...body, items });
+      ? this.api.put<unknown>(`orders/${id}`,    { ...body, items, discount_type: discountAmt > 0 ? this.discountType() : null, discount_value: discountAmt > 0 ? this.discountValue() : null, discount_amount: discountAmt })
+      : this.api.post<unknown>('orders',          { ...body, items, discount_type: discountAmt > 0 ? this.discountType() : null, discount_value: discountAmt > 0 ? this.discountValue() : null, discount_amount: discountAmt });
     req.subscribe({
-      next: () => { this.loading.set(false); this.router.navigate([this.backRoute()]); },
-      error: () => this.loading.set(false),
+      next: () => {
+        this.loading.set(false);
+        this.toast.success(id ? 'Pedido actualizado correctamente.' : 'Pedido creado correctamente.');
+        this.router.navigate([this.backRoute()]);
+      },
+      error: (e) => {
+        this.loading.set(false);
+        this.toast.error(e?.error?.message ?? 'No se pudo guardar el pedido.');
+      },
     });
   }
 }

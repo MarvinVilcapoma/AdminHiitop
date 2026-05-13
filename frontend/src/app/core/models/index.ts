@@ -52,7 +52,27 @@ export interface ShippingAgency extends IdName {
   is_active?: boolean;
 }
 export interface PurchaseType   extends IdName {}
-export interface DocumentType   extends IdName { code?: string; is_active?: boolean; is_protected?: boolean; }
+export interface DocumentPrintFormat extends IdName {
+  code?: string;
+  mode?: 'a4' | 'ticket' | 'pdf';
+  width_mm?: number | null;
+  is_active?: boolean;
+  pivot?: { is_default?: boolean };
+}
+
+export interface DocumentType extends IdName {
+  code?: string;
+  is_active?: boolean;
+  is_protected?: boolean;
+  is_sunat_document?: boolean;
+  requires_customer?: boolean;
+  requires_related_document?: boolean;
+  can_be_converted?: boolean;
+  is_commercial_document?: boolean;
+  sort_order?: number;
+  printFormats?: DocumentPrintFormat[];
+  print_formats?: DocumentPrintFormat[];
+}
 export interface ProductType    extends IdName { slug?: string; is_active?: boolean; sizes?: Size[]; }
 export interface Collection     extends IdName { slug?: string; description?: string; is_active?: boolean; }
 export interface Province       extends IdName { code?: string; is_active?: boolean; districts?: District[]; }
@@ -126,6 +146,22 @@ export interface Stock {
   color?: Color;
 }
 
+export interface ProductLookupItem {
+  stock_id: number | null;
+  product_id: number;
+  product_name: string;
+  sku?: string;
+  warehouse_id?: number | null;
+  warehouse_name?: string | null;
+  color_id?: number | null;
+  color_name?: string | null;
+  size?: string | null;
+  available_qty?: number;
+  unit_price?: number;
+  unit_cost?: number;
+  variant_label?: string;
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 
 export interface OrderItem {
@@ -168,7 +204,10 @@ export interface Order {
   total: number;
   observations?: string;
   document_type_id?: number;
+  document_print_format_id?: number;
   document_type?: DocumentType;
+  document_print_format?: DocumentPrintFormat;
+  documentPrintFormat?: DocumentPrintFormat;
   document_number?: string;
   guide_transfer_reason_code?: string;
   guide_transfer_reason_description?: string;
@@ -272,7 +311,26 @@ export interface InvoiceSeries {
   is_active: boolean;
 }
 
-export type InvoiceStatus = 'draft' | 'pending' | 'accepted' | 'rejected' | 'exception' | 'error' | 'cancelled';
+export type InvoiceStatus =
+  | 'draft'
+  | 'generated'
+  | 'sending'
+  | 'pending'
+  | 'sent'
+  | 'accepted'
+  | 'accepted_with_obs'
+  | 'rejected'
+  | 'exception'
+  | 'error_connection'
+  | 'error_validation'
+  | 'error_envio'
+  | 'error_sunat'
+  | 'error'
+  | 'cancelled'
+  | 'pending_daily_summary'
+  | 'daily_summary_sent'
+  | 'ticket_generated'
+  | 'processing';
 
 export interface Invoice {
   id: number;
@@ -310,6 +368,44 @@ export interface Invoice {
   issued_at: string;
   user?: Pick<AppUser, 'id' | 'name'>;
   created_at?: string;
+}
+
+export interface DailySummaryItem {
+  id: number;
+  invoice_id: number;
+  doc_type: string;
+  serie: string;
+  correlativo: number;
+  customer_doc_type?: string;
+  customer_doc_number?: string;
+  total: number;
+  status: string;
+  invoice?: Invoice;
+}
+
+export interface DailySummary {
+  id: number;
+  summary_date: string;
+  summary_number: string;
+  file_name?: string;
+  status: string;
+  ticket?: string;
+  sunat_code?: number;
+  sunat_description?: string;
+  sunat_notes?: string[];
+  sent_at?: string;
+  accepted_at?: string;
+  rejected_at?: string;
+  items_count?: number;
+  items?: DailySummaryItem[];
+}
+
+export interface PosInitialData {
+  warehouses: Warehouse[];
+  document_types: DocumentType[];
+  payment_methods: PaymentMethod[];
+  colors: Color[];
+  settings: Record<string, Setting>;
 }
 
 // ── Pagination ───────────────────────────────────────────────────────────────

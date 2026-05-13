@@ -66,7 +66,9 @@
         <div class="search-wrap d-none d-md-flex">
           <i class="bi bi-search search-icon"></i>
           <input type="text" class="form-control form-control-sm search-input"
-            placeholder="Buscar pedidos, clientes..." />
+            placeholder="Buscar pedidos, clientes..."
+            [(ngModel)]="globalSearch"
+            (keydown)="onGlobalSearch($event)" />
         </div>
       </div>
     </header>

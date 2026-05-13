@@ -79,12 +79,15 @@
         <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
           <i class="bi bi-cash-stack text-success"></i>
           <span class="fw-600">Precios</span>
-          <span class="badge bg-success-subtle text-success ms-auto">IGV 18%</span>
+          @if (igvBadgeText()) {
+            <span class="badge bg-success-subtle text-success ms-auto">{{ igvBadgeText() }}</span>
+          }
         </div>
         <div class="card-body">
           <div class="row g-3">
-            <div [class]="pricesIncludeIgv() ? 'col-sm-6' : 'col-sm-4'">
-              <div class="form-label fw-500">{{ pricesIncludeIgv() ? 'Precio de venta (S/)' : 'Precio sin IGV (S/)' }}</div>
+            <!-- Sale price field: label changes based on fiscal config -->
+            <div [class]="igvActive() && !pricesIncludeIgv() ? 'col-sm-4' : 'col-sm-6'">
+              <div class="form-label fw-500">{{ salePriceLabel() }}</div>
               <div class="input-group">
                 <span class="input-group-text">S/</span>
                 <input type="number" class="form-control" [(ngModel)]="form.base_price"
@@ -92,7 +95,9 @@
               </div>
               <small class="text-muted d-block mt-1 price-help">&nbsp;</small>
             </div>
-            <div [class]="pricesIncludeIgv() ? 'col-sm-6' : 'col-sm-4'">
+
+            <!-- Unit cost -->
+            <div [class]="igvActive() && !pricesIncludeIgv() ? 'col-sm-4' : 'col-sm-6'">
               <div class="form-label fw-500">Costo unitario (S/)</div>
               <div class="input-group">
                 <span class="input-group-text">S/</span>
@@ -101,18 +106,27 @@
               </div>
               <small class="text-muted d-block mt-1 price-help">&nbsp;</small>
             </div>
-            @if (!pricesIncludeIgv()) {
-            <div class="col-sm-4">
-              <div class="form-label fw-500 text-muted">Precio con IGV (S/)</div>
-              <div class="input-group">
-                <span class="input-group-text bg-light text-muted">S/</span>
-                <input class="form-control bg-light text-muted"
-                  [value]="priceWithIgv()" readonly tabindex="-1" />
+
+            <!-- Price with IGV: only shown when IGV active and prices do NOT include IGV -->
+            @if (igvActive() && !pricesIncludeIgv()) {
+              <div class="col-sm-4">
+                <div class="form-label fw-500 text-muted">Precio con IGV (S/)</div>
+                <div class="input-group">
+                  <span class="input-group-text bg-light text-muted">S/</span>
+                  <input class="form-control bg-light text-muted"
+                    [value]="priceWithIgv()" readonly tabindex="-1" />
+                </div>
+                <small class="text-muted d-block mt-1 price-help">{{ igvMultiplierLabel() }}</small>
               </div>
-              <small class="text-muted d-block mt-1 price-help">= precio × 1.18</small>
-            </div>
             }
           </div>
+
+          @if (isNegativeMargin() && (form.base_price > 0 || form.unit_cost > 0)) {
+            <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mt-3 mb-0 small">
+              <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+              <span>El precio de venta es menor al costo unitario. El margen es negativo.</span>
+            </div>
+          }
 
           <div class="row g-3 mt-1">
             <div class="col-sm-6">
@@ -121,6 +135,9 @@
                 <span class="fw-semibold" [class.text-success]="unitMargin() >= 0" [class.text-danger]="unitMargin() < 0">
                   S/ {{ unitMargin() | number:'1.2-2' }}
                 </span>
+                @if (igvActive() && pricesIncludeIgv()) {
+                  <small class="text-muted d-block" style="font-size:.7rem">Calculado sobre precio neto sin IGV</small>
+                }
               </div>
             </div>
             <div class="col-sm-6">

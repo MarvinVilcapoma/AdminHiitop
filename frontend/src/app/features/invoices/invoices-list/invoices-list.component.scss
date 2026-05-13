@@ -4,26 +4,13 @@
   font-size: 0.72rem;
   letter-spacing: 0.02em;
 
-  &.badge-draft     { background-color: #6c757d; }
-  &.badge-pending   { background-color: #0dcaf0; color: #000; }
-  &.badge-accepted  { background-color: #198754; }
-  &.badge-rejected  { background-color: #dc3545; }
-  &.badge-exception { background-color: #fd7e14; }
-  &.badge-error     { background-color: #dc3545; }
-  &.badge-cancelled { background-color: #adb5bd; color: #000; }
-}
-
-// ── Tiny action buttons ───────────────────────────────────────────────────
-
-.btn-xs {
-  padding: 0.15rem 0.4rem;
-  font-size: 0.78rem;
-  line-height: 1.3;
-  border-radius: 0.25rem;
-}
-
-// ── Table tweaks ──────────────────────────────────────────────────────────
-
-.table th, .table td {
-  vertical-align: middle;
+  &.badge-draft            { background-color: #6c757d; }
+  &.badge-pending          { background-color: #0dcaf0; color: #000; }
+  &.badge-accepted         { background-color: #198754; }
+  &.badge-rejected         { background-color: #dc3545; }
+  &.badge-exception        { background-color: #fd7e14; }
+  &.badge-error            { background-color: #dc3545; }
+  &.badge-cancelled        { background-color: #adb5bd; color: #000; }
+  &.badge-pending-summary  { background-color: #6f42c1; }
+  &.badge-summary-sent     { background-color: #0d6efd; }
 }

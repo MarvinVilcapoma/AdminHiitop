@@ -7,7 +7,7 @@ public interface IStockService
 {
     Task<object> GetAsync(StockQueryRequest request);
     Task<IReadOnlyList<StockSummaryResponse>> GetSummaryAsync();
-    Task<IReadOnlyList<StockResponse>> GetAvailableAsync(int? productId);
+    Task<object> GetAvailableGroupedAsync(int? productId, int? warehouseId);
     Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search);
     Task<StockResponse> GetByIdAsync(int id);
     Task<StockResponse> CreateAsync(StockUpsertRequest request);

@@ -404,6 +404,28 @@
               </div>
             </td>
           </tr>
+          <tr>
+            <td class="text-muted pe-4">Descuento</td>
+            <td>
+              <div class="input-group input-group-sm justify-content-end" style="width:195px;margin-left:auto">
+                <select class="form-select form-select-sm"
+                  [ngModel]="discountType()" (ngModelChange)="discountType.set($event); recalcTotal()"
+                  [ngModelOptions]="{standalone: true}"
+                  style="max-width:62px">
+                  <option value="percent">%</option>
+                  <option value="fixed">S/</option>
+                </select>
+                <input type="number" class="form-control text-end"
+                  [ngModel]="discountValue()"
+                  (ngModelChange)="discountValue.set(+$event); recalcTotal()"
+                  [ngModelOptions]="{standalone: true}"
+                  min="0" step="0.01" style="max-width:85px" placeholder="0" />
+              </div>
+              @if (discountAmount() > 0) {
+                <div class="text-end text-danger small mt-1">-S/ {{ discountAmount() | number:'1.2-2' }}</div>
+              }
+            </td>
+          </tr>
           <tr class="table-active fw-bold">
             <td class="pe-4">Total</td>
             <td>

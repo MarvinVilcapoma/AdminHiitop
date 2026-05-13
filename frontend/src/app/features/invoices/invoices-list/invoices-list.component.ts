@@ -1,13 +1,14 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
-import { Invoice, InvoiceStatus, InvoiceSeries, Page } from '../../../core/models';
+import { Invoice, InvoiceStatus, Page } from '../../../core/models';
+import { ToastService } from '../../../core/services/toast.service';
 
 interface VoidForm {
-  note_motive:      string;
+  note_motive: string;
   note_motive_desc: string;
-  auto_send:        boolean;
+  auto_send: boolean;
 }
 
 @Component({
@@ -19,31 +20,28 @@ interface VoidForm {
 })
 export class InvoicesListComponent implements OnInit {
   private api = inject(ApiService);
+  private toast = inject(ToastService);
 
-  invoices  = signal<Invoice[]>([]);
-  total     = signal(0);
-  loading   = signal(true);
-  saving    = signal(false);
+  invoices = signal<Invoice[]>([]);
+  total = signal(0);
+  loading = signal(true);
+  saving = signal(false);
 
-  pageSize    = 20;
+  pageSize = 20;
   currentPage = 1;
 
-  // Filters
-  search      = '';
-  filterStatus  = '';
+  search = '';
+  filterStatus = '';
   filterDocType = '';
-  filterFrom    = '';
-  filterTo      = '';
+  filterFrom = '';
+  filterTo = '';
 
-  // Void modal
-  voidInvoice  = signal<Invoice | null>(null);
-  voidForm: VoidForm = { note_motive: '01', note_motive_desc: 'Anulación de operación', auto_send: true };
-  voidError    = signal('');
-  voidResult   = signal<{ success: boolean; message: string } | null>(null);
+  voidInvoice = signal<Invoice | null>(null);
+  voidForm: VoidForm = { note_motive: '01', note_motive_desc: 'Anulacion de operacion', auto_send: true };
+  voidError = signal('');
+  voidResult = signal<{ success: boolean; message: string } | null>(null);
 
-  // Send result feedback
-  sendingId    = signal<number | null>(null);
-  sendResult   = signal<{ id: number; success: boolean; message: string } | null>(null);
+  sendingId = signal<number | null>(null);
 
   totalPages = computed(() => Math.max(1, Math.ceil(this.total() / this.pageSize)));
   pageRange = computed(() => {
@@ -60,14 +58,14 @@ export class InvoicesListComponent implements OnInit {
   });
 
   readonly noteMotives = [
-    { value: '01', label: 'Anulación de operación' },
-    { value: '02', label: 'Anulación por error en RUC' },
-    { value: '03', label: 'Corrección por error en la descripción' },
+    { value: '01', label: 'Anulacion de operacion' },
+    { value: '02', label: 'Anulacion por error en RUC' },
+    { value: '03', label: 'Correccion por error en la descripcion' },
     { value: '04', label: 'Descuento global' },
-    { value: '05', label: 'Descuento por ítem' },
-    { value: '06', label: 'Devolución total' },
-    { value: '07', label: 'Devolución por ítem' },
-    { value: '13', label: 'Ajuste en operaciones de exportación' },
+    { value: '05', label: 'Descuento por item' },
+    { value: '06', label: 'Devolucion total' },
+    { value: '07', label: 'Devolucion por item' },
+    { value: '13', label: 'Ajuste en operaciones de exportacion' },
   ];
 
   ngOnInit(): void {
@@ -80,14 +78,14 @@ export class InvoicesListComponent implements OnInit {
       per_page: this.pageSize,
       page: this.currentPage,
     };
-    if (this.search.trim())   params['search']   = this.search.trim();
-    if (this.filterStatus)    params['status']   = this.filterStatus;
-    if (this.filterDocType)   params['doc_type'] = this.filterDocType;
-    if (this.filterFrom)      params['from_date'] = this.filterFrom;
-    if (this.filterTo)        params['to_date']  = this.filterTo;
+    if (this.search.trim()) params['search'] = this.search.trim();
+    if (this.filterStatus) params['status'] = this.filterStatus;
+    if (this.filterDocType) params['doc_type'] = this.filterDocType;
+    if (this.filterFrom) params['from_date'] = this.filterFrom;
+    if (this.filterTo) params['to_date'] = this.filterTo;
 
     this.api.get<Page<Invoice>>('invoices', params).subscribe({
-      next: res => {
+      next: (res) => {
         this.invoices.set(res.data ?? []);
         this.total.set(res.total ?? 0);
         this.loading.set(false);
@@ -115,50 +113,60 @@ export class InvoicesListComponent implements OnInit {
     return !!(this.search || this.filterStatus || this.filterDocType || this.filterFrom || this.filterTo);
   }
 
-  goToPage(p: number): void {
-    if (p < 1 || p > this.totalPages()) return;
-    this.currentPage = p;
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages()) return;
+    this.currentPage = page;
     this.load();
   }
 
-  // ── Status helpers ────────────────────────────────────────────────────────
-
   statusBadgeClass(status: InvoiceStatus | string): string {
     return ({
-      draft:     'badge-draft',
-      pending:   'badge-pending',
-      accepted:  'badge-accepted',
-      rejected:  'badge-rejected',
+      draft: 'badge-draft',
+      generated: 'badge-draft',
+      pending: 'badge-pending',
+      sent: 'badge-pending',
+      accepted: 'badge-accepted',
+      accepted_with_obs: 'badge-accepted',
+      rejected: 'badge-rejected',
       exception: 'badge-exception',
-      error:     'badge-error',
+      error_connection: 'badge-exception',
+      error_envio: 'badge-error',
+      error: 'badge-error',
       cancelled: 'badge-cancelled',
     } as Record<string, string>)[status] ?? 'badge-draft';
   }
 
   statusLabel(inv: Invoice): string {
     return inv.status_label ?? ({
-      draft:     'Borrador',
-      pending:   'Enviando',
-      accepted:  'Aceptado',
-      rejected:  'Rechazado',
-      exception: 'Excepción',
-      error:     'Error',
+      draft: 'Borrador',
+      generated: 'Generado',
+      pending: 'Enviando',
+      sent: 'Enviado',
+      accepted: 'Aceptado',
+      accepted_with_obs: 'Aceptado con observaciones',
+      rejected: 'Rechazado',
+      exception: 'Excepcion',
+      error_connection: 'Error de conexion',
+      error_envio: 'Error de envio',
+      error: 'Error',
       cancelled: 'Anulado',
     } as Record<string, string>)[inv.status] ?? inv.status;
   }
 
   docTypeLabel(docType: string): string {
-    return ({ '01': 'Factura', '03': 'Boleta', '07': 'Nota de Crédito', '08': 'Nota de Débito' } as Record<string, string>)[docType] ?? docType;
+    return ({
+      '01': 'Factura',
+      '03': 'Boleta',
+      '07': 'Nota de Credito',
+      '08': 'Nota de Debito',
+    } as Record<string, string>)[docType] ?? docType;
   }
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-
   canSend(inv: Invoice): boolean {
-    return ['draft', 'error', 'exception'].includes(inv.status);
+    return ['draft', 'generated', 'error', 'error_connection', 'error_envio', 'exception', 'rejected'].includes(inv.status);
   }
 
   canVoid(inv: Invoice): boolean {
-    // Allow for accepted (normal) and cancelled without accepted NC (retry after failed void)
     return ['accepted', 'cancelled'].includes(inv.status) && !['07', '08'].includes(inv.doc_type);
   }
 
@@ -168,20 +176,20 @@ export class InvoicesListComponent implements OnInit {
 
   sendInvoice(inv: Invoice): void {
     this.sendingId.set(inv.id);
-    this.sendResult.set(null);
     this.api.post<any>(`invoices/${inv.id}/send`, {}).subscribe({
-      next: res => {
+      next: (res) => {
         const ok = res?.result?.success ?? res?.invoice?.status === 'accepted';
         const msg = res?.result?.description ?? (ok ? 'Comprobante aceptado por SUNAT.' : (res?.result?.error ?? 'Error al enviar.'));
-        this.sendResult.set({ id: inv.id, success: ok, message: msg });
+
+        if (ok) this.toast.success(msg);
+        else this.toast.error(msg);
+
         this.sendingId.set(null);
-        // Update the invoice status in the local list
-        this.invoices.update(list =>
-          list.map(i => i.id === inv.id ? { ...i, ...(res?.invoice ?? {}) } : i)
-        );
+        this.invoices.update((list) => list.map((item) => item.id === inv.id ? { ...item, ...(res?.invoice ?? {}) } : item));
       },
-      error: e => {
-        this.sendResult.set({ id: inv.id, success: false, message: e?.error?.message ?? 'Error de conexión.' });
+      error: (e) => {
+        const message = e?.error?.message ?? 'Error de conexion.';
+        this.toast.error(message);
         this.sendingId.set(null);
       },
     });
@@ -199,17 +207,15 @@ export class InvoicesListComponent implements OnInit {
     this.api.downloadFile(`invoices/${inv.id}/cdr`, 'R-' + inv.full_number + '.zip');
   }
 
-  // ── Void modal ────────────────────────────────────────────────────────────
-
   openVoid(inv: Invoice): void {
     this.voidInvoice.set(inv);
-    this.voidForm = { note_motive: '01', note_motive_desc: 'Anulación de operación', auto_send: true };
+    this.voidForm = { note_motive: '01', note_motive_desc: 'Anulacion de operacion', auto_send: true };
     this.voidError.set('');
     this.voidResult.set(null);
   }
 
   onNoteMotive(): void {
-    const found = this.noteMotives.find(m => m.value === this.voidForm.note_motive);
+    const found = this.noteMotives.find((m) => m.value === this.voidForm.note_motive);
     if (found) this.voidForm.note_motive_desc = found.label;
   }
 
@@ -224,15 +230,14 @@ export class InvoicesListComponent implements OnInit {
     this.voidError.set('');
 
     this.api.post<any>(`invoices/${inv.id}/void`, this.voidForm).subscribe({
-      next: res => {
+      next: (res) => {
         const ok = res?.sunat_result?.success ?? !res?.sunat_result;
-        const msg = res?.sunat_result?.description ?? (ok ? 'Nota de crédito emitida correctamente.' : (res?.sunat_result?.error ?? 'Guardada como borrador.'));
+        const msg = res?.sunat_result?.description ?? (ok ? 'Nota de credito emitida correctamente.' : (res?.sunat_result?.error ?? 'Guardada como borrador.'));
         this.voidResult.set({ success: true, message: msg });
         this.saving.set(false);
-        // Reload list so NC and updated statuses appear
         this.load();
       },
-      error: e => {
+      error: (e) => {
         this.voidError.set(e?.error?.message ?? 'Error al anular el comprobante.');
         this.saving.set(false);
       },

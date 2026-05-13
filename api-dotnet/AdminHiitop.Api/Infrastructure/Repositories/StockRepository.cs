@@ -118,17 +118,50 @@ public sealed class StockRepository : IStockRepository
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<StockResponse>> GetAvailableAsync(int? productId)
+    public async Task<object> GetAvailableGroupedAsync(int? productId, int? warehouseId)
     {
-        IQueryable<Stock> query = BuildBaseQuery().Where(item => item.Quantity - item.Reserved > 0);
+        IQueryable<Stock> query = BuildBaseQuery()
+            .Where(item => item.Quantity - item.Reserved > 0);
 
         if (productId.HasValue)
-        {
             query = query.Where(item => item.ProductId == productId.Value);
-        }
 
-        List<Stock> stocks = await query.ToListAsync();
-        return stocks.Select(InventoryMappingHelper.MapStock).ToList();
+        if (warehouseId.HasValue)
+            query = query.Where(item => item.WarehouseId == warehouseId.Value);
+
+        var rows = await query
+            .Select(item => new
+            {
+                ColorId = item.ColorId,
+                ColorName = item.Color != null ? item.Color.Name : (string?)null,
+                ColorHex  = item.Color != null ? item.Color.HexCode : (string?)null,
+                Size      = item.Size,
+                Available = item.Quantity - item.Reserved,
+            })
+            .ToListAsync();
+
+        var byColor = rows
+            .GroupBy(r => r.ColorId)
+            .Select(g => new
+            {
+                color_id         = g.Key,
+                color            = g.First().ColorName is null ? null : new
+                {
+                    id       = g.Key,
+                    name     = g.First().ColorName,
+                    hex_code = g.First().ColorHex,
+                },
+                sizes            = g.Where(r => !string.IsNullOrWhiteSpace(r.Size))
+                                    .Select(r => r.Size!)
+                                    .Distinct()
+                                    .OrderBy(s => s)
+                                    .ToList(),
+                total_available  = g.Sum(r => r.Available),
+            })
+            .OrderBy(g => g.color?.name ?? "")
+            .ToList();
+
+        return new { by_color = byColor };
     }
 
     public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search)

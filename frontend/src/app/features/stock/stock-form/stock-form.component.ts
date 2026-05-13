@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Collection, Color, Page, Product, Size, Warehouse } from '../../../core/models';
+import { ToastService } from '../../../core/services/toast.service';
 
 export interface StockLine {
   collection_id:       number | '';
@@ -37,6 +38,7 @@ function blankLine(): StockLine {
 export class StockFormComponent implements OnInit {
   private api    = inject(ApiService);
   private router = inject(Router);
+  private toast  = inject(ToastService);
 
   loading      = signal(false);
   saving       = signal(false);
@@ -86,6 +88,15 @@ export class StockFormComponent implements OnInit {
 
   onMovementTypeChange(): void {
     this.movSubType = this.movementType === 'entry' ? 'purchase' : 'sale';
+  }
+
+  setMovementType(type: 'entry' | 'exit'): void {
+    if (this.movementType === type) {
+      return;
+    }
+
+    this.movementType = type;
+    this.onMovementTypeChange();
   }
 
   // ── Per-line filtered lists ────────────────────────────────────────────
@@ -272,14 +283,18 @@ export class StockFormComponent implements OnInit {
         this.successCount.set(res.saved?.length ?? 0);
         this.errorLines.set(res.errors ?? []);
         if ((res.errors ?? []).length === 0) {
+          this.toast.success('Movimientos de stock guardados correctamente.');
           this.router.navigate(['/dashboard/stock']);
         } else {
           this.saving.set(false);
+          this.toast.warning('Se guardaron algunos movimientos, pero hubo lineas con error.');
         }
       },
       error: e => {
-        this.error.set(e?.error?.message ?? 'Error al guardar los movimientos.');
+        const message = e?.error?.message ?? 'Error al guardar los movimientos.';
+        this.error.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }

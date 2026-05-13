@@ -4,6 +4,7 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Province, District, Page } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-customer-form',
@@ -16,6 +17,7 @@ export class CustomerFormComponent implements OnInit {
   private api    = inject(ApiService);
   private router = inject(Router);
   private route  = inject(ActivatedRoute);
+  private toast  = inject(ToastService);
 
   loading   = signal(false);
   saving    = signal(false);
@@ -70,11 +72,16 @@ export class CustomerFormComponent implements OnInit {
       ? this.api.put(`customers/${id}`, this.form)
       : this.api.post('customers', this.form);
     req.subscribe({
-      next:  () => this.router.navigate(['/dashboard/customers']),
+      next:  () => {
+        this.toast.success(this.isEdit() ? 'Cliente actualizado correctamente.' : 'Cliente creado correctamente.');
+        this.router.navigate(['/dashboard/customers']);
+      },
       error: (e) => {
         const msg = e?.error?.message ?? e?.error?.errors ?? 'Error al guardar.';
-        this.error.set(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        this.error.set(message);
         this.saving.set(false);
+        this.toast.error(message);
       },
     });
   }

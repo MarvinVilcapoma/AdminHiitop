@@ -36,6 +36,34 @@ interface DashboardData {
   by_seller:         { seller: string; total_orders: number; total_revenue: number; avg_ticket: number }[];
 }
 
+const DEFAULT_SUMMARY: SummaryKpi = {
+  total_orders: 0,
+  total_revenue: 0,
+  avg_ticket: 0,
+  total_units: 0,
+  total_cost: 0,
+  total_profit: 0,
+  avg_margin_pct: null,
+  pos_sales_count: 0,
+  pos_sales_revenue: 0,
+  pending_orders: 0,
+  new_customers: 0,
+};
+
+const DEFAULT_DASHBOARD_DATA: DashboardData = {
+  period: { from: '', to: '' },
+  summary: DEFAULT_SUMMARY,
+  sales_by_day: [],
+  top_products: [],
+  by_status: [],
+  by_agency: [],
+  recent_orders: [],
+  low_stock: [],
+  by_branch: [],
+  by_payment_method: [],
+  by_seller: [],
+};
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -133,10 +161,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.destroyCharts();
     this.api.get<DashboardData>(`dashboard?from=${this.from}&to=${this.to}`).subscribe({
       next: d => {
-        this.data.set(d);
+        const normalized = this.normalizeDashboardData(d);
+        this.data.set(normalized);
         this.loading.set(false);
         this.cdr.detectChanges();
-        setTimeout(() => this.buildCharts(d), 80);
+        setTimeout(() => this.buildCharts(normalized), 80);
       },
       error: () => this.loading.set(false),
     });
@@ -237,5 +266,46 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   formatCurrency(v: number): string {
     return 'S/ ' + (v ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  sellerInitial(name: string | null | undefined): string {
+    const value = String(name ?? '').trim();
+    return value ? value.charAt(0).toUpperCase() : '?';
+  }
+
+  private normalizeDashboardData(input: DashboardData | null | undefined): DashboardData {
+    const source = input ?? DEFAULT_DASHBOARD_DATA;
+    const summarySource = source.summary ?? DEFAULT_SUMMARY;
+
+    return {
+      period: {
+        from: source.period?.from ?? this.from,
+        to: source.period?.to ?? this.to,
+      },
+      summary: {
+        total_orders: Number(summarySource.total_orders ?? 0),
+        total_revenue: Number(summarySource.total_revenue ?? 0),
+        avg_ticket: Number(summarySource.avg_ticket ?? 0),
+        total_units: Number(summarySource.total_units ?? 0),
+        total_cost: Number(summarySource.total_cost ?? 0),
+        total_profit: Number(summarySource.total_profit ?? 0),
+        avg_margin_pct: summarySource.avg_margin_pct === null || summarySource.avg_margin_pct === undefined
+          ? null
+          : Number(summarySource.avg_margin_pct),
+        pos_sales_count: Number(summarySource.pos_sales_count ?? 0),
+        pos_sales_revenue: Number(summarySource.pos_sales_revenue ?? 0),
+        pending_orders: Number(summarySource.pending_orders ?? 0),
+        new_customers: Number(summarySource.new_customers ?? 0),
+      },
+      sales_by_day: Array.isArray(source.sales_by_day) ? source.sales_by_day : [],
+      top_products: Array.isArray(source.top_products) ? source.top_products : [],
+      by_status: Array.isArray(source.by_status) ? source.by_status : [],
+      by_agency: Array.isArray(source.by_agency) ? source.by_agency : [],
+      recent_orders: Array.isArray(source.recent_orders) ? source.recent_orders : [],
+      low_stock: Array.isArray(source.low_stock) ? source.low_stock : [],
+      by_branch: Array.isArray(source.by_branch) ? source.by_branch : [],
+      by_payment_method: Array.isArray(source.by_payment_method) ? source.by_payment_method : [],
+      by_seller: Array.isArray(source.by_seller) ? source.by_seller : [],
+    };
   }
 }

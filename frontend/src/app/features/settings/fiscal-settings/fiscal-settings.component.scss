@@ -5,3 +5,23 @@
   border-radius: 4px;
   color: #16a34a;
 }
+
+.series-block {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #fff;
+}
+
+.series-table th {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.series-table td {
+  vertical-align: middle;
+}

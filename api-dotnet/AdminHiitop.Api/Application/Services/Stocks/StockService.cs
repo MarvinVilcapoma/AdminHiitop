@@ -27,9 +27,9 @@ public sealed class StockService : IStockService
         return await _stockRepository.GetSummaryAsync();
     }
 
-    public async Task<IReadOnlyList<StockResponse>> GetAvailableAsync(int? productId)
+    public async Task<object> GetAvailableGroupedAsync(int? productId, int? warehouseId)
     {
-        return await _stockRepository.GetAvailableAsync(productId);
+        return await _stockRepository.GetAvailableGroupedAsync(productId, warehouseId);
     }
 
     public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search)

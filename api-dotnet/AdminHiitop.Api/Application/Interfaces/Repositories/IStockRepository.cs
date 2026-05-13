@@ -8,7 +8,7 @@ public interface IStockRepository
 {
     Task<PagedResponse<StockResponse>> GetPagedAsync(StockQueryRequest request);
     Task<IReadOnlyList<StockSummaryResponse>> GetSummaryAsync();
-    Task<IReadOnlyList<StockResponse>> GetAvailableAsync(int? productId);
+    Task<object> GetAvailableGroupedAsync(int? productId, int? warehouseId);
     Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search);
     Task<Stock?> GetByIdAsync(int id);
     Task<StockResponse?> GetDetailByIdAsync(int id);
