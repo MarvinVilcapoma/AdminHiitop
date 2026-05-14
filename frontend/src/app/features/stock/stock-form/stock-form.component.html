@@ -9,7 +9,7 @@
       <h4 class="mb-0 fw-bold">
         <i class="bi bi-boxes me-2 text-primary"></i>Movimiento de stock
       </h4>
-      <p class="text-muted small mb-0">Registra carga o descarga de múltiples productos a la vez</p>
+      <p class="text-muted small mb-0">Registra carga o descarga de multiples productos a la vez</p>
     </div>
   </div>
 
@@ -23,7 +23,7 @@
 
   @if (errorLines().length > 0) {
     <div class="alert alert-warning mb-3">
-      <p class="fw-semibold mb-1"><i class="bi bi-exclamation-circle me-2"></i>Algunas líneas tuvieron errores:</p>
+      <p class="fw-semibold mb-1"><i class="bi bi-exclamation-circle me-2"></i>Algunas lineas tuvieron errores:</p>
       <ul class="mb-0 small">
         @for (e of errorLines(); track $index) {
           <li>{{ e }}</li>
@@ -34,7 +34,7 @@
 
   @if (successCount() > 0 && errorLines().length > 0) {
     <div class="alert alert-success mb-3">
-      <i class="bi bi-check-circle me-2"></i>{{ successCount() }} línea(s) guardadas correctamente.
+      <i class="bi bi-check-circle me-2"></i>{{ successCount() }} linea(s) guardadas correctamente.
     </div>
   }
 
@@ -44,21 +44,19 @@
     </div>
   } @else {
 
-  <!-- ── HEADER: Almacén + Tipo de movimiento ─────────────────────────── -->
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom py-3">
-      <h6 class="mb-0 fw-semibold"><i class="bi bi-sliders me-2 text-primary"></i>Configuración del movimiento</h6>
+      <h6 class="mb-0 fw-semibold"><i class="bi bi-sliders me-2 text-primary"></i>Configuracion del movimiento</h6>
     </div>
     <div class="card-body">
       <div class="row g-3">
 
-        <!-- Almacén -->
         <div class="col-md-4">
           <label class="form-label fw-semibold">
-            Almacén <span class="text-danger">*</span>
+            Almacen <span class="text-danger">*</span>
           </label>
-          <select class="form-select" [(ngModel)]="warehouseId">
-            <option value="">-- Seleccionar almacén --</option>
+          <select class="form-select" [(ngModel)]="warehouseId" (ngModelChange)="onWarehouseChange()">
+            <option value="">-- Seleccionar almacen --</option>
             @for (w of warehouses(); track w.id) {
               <option [value]="w.id">
                 {{ w.name }}{{ w.warehouse_type ? ' (' + w.warehouse_type.name + ')' : '' }}
@@ -67,7 +65,6 @@
           </select>
         </div>
 
-        <!-- Tipo de movimiento -->
         <div class="col-md-4">
           <label class="form-label fw-semibold">Tipo de movimiento</label>
           <div class="movement-toggle" role="group" aria-label="Tipo de movimiento">
@@ -90,7 +87,6 @@
           </div>
         </div>
 
-        <!-- Sub-tipo según dirección -->
         <div class="col-md-4">
           <label class="form-label fw-semibold">
             Tipo de {{ movementType === 'entry' ? 'carga' : 'descarga' }}
@@ -98,31 +94,29 @@
           </label>
           <select class="form-select" [(ngModel)]="movSubType">
             @if (movementType === 'entry') {
-              <option value="purchase">Compra / Reposición</option>
-              <option value="return">Devolución de cliente</option>
+              <option value="purchase">Compra / Reposicion</option>
+              <option value="return">Devolucion de cliente</option>
               <option value="transfer">Transferencia (entrada)</option>
               <option value="adjustment">Ajuste positivo</option>
             } @else {
               <option value="sale">Venta</option>
               <option value="transfer">Transferencia (salida)</option>
-              <option value="damaged">Merma / Daño</option>
+              <option value="damaged">Merma / Dano</option>
               <option value="adjustment">Ajuste negativo</option>
             }
           </select>
         </div>
 
-        <!-- Motivo global -->
         <div class="col-12">
           <label class="form-label fw-semibold">Motivo / Referencia <span class="text-muted fw-normal">(opcional)</span></label>
           <input type="text" class="form-control" [(ngModel)]="globalReason"
-            placeholder="Ej: Ingreso de mercadería, Compra #001, Ajuste de inventario…">
+            placeholder="Ej: Ingreso de mercaderia, Compra #001, Ajuste de inventario...">
         </div>
 
       </div>
     </div>
   </div>
 
-  <!-- ── LINE ITEMS ───────────────────────────────────────────────────── -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
       <h6 class="mb-0 fw-semibold">
@@ -139,9 +133,8 @@
     </div>
 
     <div class="card-body p-0">
-      <!-- Header row (desktop) -->
       <div class="d-none d-lg-grid stock-line-header px-3 py-2 border-bottom bg-light text-muted small fw-semibold">
-        <span>Colección</span>
+        <span>Coleccion</span>
         <span>Producto *</span>
         <span>Color <span class="fw-normal">(opcional)</span></span>
         <span>Talla <span class="fw-normal">(opcional)</span></span>
@@ -152,25 +145,22 @@
       @for (line of lines(); track $index; let i = $index; let last = $last) {
         <div class="stock-line px-3 py-3" [class.border-bottom]="!last">
 
-          <!-- Colección -->
           <div class="stock-line-collection">
-            <label class="form-label d-lg-none small fw-semibold">Colección</label>
+            <label class="form-label d-lg-none small fw-semibold">Coleccion</label>
             <select class="form-select form-select-sm"
               [(ngModel)]="line.collection_id"
               (ngModelChange)="onCollectionChange(line)">
-              <option value="">-- Colección --</option>
+              <option value="">-- Coleccion --</option>
               @for (c of collections(); track c.id) {
                 <option [value]="c.id">{{ c.name }}</option>
               }
             </select>
           </div>
 
-          <!-- Producto -->
           <div class="stock-line-product">
             <label class="form-label d-lg-none small fw-semibold">Producto *</label>
             <div class="searchable-select">
               @if (line.product_id && !line.productDropdownOpen) {
-                <!-- Producto seleccionado -->
                 <div class="ss-selected form-control form-control-sm"
                   (click)="line.productSearch = ''; line.productDropdownOpen = true">
                   <span class="text-truncate flex-grow-1">{{ productDisplayName(line) }}</span>
@@ -178,12 +168,11 @@
                     (mousedown)="clearProduct(line); $event.preventDefault()"></i>
                 </div>
               } @else {
-                <!-- Buscador -->
                 <div class="ss-input-wrap">
                   <i class="bi bi-search ss-icon"></i>
                   <input type="text" class="form-control form-control-sm ss-input"
                     [(ngModel)]="line.productSearch"
-                    [placeholder]="line.collection_id ? 'Buscar en colección…' : 'Buscar producto…'"
+                    [placeholder]="line.collection_id ? 'Buscar en coleccion...' : 'Buscar producto...'"
                     (focus)="line.productDropdownOpen = true"
                     (blur)="closeProductDropdown(line)"
                     (input)="line.productDropdownOpen = true">
@@ -209,78 +198,76 @@
             </div>
           </div>
 
-          <!-- Color -->
           <div class="stock-line-color">
             <label class="form-label d-lg-none small fw-semibold">Color</label>
-            <div class="searchable-select">
-              @if (line.color_id && !line.colorDropdownOpen) {
-                <!-- Color seleccionado -->
-                <div class="ss-selected form-control form-control-sm"
-                  (click)="line.colorSearch = ''; line.colorDropdownOpen = true">
-                  <span class="flex-grow-1">{{ colorDisplayName(line) }}</span>
-                  <i class="bi bi-x-circle ss-clear"
-                    (mousedown)="clearColor(line); $event.preventDefault()"></i>
-                </div>
-              } @else {
-                <!-- Buscador color -->
-                <div class="ss-input-wrap">
-                  <i class="bi bi-palette ss-icon"></i>
-                  <input type="text" class="form-control form-control-sm ss-input"
-                    [(ngModel)]="line.colorSearch"
-                    placeholder="Color…"
-                    (focus)="line.colorDropdownOpen = true"
-                    (blur)="closeColorDropdown(line)"
-                    (input)="line.colorDropdownOpen = true">
-                </div>
-              }
-              @if (line.colorDropdownOpen) {
-                <div class="ss-dropdown">
-                  <div class="ss-option" [class.active]="!line.color_id"
-                    (mousedown)="clearColor(line); $event.preventDefault()">
-                    <em class="text-muted">Sin color</em>
+            @if (line.availableColors.length > 0) {
+              <div class="searchable-select">
+                @if (line.color_id && !line.colorDropdownOpen) {
+                  <div class="ss-selected form-control form-control-sm"
+                    (click)="line.colorSearch = ''; line.colorDropdownOpen = true">
+                    <span class="flex-grow-1">{{ colorDisplayName(line) }}</span>
+                    <i class="bi bi-x-circle ss-clear"
+                      (mousedown)="clearColor(line); $event.preventDefault()"></i>
                   </div>
-                  @for (c of colorsForLine(line); track c.id) {
-                    <div class="ss-option" [class.active]="line.color_id === c.id"
-                      (mousedown)="selectColor(line, c); $event.preventDefault()">
-                      {{ c.name }}
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          </div>
-
-          <!-- Talla -->
-          <div class="stock-line-size">
-            <label class="form-label d-lg-none small fw-semibold">Talla</label>
-            @if (line.availableSizes.length > 0) {
-              <select class="form-select form-select-sm" [(ngModel)]="line.size">
-                <option value="">Sin talla</option>
-                @for (s of line.availableSizes; track s.id) {
-                  <option [value]="s.name">{{ s.name }}</option>
+                } @else {
+                  <div class="ss-input-wrap">
+                    <i class="bi bi-palette ss-icon"></i>
+                    <input type="text" class="form-control form-control-sm ss-input"
+                      [(ngModel)]="line.colorSearch"
+                      placeholder="Selecciona color..."
+                      (focus)="line.colorDropdownOpen = true"
+                      (blur)="closeColorDropdown(line)"
+                      (input)="line.colorDropdownOpen = true">
+                  </div>
                 }
-              </select>
+                @if (line.colorDropdownOpen) {
+                  <div class="ss-dropdown">
+                    <div class="ss-option" [class.active]="!line.color_id"
+                      (mousedown)="clearColor(line); $event.preventDefault()">
+                      <em class="text-muted">Sin color</em>
+                    </div>
+                    @for (c of colorsForLine(line); track c.id) {
+                      <div class="ss-option" [class.active]="line.color_id === c.id"
+                        (mousedown)="selectColor(line, c); $event.preventDefault()">
+                        {{ c.name }}
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
             } @else {
-              <input type="text" class="form-control form-control-sm"
-                [(ngModel)]="line.size"
-                placeholder="XS, S, M, L…">
+              <input type="text" class="form-control form-control-sm text-muted"
+                value="Sin variantes de color" readonly tabindex="-1">
             }
           </div>
 
-          <!-- Cantidad -->
+          <div class="stock-line-size">
+            <label class="form-label d-lg-none small fw-semibold">Talla</label>
+            @if (line.availableSizes.length > 0) {
+              <select class="form-select form-select-sm" [(ngModel)]="line.size" (ngModelChange)="onSizeChange(line)">
+                <option value="">Sin talla</option>
+                @for (s of line.availableSizes; track s) {
+                  <option [value]="s">{{ s }}</option>
+                }
+              </select>
+            } @else {
+              <input type="text" class="form-control form-control-sm text-muted"
+                value="Sin variantes de talla" readonly tabindex="-1">
+            }
+          </div>
+
           <div class="stock-line-qty">
             <label class="form-label d-lg-none small fw-semibold">Cantidad *</label>
             <input type="number" class="form-control form-control-sm text-center"
               [(ngModel)]="line.quantity" min="1" step="1">
           </div>
 
-          <!-- Acciones -->
           <div class="stock-line-actions d-flex gap-1 justify-content-end align-items-center">
-            <button class="btn btn-xs btn-outline-secondary" title="Duplicar línea"
+            <button class="btn btn-xs btn-outline-secondary" title="Duplicar linea"
               (click)="duplicateLine(i)">
               <i class="bi bi-copy"></i>
             </button>
-            <button class="btn btn-xs btn-outline-danger" title="Eliminar línea"
+            <button class="btn btn-xs btn-outline-danger" title="Eliminar linea"
               (click)="removeLine(i)">
               <i class="bi bi-trash"></i>
             </button>
@@ -292,19 +279,18 @@
 
     <div class="card-footer bg-white border-top py-2">
       <button class="btn btn-sm btn-outline-primary" (click)="addLine()">
-        <i class="bi bi-plus-lg me-1"></i>Agregar otra línea
+        <i class="bi bi-plus-lg me-1"></i>Agregar otra linea
       </button>
     </div>
   </div>
 
-  <!-- ── SUMMARY + SAVE ───────────────────────────────────────────────── -->
   <div class="card border-0 shadow-sm">
     <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between">
       <div class="text-muted small">
-        <strong>{{ lines().length }}</strong> línea(s) ·
+        <strong>{{ lines().length }}</strong> linea(s) -
         <strong>{{ totalUnits() }}</strong> unidades en total
         @if (warehouseId) {
-          · Almacén: <strong>{{ getWarehouseName(warehouseId) }}</strong>
+          - Almacen: <strong>{{ getWarehouseName(warehouseId) }}</strong>
         }
       </div>
       <div class="d-flex gap-2">
@@ -316,7 +302,7 @@
           [disabled]="saving() || !warehouseId"
           (click)="save()">
           @if (saving()) {
-            <span class="spinner-border spinner-border-sm me-2"></span>Guardando…
+            <span class="spinner-border spinner-border-sm me-2"></span>Guardando...
           } @else if (movementType === 'entry') {
             <i class="bi bi-box-arrow-in-down me-2"></i>Guardar carga
           } @else {
@@ -327,5 +313,5 @@
     </div>
   </div>
 
-  } <!-- end @if loading -->
+  }
 </div>

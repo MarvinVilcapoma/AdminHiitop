@@ -1,6 +1,8 @@
+using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Shared.Exceptions;
 using AdminHiitop.Api.Shared.Helpers;
+using Microsoft.EntityFrameworkCore;
 using InvoiceSeriesEntity = AdminHiitop.Api.Domain.Sales.Entities.InvoiceSeries;
 
 namespace AdminHiitop.Api.Application.Services.InvoiceSeries;

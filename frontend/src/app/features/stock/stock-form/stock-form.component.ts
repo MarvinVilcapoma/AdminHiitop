@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
-import { Collection, Color, Page, Product, Size, Warehouse } from '../../../core/models';
+import { Collection, Color, Page, Product, Warehouse } from '../../../core/models';
 import { ToastService } from '../../../core/services/toast.service';
 
 export interface StockLine {
@@ -16,7 +16,8 @@ export interface StockLine {
   size:                string;
   quantity:            number;
   availableColors:     Color[];
-  availableSizes:      Size[];
+  availableSizes:      string[];
+  stockByColor:        Array<{ color_id: number | null; color?: Color | null; sizes?: string[] }>;
 }
 
 function blankLine(): StockLine {
@@ -24,7 +25,7 @@ function blankLine(): StockLine {
     collection_id: '', product_id: '', productSearch: '', productDropdownOpen: false,
     color_id: '', colorSearch: '', colorDropdownOpen: false,
     size: '', quantity: 1,
-    availableColors: [], availableSizes: [],
+    availableColors: [], availableSizes: [], stockByColor: [],
   };
 }
 
@@ -99,6 +100,18 @@ export class StockFormComponent implements OnInit {
     this.onMovementTypeChange();
   }
 
+  onWarehouseChange(): void {
+    this.lines().forEach(line => {
+      if (!line.product_id) {
+        return;
+      }
+      const product = this.products().find(p => p.id === Number(line.product_id));
+      if (product) {
+        this.loadProductVariants(line, product);
+      }
+    });
+  }
+
   // ── Per-line filtered lists ────────────────────────────────────────────
 
   productsForLine(line: StockLine): Product[] {
@@ -116,7 +129,7 @@ export class StockFormComponent implements OnInit {
   }
 
   colorsForLine(line: StockLine): Color[] {
-    const base = line.availableColors.length ? line.availableColors : this.colors();
+    const base = line.availableColors;
     const q = line.colorSearch.trim().toLowerCase();
     if (!q) return base;
     return base.filter(c => c.name.toLowerCase().includes(q));
@@ -130,8 +143,7 @@ export class StockFormComponent implements OnInit {
 
   colorDisplayName(line: StockLine): string {
     if (!line.color_id) return '';
-    const base = line.availableColors.length ? line.availableColors : this.colors();
-    return base.find(c => c.id === Number(line.color_id))?.name ?? '';
+    return line.availableColors.find(c => c.id === Number(line.color_id))?.name ?? '';
   }
 
   selectProduct(line: StockLine, p: Product): void {
@@ -145,21 +157,21 @@ export class StockFormComponent implements OnInit {
     line.color_id          = c.id;
     line.colorSearch       = '';
     line.colorDropdownOpen = false;
+    this.syncVariantOptions(line, 'color');
   }
 
   clearProduct(line: StockLine): void {
     line.product_id = '';
     line.productSearch = '';
     line.productDropdownOpen = false;
-    line.size     = '';
-    line.color_id = '';
-    line.colorSearch = '';
+    this.resetLineVariants(line);
   }
 
   clearColor(line: StockLine): void {
     line.color_id    = '';
     line.colorSearch = '';
     line.colorDropdownOpen = false;
+    this.syncVariantOptions(line, 'color');
   }
 
   // Use mousedown on options + blur on input to close dropdown
@@ -177,54 +189,19 @@ export class StockFormComponent implements OnInit {
     line.product_id          = '';
     line.productSearch       = '';
     line.productDropdownOpen = false;
-    line.color_id            = '';
-    line.colorSearch         = '';
-    line.colorDropdownOpen   = false;
-    line.size                = '';
-
-    if (!line.collection_id) {
-      line.availableColors = [];
-      line.availableSizes  = [];
-      return;
-    }
-
-    const cid = Number(line.collection_id);
-    const collProds = this.products().filter(p => p.collection_id === cid);
-
-    // Unique colors from all products in this collection
-    const colorMap = new Map<number, Color>();
-    collProds.forEach(p => (p.colors ?? []).forEach(c => colorMap.set(c.id, c)));
-    line.availableColors = colorMap.size > 0 ? Array.from(colorMap.values()) : this.colors();
-
-    // Unique sizes from all product-types in this collection
-    const sizeMap = new Map<number, Size>();
-    collProds.forEach(p =>
-      (p.product_type?.sizes ?? []).forEach(s => sizeMap.set(s.id, s))
-    );
-    line.availableSizes = Array.from(sizeMap.values())
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    this.resetLineVariants(line);
   }
 
   onProductChange(line: StockLine): void {
     const found = this.products().find(p => p.id === Number(line.product_id));
-    line.size            = '';
-    line.color_id        = '';
-    line.colorSearch     = '';
-    line.colorDropdownOpen = false;
-
-    // Refine sizes to this product's type
-    if (found?.product_type?.sizes?.length) {
-      line.availableSizes = found.product_type.sizes;
-    } else if (!line.collection_id) {
-      line.availableSizes = [];
+    this.resetLineVariants(line);
+    if (found) {
+      this.loadProductVariants(line, found);
     }
+  }
 
-    // Refine colors to this product's own colors if available
-    if (found?.colors?.length) {
-      line.availableColors = found.colors;
-    } else if (!line.collection_id) {
-      line.availableColors = this.colors();
-    }
+  onSizeChange(line: StockLine): void {
+    this.syncVariantOptions(line, 'size');
   }
 
   addLine(): void {
@@ -267,18 +244,16 @@ export class StockFormComponent implements OnInit {
     }
 
     this.saving.set(true);
-    this.api.post<{ saved: any[]; errors: string[] }>('stocks/bulk', {
-      warehouse_id:      this.warehouseId,
+    this.api.post<{ saved: any[]; errors: string[] }>('stocks/bulk', validLines.map(l => ({
+      warehouse_id:      Number(this.warehouseId),
       movement_type:     this.movementType,
-      sub_movement_type: this.movSubType  || null,
+      sub_movement_type: this.movSubType || null,
       reason:            this.globalReason || null,
-      items: validLines.map(l => ({
-        product_id: l.product_id,
-        color_id:   l.color_id || null,
-        size:       l.size     || null,
-        quantity:   l.quantity,
-      })),
-    }).subscribe({
+      product_id:        Number(l.product_id),
+      color_id:          l.color_id ? Number(l.color_id) : null,
+      size:              l.size || null,
+      quantity:          l.quantity,
+    }))).subscribe({
       next: res => {
         this.successCount.set(res.saved?.length ?? 0);
         this.errorLines.set(res.errors ?? []);
@@ -291,7 +266,7 @@ export class StockFormComponent implements OnInit {
         }
       },
       error: e => {
-        const message = e?.error?.message ?? 'Error al guardar los movimientos.';
+        const message = this.extractApiError(e);
         this.error.set(message);
         this.saving.set(false);
         this.toast.error(message);
@@ -302,5 +277,124 @@ export class StockFormComponent implements OnInit {
   getWarehouseName(id: number | ''): string {
     if (!id) return '';
     return this.warehouses().find(w => w.id === Number(id))?.name ?? '';
+  }
+
+  private resetLineVariants(line: StockLine): void {
+    line.size = '';
+    line.color_id = '';
+    line.colorSearch = '';
+    line.colorDropdownOpen = false;
+    line.availableColors = [];
+    line.availableSizes = [];
+    line.stockByColor = [];
+  }
+
+  private loadProductVariants(line: StockLine, product: Product): void {
+    const fallbackColors = product.colors ?? [];
+    const fallbackSizes = (product.product_type?.sizes ?? [])
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(s => s.name);
+
+    line.availableColors = fallbackColors;
+    line.availableSizes = fallbackSizes;
+
+    if (!this.warehouseId) {
+      return;
+    }
+
+    this.api.get<any>('stocks/available', {
+      warehouse_id: Number(this.warehouseId),
+      product_id: product.id,
+    }).subscribe({
+      next: (response) => {
+        line.stockByColor = Array.isArray(response?.by_color) ? response.by_color : [];
+        this.syncVariantOptions(line);
+      },
+      error: () => {
+        line.stockByColor = [];
+        this.syncVariantOptions(line);
+      },
+    });
+  }
+
+  private syncVariantOptions(line: StockLine, changed: 'color' | 'size' | null = null): void {
+    if (!line.stockByColor.length) {
+      return;
+    }
+
+    const allSizes = this.uniqueSizesFromStock(line.stockByColor);
+    const allColors = this.uniqueColorsFromStock(line.stockByColor);
+
+    if (changed === 'color' && line.color_id) {
+      const selectedColor = Number(line.color_id);
+      const matchingSizes = this.uniqueSizesFromStock(
+        line.stockByColor.filter(v => v.color_id === selectedColor)
+      );
+      line.availableSizes = matchingSizes;
+      if (line.size && !matchingSizes.includes(line.size)) {
+        line.size = '';
+      }
+    } else if (!line.color_id) {
+      line.availableSizes = allSizes;
+    }
+
+    if (changed === 'size' && line.size) {
+      const matchingColors = this.uniqueColorsFromStock(
+        line.stockByColor.filter(v => (v.sizes ?? []).includes(line.size))
+      );
+      line.availableColors = matchingColors;
+      if (line.color_id && !matchingColors.some(c => c.id === Number(line.color_id))) {
+        line.color_id = '';
+      }
+    } else if (!line.size) {
+      line.availableColors = allColors;
+    }
+
+    if (line.color_id) {
+      const selectedColor = Number(line.color_id);
+      const matchingSizes = this.uniqueSizesFromStock(
+        line.stockByColor.filter(v => v.color_id === selectedColor)
+      );
+      line.availableSizes = matchingSizes;
+      if (line.size && !matchingSizes.includes(line.size)) {
+        line.size = '';
+      }
+    }
+
+    if (line.size) {
+      const matchingColors = this.uniqueColorsFromStock(
+        line.stockByColor.filter(v => (v.sizes ?? []).includes(line.size))
+      );
+      line.availableColors = matchingColors;
+      if (line.color_id && !matchingColors.some(c => c.id === Number(line.color_id))) {
+        line.color_id = '';
+      }
+    }
+  }
+
+  private uniqueColorsFromStock(entries: Array<{ color?: Color | null }>): Color[] {
+    const colors = new Map<number, Color>();
+    entries.forEach(entry => {
+      if (entry.color?.id) {
+        colors.set(entry.color.id, entry.color);
+      }
+    });
+    return Array.from(colors.values());
+  }
+
+  private uniqueSizesFromStock(entries: Array<{ sizes?: string[] }>): string[] {
+    return Array.from(new Set(entries.flatMap(entry => entry.sizes ?? []).filter(Boolean)));
+  }
+
+  private extractApiError(error: any): string {
+    const validation = error?.error?.errors;
+    if (validation && typeof validation === 'object') {
+      const first = Object.values(validation).flat().find(Boolean);
+      if (typeof first === 'string') {
+        return first;
+      }
+    }
+    return error?.error?.message ?? error?.error?.title ?? 'Error al guardar los movimientos.';
   }
 }

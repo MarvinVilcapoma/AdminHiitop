@@ -26,6 +26,8 @@ public sealed class UnitMeasureService : IUnitMeasureService
 
     public async Task<UnitMeasure> CreateAsync(UnitMeasure request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Code))
+            request.Code = request.Name.Trim().ToUpper().Replace(" ", "");
         _context.UnitMeasures.Add(request);
         await _context.SaveChangesAsync(cancellationToken);
         return request;

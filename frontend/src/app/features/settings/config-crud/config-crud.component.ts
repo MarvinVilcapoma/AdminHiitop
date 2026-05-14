@@ -349,42 +349,47 @@ export class ConfigCrudComponent implements OnInit {
 
   isSizableEndpoint = computed(() => this.endpoint() === 'product-types');
   activeSizesRowId  = signal<number | null>(null);
-  newSizeName       = '';
   sizeSaving        = signal(false);
+  unitMeasures      = signal<{ id: number; name: string }[]>([]);
 
   toggleSizesPanel(rowId: number): void {
     this.activeSizesRowId.set(this.activeSizesRowId() === rowId ? null : rowId);
-    this.newSizeName = '';
+    if (this.unitMeasures().length === 0) this.loadUnitMeasures();
   }
 
-  private syncSizes(row: any, sizes: {name: string; sort_order: number}[]): void {
+  loadUnitMeasures(): void {
+    this.api.get<any>('unit-measures?per_page=200').subscribe({
+      next: r => this.unitMeasures.set(Array.isArray(r) ? r : (r?.data ?? [])),
+    });
+  }
+
+  isSizeSelected(row: any, um: { name: string }): boolean {
+    return (row.sizes ?? []).some((s: any) => s.name.toUpperCase() === um.name.toUpperCase());
+  }
+
+  toggleSize(row: any, um: { id: number; name: string }): void {
+    const existing: any[] = row.sizes ?? [];
+    const isSelected = this.isSizeSelected(row, um);
+    const updated = isSelected
+      ? existing.filter((s: any) => s.name.toUpperCase() !== um.name.toUpperCase())
+                .map((s: any, i: number) => ({ name: s.name, sort_order: i }))
+      : [...existing.map((s: any, i: number) => ({ name: s.name, sort_order: i })),
+         { name: um.name, sort_order: existing.length }];
+    this.syncSizes(row, updated);
+  }
+
+  private syncSizes(row: any, sizes: { name: string; sort_order: number }[]): void {
     this.sizeSaving.set(true);
     this.api.post(`product-types/${row.id}/sizes`, { sizes }).subscribe({
       next: (updated: any) => {
         this.rows.update(rs => rs.map(r => r.id === row.id ? { ...r, sizes: updated.sizes ?? [] } : r));
         this.sizeSaving.set(false);
-        this.newSizeName = '';
-        this.toast.success('Tallas actualizadas correctamente.');
+        this.toast.success('Tallas actualizadas.');
       },
       error: (e) => {
         this.sizeSaving.set(false);
         this.toast.error(e?.error?.message ?? 'No se pudieron actualizar las tallas.');
       },
     });
-  }
-
-  addSize(row: any): void {
-    const name = this.newSizeName.trim().toUpperCase();
-    if (!name) return;
-    const existing: any[] = row.sizes ?? [];
-    if (existing.some((s: any) => s.name.toUpperCase() === name)) return;
-    const updated = [...existing.map((s: any, i: number) => ({ name: s.name, sort_order: i })),
-                     { name, sort_order: existing.length }];
-    this.syncSizes(row, updated);
-  }
-
-  removeSize(row: any, sizeToRemove: any): void {
-    const remaining: any[] = (row.sizes ?? []).filter((s: any) => s.id !== sizeToRemove.id);
-    this.syncSizes(row, remaining.map((s, i) => ({ name: s.name, sort_order: i })));
   }
 }

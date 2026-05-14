@@ -206,35 +206,41 @@
             @if (isSizableEndpoint() && activeSizesRowId() === row.id) {
               <tr class="sizes-panel-row">
                 <td [attr.colspan]="columns().length + 2" class="bg-light p-3">
-                  <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
-                    <strong class="small text-muted me-1">
-                      <i class="bi bi-rulers me-1"></i>Tallas de "{{ row.name }}":
+                  <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+                    <strong class="small">
+                      <i class="bi bi-rulers me-1 text-primary"></i>Tallas para "{{ row.name }}"
                     </strong>
-                    @for (s of row.sizes; track s.id) {
-                      <span class="badge bg-white border text-dark d-inline-flex align-items-center gap-1 px-2 py-1">
-                        {{ s.name }}
-                        <button type="button" class="btn-close btn-close-sm" style="font-size:.5rem"
-                          [disabled]="sizeSaving()"
-                          (click)="removeSize(row, s)"></button>
-                      </span>
-                    } @empty {
-                      <span class="text-muted small">Sin tallas configuradas.</span>
+                    <span class="text-muted small">(Opcional — selecciona las aplicables)</span>
+                    @if (sizeSaving()) {
+                      <span class="spinner-border spinner-border-sm text-primary ms-1"></span>
                     }
                   </div>
-                  <div class="d-flex gap-2 align-items-center">
-                    <input type="text" class="form-control form-control-sm" style="max-width:140px"
-                      [(ngModel)]="newSizeName"
-                      placeholder="Nueva talla…"
-                      (keydown.enter)="addSize(row)"
-                      maxlength="20">
-                    <button class="btn btn-sm btn-primary" [disabled]="!newSizeName.trim() || sizeSaving()"
-                      (click)="addSize(row)">
-                      @if (sizeSaving()) { <span class="spinner-border spinner-border-sm"></span> }
-                      @else { <i class="bi bi-plus-lg"></i> }
-                      Agregar
-                    </button>
-                  </div>
-                  <p class="text-muted small mt-2 mb-0">Ej: XS · S · M · L · XL · XXL · 28 · 30 · 32</p>
+                  @if (unitMeasures().length === 0) {
+                    <p class="text-muted small mb-0">
+                      <i class="bi bi-info-circle me-1"></i>
+                      No hay tallas registradas. Agrégalas en
+                      <a routerLink="/dashboard/settings/unit-measures" class="link-green">Tallas</a>.
+                    </p>
+                  } @else {
+                    <div class="d-flex gap-2 flex-wrap">
+                      @for (um of unitMeasures(); track um.id) {
+                        <button type="button"
+                          class="btn btn-sm"
+                          [class.btn-primary]="isSizeSelected(row, um)"
+                          [class.btn-outline-secondary]="!isSizeSelected(row, um)"
+                          [disabled]="sizeSaving()"
+                          (click)="toggleSize(row, um)">
+                          @if (isSizeSelected(row, um)) {
+                            <i class="bi bi-check-lg me-1"></i>
+                          }
+                          {{ um.name }}
+                        </button>
+                      }
+                    </div>
+                    @if ((row.sizes ?? []).length === 0) {
+                      <p class="text-muted small mt-2 mb-0">Ninguna talla seleccionada — el tipo de producto acepta cualquier talla.</p>
+                    }
+                  }
                 </td>
               </tr>
             }

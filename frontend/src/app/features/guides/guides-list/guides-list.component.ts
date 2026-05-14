@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { DatePipe, NgClass } from '@angular/common';
+import { DatePipe, Location, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
@@ -16,7 +16,10 @@ type GuideFilterStatus = '' | 'draft' | 'accepted' | 'rejected' | 'exception' | 
   styleUrl: './guides-list.component.scss',
 })
 export class GuidesListComponent implements OnInit {
-  private readonly api = inject(ApiService);
+  private readonly api      = inject(ApiService);
+  private readonly location = inject(Location);
+
+  goBack(): void { this.location.back(); }
 
   guides = signal<Order[]>([]);
   total = signal(0);

@@ -60,7 +60,21 @@ public static class HiitopSeedData
         ("Litro", "LTR", "LTR"),
         ("Metro", "MTR", "MTR"),
         ("Caja", "BX", "BX"),
-        ("Par", "PR", "PR")
+        ("Par", "PR", "PR"),
+        // Tallas de ropa / calzado
+        ("XS", "XS", "XS"),
+        ("S", "S", "S"),
+        ("M", "M", "M"),
+        ("L", "L", "L"),
+        ("XL", "XL", "XL"),
+        ("XXL", "XXL", "XXL"),
+        ("28", "28", "28"),
+        ("30", "30", "30"),
+        ("32", "32", "32"),
+        ("34", "34", "34"),
+        ("36", "36", "36"),
+        ("38", "38", "38"),
+        ("40", "40", "40")
     ];
 
     public static IReadOnlyList<(string Name, string HexCode, string Slug)> Colors { get; } =

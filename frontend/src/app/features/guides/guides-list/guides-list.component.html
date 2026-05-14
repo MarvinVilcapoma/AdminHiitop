@@ -1,14 +1,14 @@
 <div class="page-header">
   <h1>
+    <button class="btn btn-sm btn-outline-secondary me-2" (click)="goBack()" title="Volver">
+      <i class="bi bi-arrow-left"></i>
+    </button>
     <i class="bi bi-truck me-2 text-primary"></i>
     Guías de remisión
   </h1>
   <div class="d-flex gap-2 flex-wrap">
     <a routerLink="/dashboard/guides/new" class="btn btn-primary btn-sm">
       <i class="bi bi-plus-lg me-1"></i>Nueva guía de remisión
-    </a>
-    <a routerLink="/dashboard/pos" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-shop-window me-1"></i>Ir a POS
     </a>
   </div>
 </div>
