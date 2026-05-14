@@ -1,3 +1,4 @@
+using AdminHiitop.Api.Application.DTOs.Common;
 using AdminHiitop.Api.Application.Interfaces.Repositories;
 using AdminHiitop.Api.Infrastructure.Auth;
 using AdminHiitop.Api.Infrastructure.ElectronicBilling;
@@ -32,6 +33,7 @@ public static class DependencyInjection
         });
 
         services.Configure<NubeFactOptions>(configuration.GetSection("ElectronicBilling:NubeFact"));
+        services.Configure<PosOptions>(configuration.GetSection(PosOptions.SectionName));
         services.AddHttpClient<NubeFactClient>();
         services.AddScoped<AdminHiitopDbSeeder>();
         services.AddScoped<IAuthRepository, AuthRepository>();

@@ -1,8 +1,9 @@
+using AdminHiitop.Api.Application.DTOs.Common;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Shared.Exceptions;
 using AdminHiitop.Api.Shared.Helpers;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using InvoiceSeriesEntity = AdminHiitop.Api.Domain.Sales.Entities.InvoiceSeries;
 
 namespace AdminHiitop.Api.Application.Services.InvoiceSeries;
@@ -10,10 +11,12 @@ namespace AdminHiitop.Api.Application.Services.InvoiceSeries;
 public sealed class InvoiceSeriesService : IInvoiceSeriesService
 {
     private readonly AdminHiitopDbContext _context;
+    private readonly PosOptions _posOptions;
 
-    public InvoiceSeriesService(AdminHiitopDbContext context)
+    public InvoiceSeriesService(AdminHiitopDbContext context, IOptions<PosOptions> posOptions)
     {
         _context = context;
+        _posOptions = posOptions.Value;
     }
 
     public async Task<object> GetAsync(int perPage, int page)
@@ -26,6 +29,14 @@ public sealed class InvoiceSeriesService : IInvoiceSeriesService
 
     public async Task<InvoiceSeriesEntity> CreateAsync(InvoiceSeriesEntity request)
     {
+        int current = await _context.InvoiceSeries.CountAsync();
+        if (current >= _posOptions.MaxInvoiceSeries)
+        {
+            throw new AppException(
+                $"Se alcanzó el límite de {_posOptions.MaxInvoiceSeries} series de comprobante configuradas. " +
+                "Ajusta 'Pos:MaxInvoiceSeries' en appsettings.json para aumentar el límite.", 422);
+        }
+
         _context.InvoiceSeries.Add(request);
         await _context.SaveChangesAsync();
         return request;

@@ -22,9 +22,10 @@ public sealed class ProductRepository : IProductRepository
         IQueryable<Product> query = _context.Products
             .AsNoTracking()
             .Include(item => item.ProductType)
+                .ThenInclude(pt => pt.Sizes)
             .Include(item => item.Collection)
             .Include(item => item.ProductColors)
-            .ThenInclude(item => item.Color)
+                .ThenInclude(item => item.Color)
             .Include(item => item.Stocks)
             .OrderBy(item => item.Name);
 
@@ -55,8 +56,12 @@ public sealed class ProductRepository : IProductRepository
                 ? null
                 : new ProductCatalogReferenceResponse
                 {
-                    Id = item.ProductType.Id,
-                    Name = item.ProductType.Name
+                    Id   = item.ProductType.Id,
+                    Name = item.ProductType.Name,
+                    Sizes = item.ProductType.Sizes
+                        .OrderBy(s => s.SortOrder)
+                        .Select(s => new ProductSizeResponse { Id = s.Id, Name = s.Name, SortOrder = s.SortOrder })
+                        .ToList()
                 },
             Collection = item.Collection == null
                 ? null
