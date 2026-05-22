@@ -12,14 +12,11 @@
 
   <div class="row g-4">
 
-    <!-- LEFT COLUMN: General + Pricing + Description -->
     <div class="col-lg-8">
-
-      <!-- Card: Información general -->
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
           <i class="bi bi-info-circle text-primary"></i>
-          <span class="fw-600">Información general</span>
+          <span class="fw-600">Informacion general</span>
         </div>
         <div class="card-body">
 
@@ -27,13 +24,13 @@
             <div class="col-md-8">
               <div class="form-label fw-500">Nombre <span class="text-danger">*</span></div>
               <input class="form-control" [(ngModel)]="form.name"
-                (ngModelChange)="autoSku()" placeholder="Ej. Polo Liso Manga Corta" />
+                placeholder="Ej. Polo Liso Manga Corta" />
             </div>
             <div class="col-md-4">
               <div class="form-label fw-500">SKU <span class="text-danger">*</span></div>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
-                <input class="form-control font-monospace" [(ngModel)]="form.sku" placeholder="Ej. PLO-001" />
+                <input class="form-control font-monospace" [(ngModel)]="form.sku" placeholder="Completa el SKU" />
               </div>
             </div>
           </div>
@@ -41,21 +38,21 @@
           <div class="row g-3 mt-1">
             <div class="col-md-6">
               <div class="form-label fw-500">Tipo de producto</div>
-              <select class="form-select" [(ngModel)]="form.product_type_id">
-                <option value="">— Seleccionar —</option>
-                @for (t of productTypes(); track t.id) {
-                  <option [value]="t.id">{{ t.name }}</option>
-                }
-              </select>
+              <app-searchable-select
+                [(ngModel)]="form.product_type_id"
+                [options]="productTypeOptions()"
+                placeholder="Seleccionar tipo"
+                searchPlaceholder="Buscar tipo de producto...">
+              </app-searchable-select>
             </div>
             <div class="col-md-6">
-              <div class="form-label fw-500">Colección</div>
-              <select class="form-select" [(ngModel)]="form.collection_id">
-                <option value="">— Sin colección —</option>
-                @for (c of collections(); track c.id) {
-                  <option [value]="c.id">{{ c.name }}</option>
-                }
-              </select>
+              <div class="form-label fw-500">Coleccion</div>
+              <app-searchable-select
+                [(ngModel)]="form.collection_id"
+                [options]="collectionOptions()"
+                placeholder="Sin coleccion"
+                searchPlaceholder="Buscar coleccion...">
+              </app-searchable-select>
             </div>
           </div>
 
@@ -74,7 +71,6 @@
         </div>
       </div>
 
-      <!-- Card: Precios -->
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
           <i class="bi bi-cash-stack text-success"></i>
@@ -85,7 +81,6 @@
         </div>
         <div class="card-body">
           <div class="row g-3">
-            <!-- Sale price field: label changes based on fiscal config -->
             <div [class]="igvActive() && !pricesIncludeIgv() ? 'col-sm-4' : 'col-sm-6'">
               <div class="form-label fw-500">{{ salePriceLabel() }}</div>
               <div class="input-group">
@@ -96,7 +91,6 @@
               <small class="text-muted d-block mt-1 price-help">&nbsp;</small>
             </div>
 
-            <!-- Unit cost -->
             <div [class]="igvActive() && !pricesIncludeIgv() ? 'col-sm-4' : 'col-sm-6'">
               <div class="form-label fw-500">Costo unitario (S/)</div>
               <div class="input-group">
@@ -107,7 +101,6 @@
               <small class="text-muted d-block mt-1 price-help">&nbsp;</small>
             </div>
 
-            <!-- Price with IGV: only shown when IGV active and prices do NOT include IGV -->
             @if (igvActive() && !pricesIncludeIgv()) {
               <div class="col-sm-4">
                 <div class="form-label fw-500 text-muted">Precio con IGV (S/)</div>
@@ -156,25 +149,21 @@
         </div>
       </div>
 
-      <!-- Card: Descripción -->
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
           <i class="bi bi-card-text text-secondary"></i>
-          <span class="fw-600">Descripción</span>
+          <span class="fw-600">Descripcion</span>
           <span class="text-muted small ms-auto">Opcional</span>
         </div>
         <div class="card-body">
           <textarea class="form-control" rows="4" [(ngModel)]="form.description"
-            placeholder="Describe el producto: materiales, usos, características…"></textarea>
+            placeholder="Describe el producto: materiales, usos, caracteristicas..."></textarea>
         </div>
       </div>
 
     </div>
 
-    <!-- RIGHT COLUMN: Colores + Actions -->
     <div class="col-lg-4">
-
-      <!-- Card: Colores -->
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
           <i class="bi bi-palette text-warning"></i>
@@ -198,10 +187,9 @@
               }
             </div>
           } @else {
-            <p class="text-muted small mb-3">No hay colores registrados aún.</p>
+            <p class="text-muted small mb-3">No hay colores registrados aun.</p>
           }
 
-          <!-- Inline add-color form -->
           @if (!addingColor()) {
             <button type="button" class="btn btn-sm btn-outline-primary" (click)="addingColor.set(true)">
               <i class="bi bi-plus-lg"></i> Nuevo color
@@ -217,7 +205,7 @@
               <div class="mb-2">
                 <div class="form-label">Nombre del color</div>
                 <input class="form-control form-control-sm" [(ngModel)]="newColorName"
-                  placeholder="Ej. Rojo rubí" />
+                  placeholder="Ej. Rojo rubi" />
               </div>
               <div class="mb-3">
                 <div class="form-label">Seleccionar color</div>
@@ -249,12 +237,11 @@
         </div>
       </div>
 
-      <!-- Sticky actions card -->
       <div class="card border-0 shadow-sm actions-card">
         <div class="card-body d-flex flex-column gap-2">
           <button class="btn btn-primary w-100" [disabled]="saving()" (click)="save()">
             @if (saving()) {
-              <span class="spinner-border spinner-border-sm me-1"></span> Guardando…
+              <span class="spinner-border spinner-border-sm me-1"></span> Guardando...
             } @else {
               <i class="bi bi-floppy me-1"></i>
               {{ isEdit() ? 'Actualizar producto' : 'Crear producto' }}

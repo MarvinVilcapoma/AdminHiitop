@@ -25,60 +25,65 @@ public sealed class InvoiceService : IInvoiceService
         _invoiceElectronicBillingService = invoiceElectronicBillingService;
     }
 
-    public async Task<object> GetAsync(int perPage, int page, CancellationToken cancellationToken)
+    public async Task<object> GetAsync(int perPage, int page)
     {
         var query = _context.Invoices.AsNoTracking()
             .Include(item => item.Order)
             .Include(item => item.User)
             .OrderByDescending(item => item.IssuedAt)
             .ThenByDescending(item => item.Id);
-        return await PaginationHelper.CreateAsync(query, page, perPage, cancellationToken);
+        return await PaginationHelper.CreateAsync(query, page, perPage);
     }
 
-    public async Task<object> GetSeriesAsync(CancellationToken cancellationToken)
-        => await _context.InvoiceSeries.AsNoTracking().Where(item => item.IsActive).OrderBy(item => item.Serie).ToListAsync(cancellationToken);
+    public async Task<object> GetSeriesAsync()
+        => await _context.InvoiceSeries.AsNoTracking().Where(item => item.IsActive).OrderBy(item => item.Serie).ToListAsync();
 
-    public Task<Invoice?> GetByIdAsync(int id, CancellationToken cancellationToken)
-        => _context.Invoices.AsNoTracking().Include(item => item.Order).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+    public Task<Invoice?> GetByIdAsync(int id)
+        => _context.Invoices.AsNoTracking().Include(item => item.Order).FirstOrDefaultAsync(item => item.Id == id);
 
-    public async Task<object> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken)
+    public async Task<object> CreateAsync(CreateInvoiceRequest request)
     {
-        var series = await _context.InvoiceSeries.FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId, cancellationToken);
+        var series = await _context.InvoiceSeries.FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId);
         if (series is null) return new { error = true, message = "Serie no encontrada." };
 
         Order? order = request.OrderId.HasValue
-            ? await _context.Orders.Include(item => item.Customer).FirstOrDefaultAsync(item => item.Id == request.OrderId.Value, cancellationToken)
+            ? await _context.Orders.Include(item => item.Customer).FirstOrDefaultAsync(item => item.Id == request.OrderId.Value)
             : null;
 
         int correlativo = series.NextNumber;
         series.NextNumber += 1;
 
+        // Prices include IGV: order.Total = total con IGV
+        decimal orderTotal = order?.Total ?? 0m;
+        decimal orderIgv   = Math.Round(orderTotal * 0.18m / 1.18m, 2);
+        decimal orderBase  = Math.Round(orderTotal - orderIgv, 2);   // base gravada sin IGV
+
         var invoice = new Invoice
         {
-            OrderId = request.OrderId,
+            OrderId         = request.OrderId,
             InvoiceSeriesId = series.Id,
-            DocType = request.DocType ?? series.DocType,
-            Serie = series.Serie,
-            Correlativo = correlativo,
-            FullNumber = $"{series.Serie}-{correlativo:00000000}",
-            Status = request.AutoSend ? "sent" : "draft",
-            CustomerDocType = request.CustomerDocType,
+            DocType         = request.DocType ?? series.DocType,
+            Serie           = series.Serie,
+            Correlativo     = correlativo,
+            FullNumber      = $"{series.Serie}-{correlativo:00000000}",
+            Status          = request.AutoSend ? "sent" : "draft",
+            CustomerDocType   = request.CustomerDocType,
             CustomerDocNumber = request.CustomerDocNumber,
-            CustomerName = request.CustomerName ?? order?.CustomerName,
-            Currency = "PEN",
-            FormOfPayment = request.FormOfPayment ?? "contado",
-            PaymentMethodId = request.PaymentMethodId,
-            MtoOperGravadas = order?.Total ?? 0,
-            MtoIgv = Math.Round((order?.Total ?? 0) * 0.18m / 1.18m, 2),
-            ValorVenta = order?.Total ?? 0,
-            SubTotal = order?.Total ?? 0,
-            MtoImpVenta = order?.Total ?? 0,
-            IssuedAt = DateTime.UtcNow,
-            SunatDescription = request.AutoSend ? "Documento enviado al proveedor configurado." : "Documento generado en borrador."
+            CustomerName      = request.CustomerName ?? order?.CustomerName,
+            Currency          = "PEN",
+            FormOfPayment     = request.FormOfPayment ?? "contado",
+            PaymentMethodId   = request.PaymentMethodId,
+            MtoOperGravadas   = orderBase,   // base sin IGV
+            MtoIgv            = orderIgv,    // IGV
+            ValorVenta        = orderBase,   // valor venta sin IGV
+            SubTotal          = orderBase,   // subtotal (base)
+            MtoImpVenta       = orderTotal,  // total con IGV
+            IssuedAt          = PeruClock.Now,
+            SunatDescription  = request.AutoSend ? "Documento enviado al proveedor configurado." : "Documento generado en borrador."
         };
 
         _context.Invoices.Add(invoice);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
 
         return new
         {
@@ -107,35 +112,35 @@ public sealed class InvoiceService : IInvoiceService
         };
     }
 
-    public async Task<object> VoidAsync(int id, CancellationToken cancellationToken)
+    public async Task<object> VoidAsync(int id)
     {
-        Invoice? entity = await _context.Invoices.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        Invoice? entity = await _context.Invoices.FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) return new { error = true, message = "Comprobante no encontrado." };
         entity.Status = "cancelled";
         entity.SunatDescription = "Comprobante anulado.";
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return new { success = true, message = entity.SunatDescription };
     }
 
-    public async Task<InvoiceFileContent?> GetXmlAsync(int id, CancellationToken cancellationToken)
+    public async Task<InvoiceFileContent?> GetXmlAsync(int id)
     {
-        Invoice? entity = await _context.Invoices.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        Invoice? entity = await _context.Invoices.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) return null;
         byte[]? content = NubeFactStorageHelper.DecodeBase64(entity.XmlContent);
         return content is null ? null : new InvoiceFileContent(content, $"{entity.FullNumber}.xml.zip");
     }
 
-    public async Task<InvoiceFileContent?> GetCdrAsync(int id, CancellationToken cancellationToken)
+    public async Task<InvoiceFileContent?> GetCdrAsync(int id)
     {
-        Invoice? entity = await _context.Invoices.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        Invoice? entity = await _context.Invoices.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) return null;
         byte[]? content = NubeFactStorageHelper.DecodeBase64(entity.CdrContent);
         return content is null ? null : new InvoiceFileContent(content, $"{entity.FullNumber}.cdr.zip");
     }
 
-    public async Task<InvoiceFileContent?> GetPdfAsync(int id, CancellationToken cancellationToken)
+    public async Task<InvoiceFileContent?> GetPdfAsync(int id)
     {
-        Invoice? entity = await _context.Invoices.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        Invoice? entity = await _context.Invoices.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) return null;
         var response = NubeFactStorageHelper.ReadStoredResponse(entity.SunatNotesJson);
         byte[]? content = NubeFactStorageHelper.DecodeBase64(response?.PdfZipBase64);

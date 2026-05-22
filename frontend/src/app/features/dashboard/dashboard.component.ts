@@ -1,68 +1,76 @@
-﻿import {
-  Component, inject, OnInit, AfterViewInit, OnDestroy,
-  signal, computed, ViewChild, ElementRef, ChangeDetectorRef
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { DecimalPipe, NgStyle } from '@angular/common';
-import { ApiService } from '../../core/services/api.service';
+import { FormsModule } from '@angular/forms';
 import { Chart, registerables } from 'chart.js';
+import { ApiService } from '../../core/services/api.service';
+import { formatPeruDate } from '../../core/utils/peru-date.util';
+
 Chart.register(...registerables);
 
 interface SummaryKpi {
-  total_orders:   number;
-  total_revenue:  number;
-  avg_ticket:     number;
-  total_units:    number;
-  total_cost:     number;
-  total_profit:   number;
+  total_orders: number;
+  total_revenue: number;
+  avg_ticket: number;
+  total_units: number;
+  total_cost: number;
+  total_profit: number;
   avg_margin_pct: number | null;
   pos_sales_count: number;
   pos_sales_revenue: number;
   pending_orders: number;
-  new_customers:  number;
+  new_customers: number;
 }
 
-interface DashboardData {
-  period:            { from: string; to: string };
-  summary:           SummaryKpi;
-  sales_by_day:      { date: string; orders: number; revenue: number }[];
-  top_products:      { product_description: string; total_qty: number; total_revenue: number }[];
-  by_status:         { status: string; color: string; count: number; revenue: number }[];
-  by_agency:         { agency: string; count: number }[];
-  recent_orders:     any[];
-  low_stock:         any[];
-  by_branch:         { branch: string; total_orders: number; total_revenue: number }[];
-  by_payment_method: { method: string; total: number }[];
-  by_seller:         { seller: string; total_orders: number; total_revenue: number; avg_ticket: number }[];
+interface SalesByDayItem {
+  date: string;
+  orders: number;
+  revenue: number;
 }
 
-const DEFAULT_SUMMARY: SummaryKpi = {
-  total_orders: 0,
-  total_revenue: 0,
-  avg_ticket: 0,
-  total_units: 0,
-  total_cost: 0,
-  total_profit: 0,
-  avg_margin_pct: null,
-  pos_sales_count: 0,
-  pos_sales_revenue: 0,
-  pending_orders: 0,
-  new_customers: 0,
-};
+interface TopProductItem {
+  product_description: string;
+  total_qty: number;
+  total_revenue: number;
+}
 
-const DEFAULT_DASHBOARD_DATA: DashboardData = {
-  period: { from: '', to: '' },
-  summary: DEFAULT_SUMMARY,
-  sales_by_day: [],
-  top_products: [],
-  by_status: [],
-  by_agency: [],
-  recent_orders: [],
-  low_stock: [],
-  by_branch: [],
-  by_payment_method: [],
-  by_seller: [],
-};
+interface BranchItem {
+  branch: string;
+  total_orders: number;
+  total_revenue: number;
+}
+
+interface PaymentMethodItem {
+  method: string;
+  total: number;
+}
+
+interface SellerItem {
+  seller: string;
+  total_orders: number;
+  total_revenue: number;
+  avg_ticket: number;
+}
+
+interface SectionState<T> {
+  loading: boolean;
+  error: string | null;
+  data: T | null;
+}
+
+function sectionState<T>(): SectionState<T> {
+  return { loading: false, error: null, data: null };
+}
 
 @Component({
   selector: 'app-dashboard',
@@ -75,130 +83,292 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  @ViewChild('salesLineChart')   salesChartRef!:   ElementRef<HTMLCanvasElement>;
-  @ViewChild('branchDonutChart') branchChartRef!:  ElementRef<HTMLCanvasElement>;
+  @ViewChild('salesLineChart') salesChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('branchDonutChart') branchChartRef?: ElementRef<HTMLCanvasElement>;
 
-  private salesChartInst?:  Chart;
+  private salesChartInst?: Chart;
   private branchChartInst?: Chart;
+  private viewReady = false;
 
-  loading  = signal(false);
-  data     = signal<DashboardData | null>(null);
-  preset   = signal<'today' | 'week' | 'month'>('month');
-  topMode  = signal<'revenue' | 'qty'>('revenue');
+  preset = signal<'today' | 'week' | 'month'>('month');
+  topMode = signal<'revenue' | 'qty'>('revenue');
   sellerSort = signal<'revenue' | 'orders' | 'ticket'>('revenue');
 
   from = '';
-  to   = '';
+  to = '';
 
-  // ── computed helpers ──────────────────────────────────────────────────────
+  summarySection = signal<SectionState<SummaryKpi>>(sectionState());
+  salesByDaySection = signal<SectionState<SalesByDayItem[]>>(sectionState());
+  topProductsSection = signal<SectionState<TopProductItem[]>>(sectionState());
+  branchSection = signal<SectionState<BranchItem[]>>(sectionState());
+  paymentMethodsSection = signal<SectionState<PaymentMethodItem[]>>(sectionState());
+  sellersSection = signal<SectionState<SellerItem[]>>(sectionState());
+
+  shopifyMetrics         = signal<{ total_orders: number; pending_orders: number; total_revenue: number } | null>(null);
+  shopifyMetricsLoading  = signal(false);
+
+  loading = computed(() =>
+    this.summarySection().loading ||
+    this.salesByDaySection().loading ||
+    this.topProductsSection().loading ||
+    this.branchSection().loading ||
+    this.paymentMethodsSection().loading ||
+    this.sellersSection().loading
+  );
+
+  summary = computed<SummaryKpi>(() => this.summarySection().data ?? {
+    total_orders: 0,
+    total_revenue: 0,
+    avg_ticket: 0,
+    total_units: 0,
+    total_cost: 0,
+    total_profit: 0,
+    avg_margin_pct: null,
+    pos_sales_count: 0,
+    pos_sales_revenue: 0,
+    pending_orders: 0,
+    new_customers: 0,
+  });
+
+  salesByDay = computed(() => this.salesByDaySection().data ?? []);
+  branchData = computed(() => this.branchSection().data ?? []);
+  paymentMethodData = computed(() => this.paymentMethodsSection().data ?? []);
+  sellerData = computed(() => this.sellersSection().data ?? []);
 
   topProducts = computed(() => {
-    const list = this.data()?.top_products ?? [];
+    const list = this.topProductsSection().data ?? [];
     return this.topMode() === 'revenue'
       ? [...list].sort((a, b) => b.total_revenue - a.total_revenue).slice(0, 7)
-      : [...list].sort((a, b) => b.total_qty    - a.total_qty).slice(0, 7);
+      : [...list].sort((a, b) => b.total_qty - a.total_qty).slice(0, 7);
   });
 
   maxProduct = computed(() => {
     const items = this.topProducts();
-    const vals  = this.topMode() === 'revenue'
-      ? items.map(p => p.total_revenue) : items.map(p => p.total_qty);
-    return Math.max(1, ...vals);
+    const values = this.topMode() === 'revenue'
+      ? items.map(item => item.total_revenue)
+      : items.map(item => item.total_qty);
+    return Math.max(1, ...values);
   });
 
-  maxPayment = computed(() =>
-    Math.max(1, ...(this.data()?.by_payment_method ?? []).map(p => p.total))
-  );
+  maxPayment = computed(() => Math.max(1, ...this.paymentMethodData().map(item => item.total)));
 
-  maxSeller = computed(() =>
-    Math.max(1, ...(this.data()?.by_seller ?? []).map(s =>
-      this.sellerSort() === 'ticket' ? s.avg_ticket
-      : this.sellerSort() === 'orders' ? s.total_orders
-      : s.total_revenue))
-  );
+  maxSeller = computed(() => Math.max(1, ...this.sellerData().map(item => {
+    if (this.sellerSort() === 'ticket') return item.avg_ticket;
+    if (this.sellerSort() === 'orders') return item.total_orders;
+    return item.total_revenue;
+  })));
 
   sortedSellers = computed(() => {
-    const list = this.data()?.by_seller ?? [];
-    if (this.sellerSort() === 'orders')  return [...list].sort((a, b) => b.total_orders  - a.total_orders);
-    if (this.sellerSort() === 'ticket')  return [...list].sort((a, b) => b.avg_ticket    - a.avg_ticket);
+    const list = this.sellerData();
+    if (this.sellerSort() === 'orders') return [...list].sort((a, b) => b.total_orders - a.total_orders);
+    if (this.sellerSort() === 'ticket') return [...list].sort((a, b) => b.avg_ticket - a.avg_ticket);
     return [...list].sort((a, b) => b.total_revenue - a.total_revenue);
   });
 
-  sellerBarValue = computed(() => (s: any) => {
-    if (this.sellerSort() === 'ticket')  return s.avg_ticket;
-    if (this.sellerSort() === 'orders')  return s.total_orders;
-    return s.total_revenue;
+  sellerBarValue = computed(() => (seller: SellerItem) => {
+    if (this.sellerSort() === 'ticket') return seller.avg_ticket;
+    if (this.sellerSort() === 'orders') return seller.total_orders;
+    return seller.total_revenue;
   });
 
   branchColors = ['#7c3aed', '#0d9488', '#f59e0b', '#3b82f6', '#ef4444'];
 
-  // ── lifecycle ──────────────────────────────────────────────────────────────
+  ngOnInit(): void {
+    this.setPreset('month');
+  }
 
-  ngOnInit(): void  { this.setPreset('month'); }
-  ngAfterViewInit(): void { /* charts built after data loads */ }
-  ngOnDestroy(): void { this.destroyCharts(); }
+  ngAfterViewInit(): void {
+    this.viewReady = true;
+    this.queueSalesChartBuild();
+    this.queueBranchChartBuild();
+  }
 
-  setPreset(p: 'today' | 'week' | 'month'): void {
-    this.preset.set(p);
-    const now = new Date();
-    if (p === 'today') {
-      const d = now.toISOString().slice(0, 10);
-      this.from = d; this.to = d;
-    } else if (p === 'week') {
+  ngOnDestroy(): void {
+    this.destroyCharts();
+  }
+
+  setPreset(preset: 'today' | 'week' | 'month'): void {
+    this.preset.set(preset);
+
+    if (preset === 'today') {
+      const value = formatPeruDate();
+      this.from = value;
+      this.to = value;
+    } else if (preset === 'week') {
+      const now = new Date();
       const day = now.getDay() || 7;
-      const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
-      this.from = mon.toISOString().slice(0, 10);
-      this.to   = now.toISOString().slice(0, 10);
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + 1);
+      this.from = formatPeruDate(monday);
+      this.to = formatPeruDate(now);
     } else {
-      this.from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      this.to   = now.toISOString().slice(0, 10);
+      const now = new Date();
+      this.from = formatPeruDate(new Date(now.getFullYear(), now.getMonth(), 1));
+      this.to = formatPeruDate(now);
     }
+
     this.load();
   }
 
   load(): void {
-    this.loading.set(true);
-    this.destroyCharts();
-    this.api.get<DashboardData>(`dashboard?from=${this.from}&to=${this.to}`).subscribe({
-      next: d => {
-        const normalized = this.normalizeDashboardData(d);
-        this.data.set(normalized);
-        this.loading.set(false);
-        this.cdr.detectChanges();
-        setTimeout(() => this.buildCharts(normalized), 80);
+    this.loadSummary();
+    this.loadSalesByDay();
+    this.loadBranches();
+    this.loadTopProducts();
+    this.loadPaymentMethods();
+    this.loadSellers();
+    this.loadShopifyMetrics();
+  }
+
+  private loadShopifyMetrics(): void {
+    this.shopifyMetricsLoading.set(true);
+    const q = this.queryParams();
+    this.api.get<any>('shopify/metrics', { start_date: q['from'], end_date: q['to'] }).subscribe({
+      next: m => {
+        this.shopifyMetrics.set({
+          total_orders:   m.total_orders   ?? 0,
+          pending_orders: m.pending_orders  ?? 0,
+          total_revenue:  m.total_revenue   ?? 0,
+        });
+        this.shopifyMetricsLoading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => this.shopifyMetricsLoading.set(false),
     });
   }
 
-  // ── charts ─────────────────────────────────────────────────────────────────
+  private loadSummary(): void {
+    this.summarySection.update(section => ({ ...section, loading: true, error: null }));
+    this.api.get<SummaryKpi>('dashboard/analytics-summary', this.queryParams()).subscribe({
+      next: data => this.summarySection.set({ loading: false, error: null, data }),
+      error: error => this.summarySection.set({
+        loading: false,
+        error: error?.error?.message ?? 'No se pudo cargar el resumen general.',
+        data: null,
+      }),
+    });
+  }
+
+  private loadSalesByDay(): void {
+    this.salesByDaySection.update(section => ({ ...section, loading: true, error: null }));
+    this.api.get<SalesByDayItem[]>('dashboard/sales-by-day', this.queryParams()).subscribe({
+      next: data => {
+        this.salesByDaySection.set({ loading: false, error: null, data });
+        this.queueSalesChartBuild();
+      },
+      error: error => {
+        this.salesByDaySection.set({
+          loading: false,
+          error: error?.error?.message ?? 'No se pudo cargar la evolución diaria.',
+          data: null,
+        });
+        this.destroySalesChart();
+      },
+    });
+  }
+
+  private loadBranches(): void {
+    this.branchSection.update(section => ({ ...section, loading: true, error: null }));
+    this.api.get<BranchItem[]>('dashboard/by-branch', this.queryParams()).subscribe({
+      next: data => {
+        this.branchSection.set({ loading: false, error: null, data });
+        this.queueBranchChartBuild();
+      },
+      error: error => {
+        this.branchSection.set({
+          loading: false,
+          error: error?.error?.message ?? 'No se pudo cargar ventas por sucursal.',
+          data: null,
+        });
+        this.destroyBranchChart();
+      },
+    });
+  }
+
+  private loadTopProducts(): void {
+    this.topProductsSection.update(section => ({ ...section, loading: true, error: null }));
+    this.api.get<TopProductItem[]>('dashboard/top-products', this.queryParams()).subscribe({
+      next: data => this.topProductsSection.set({ loading: false, error: null, data }),
+      error: error => this.topProductsSection.set({
+        loading: false,
+        error: error?.error?.message ?? 'No se pudo cargar productos más vendidos.',
+        data: null,
+      }),
+    });
+  }
+
+  private loadPaymentMethods(): void {
+    this.paymentMethodsSection.update(section => ({ ...section, loading: true, error: null }));
+    this.api.get<PaymentMethodItem[]>('dashboard/by-payment-method', this.queryParams()).subscribe({
+      next: data => this.paymentMethodsSection.set({ loading: false, error: null, data }),
+      error: error => this.paymentMethodsSection.set({
+        loading: false,
+        error: error?.error?.message ?? 'No se pudo cargar métodos de pago.',
+        data: null,
+      }),
+    });
+  }
+
+  private loadSellers(): void {
+    this.sellersSection.update(section => ({ ...section, loading: true, error: null }));
+    this.api.get<SellerItem[]>('dashboard/by-seller', this.queryParams()).subscribe({
+      next: data => this.sellersSection.set({ loading: false, error: null, data }),
+      error: error => this.sellersSection.set({
+        loading: false,
+        error: error?.error?.message ?? 'No se pudo cargar ventas por vendedor.',
+        data: null,
+      }),
+    });
+  }
+
+  private queryParams(): Record<string, string> {
+    return { from: this.from, to: this.to };
+  }
+
+  private queueSalesChartBuild(): void {
+    if (!this.viewReady) return;
+    this.cdr.detectChanges();
+    setTimeout(() => this.buildSalesChart(), 60);
+  }
+
+  private queueBranchChartBuild(): void {
+    if (!this.viewReady) return;
+    this.cdr.detectChanges();
+    setTimeout(() => this.buildBranchChart(), 60);
+  }
 
   private destroyCharts(): void {
+    this.destroySalesChart();
+    this.destroyBranchChart();
+  }
+
+  private destroySalesChart(): void {
     this.salesChartInst?.destroy();
+    this.salesChartInst = undefined;
+  }
+
+  private destroyBranchChart(): void {
     this.branchChartInst?.destroy();
-    this.salesChartInst  = undefined;
     this.branchChartInst = undefined;
   }
 
-  private buildCharts(d: DashboardData): void {
-    this.buildSalesChart(d);
-    this.buildBranchChart(d);
-  }
+  private buildSalesChart(): void {
+    this.destroySalesChart();
 
-  private buildSalesChart(d: DashboardData): void {
     const canvas = this.salesChartRef?.nativeElement;
-    if (!canvas || !d.sales_by_day.length) return;
+    const data = this.salesByDay();
+    if (!canvas || !data.length) return;
+
     this.salesChartInst = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: d.sales_by_day.map(r => {
-          const p = r.date.split('-');
-          return `${p[2]} ${['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+p[1]-1]}`;
+        labels: data.map(row => {
+          const parts = row.date.split('-');
+          return `${parts[2]} ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][+parts[1] - 1]}`;
         }),
         datasets: [
           {
             label: 'Ingresos (S/)',
-            data: d.sales_by_day.map(r => r.revenue),
+            data: data.map(row => row.revenue),
             borderColor: '#f97316',
             backgroundColor: 'rgba(249,115,22,.1)',
             borderWidth: 2.5,
@@ -210,7 +380,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           },
           {
             label: 'Pedidos',
-            data: d.sales_by_day.map(r => r.orders),
+            data: data.map(row => row.orders),
             borderColor: '#7c3aed',
             backgroundColor: 'transparent',
             borderWidth: 1.5,
@@ -227,24 +397,28 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         interaction: { mode: 'index', intersect: false },
         plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
         scales: {
-          y:  { position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v: any) => 'S/'+v } },
+          y: { position: 'left', grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (value: any) => 'S/' + value } },
           y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
-          x:  { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
         },
       },
     });
   }
 
-  private buildBranchChart(d: DashboardData): void {
+  private buildBranchChart(): void {
+    this.destroyBranchChart();
+
     const canvas = this.branchChartRef?.nativeElement;
-    if (!canvas || !d.by_branch.length) return;
+    const data = this.branchData();
+    if (!canvas || !data.length) return;
+
     this.branchChartInst = new Chart(canvas, {
       type: 'doughnut',
       data: {
-        labels: d.by_branch.map(b => b.branch),
+        labels: data.map(item => item.branch),
         datasets: [{
-          data: d.by_branch.map(b => b.total_revenue),
-          backgroundColor: this.branchColors.slice(0, d.by_branch.length),
+          data: data.map(item => item.total_revenue),
+          backgroundColor: this.branchColors.slice(0, data.length),
           borderWidth: 2,
           borderColor: '#fff',
         }],
@@ -258,54 +432,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // ── helpers ────────────────────────────────────────────────────────────────
-
   barPct(value: number, max: number): number {
     return max ? Math.min(100, Math.round((value / max) * 100)) : 0;
   }
 
-  formatCurrency(v: number): string {
-    return 'S/ ' + (v ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  formatCurrency(value: number): string {
+    return 'S/ ' + (value ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   sellerInitial(name: string | null | undefined): string {
     const value = String(name ?? '').trim();
     return value ? value.charAt(0).toUpperCase() : '?';
-  }
-
-  private normalizeDashboardData(input: DashboardData | null | undefined): DashboardData {
-    const source = input ?? DEFAULT_DASHBOARD_DATA;
-    const summarySource = source.summary ?? DEFAULT_SUMMARY;
-
-    return {
-      period: {
-        from: source.period?.from ?? this.from,
-        to: source.period?.to ?? this.to,
-      },
-      summary: {
-        total_orders: Number(summarySource.total_orders ?? 0),
-        total_revenue: Number(summarySource.total_revenue ?? 0),
-        avg_ticket: Number(summarySource.avg_ticket ?? 0),
-        total_units: Number(summarySource.total_units ?? 0),
-        total_cost: Number(summarySource.total_cost ?? 0),
-        total_profit: Number(summarySource.total_profit ?? 0),
-        avg_margin_pct: summarySource.avg_margin_pct === null || summarySource.avg_margin_pct === undefined
-          ? null
-          : Number(summarySource.avg_margin_pct),
-        pos_sales_count: Number(summarySource.pos_sales_count ?? 0),
-        pos_sales_revenue: Number(summarySource.pos_sales_revenue ?? 0),
-        pending_orders: Number(summarySource.pending_orders ?? 0),
-        new_customers: Number(summarySource.new_customers ?? 0),
-      },
-      sales_by_day: Array.isArray(source.sales_by_day) ? source.sales_by_day : [],
-      top_products: Array.isArray(source.top_products) ? source.top_products : [],
-      by_status: Array.isArray(source.by_status) ? source.by_status : [],
-      by_agency: Array.isArray(source.by_agency) ? source.by_agency : [],
-      recent_orders: Array.isArray(source.recent_orders) ? source.recent_orders : [],
-      low_stock: Array.isArray(source.low_stock) ? source.low_stock : [],
-      by_branch: Array.isArray(source.by_branch) ? source.by_branch : [],
-      by_payment_method: Array.isArray(source.by_payment_method) ? source.by_payment_method : [],
-      by_seller: Array.isArray(source.by_seller) ? source.by_seller : [],
-    };
   }
 }

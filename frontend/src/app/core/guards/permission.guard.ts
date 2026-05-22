@@ -15,10 +15,10 @@ export function permissionGuard(permission: string): CanActivateFn {
       return router.createUrlTree(['/login']);
     }
 
-    if (auth.isAdmin() || auth.hasPermission(permission)) {
+    if (auth.canAccess(permission)) {
       return true;
     }
 
-    return router.createUrlTree(['/dashboard/home']);
+    return router.createUrlTree([auth.getFirstAccessibleDashboardRoute()]);
   };
 }

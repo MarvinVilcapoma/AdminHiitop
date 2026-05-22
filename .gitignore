@@ -4,6 +4,12 @@
 !.env.example
 !.env.docker.example
 
+# .NET secrets (never commit real credentials)
+appsettings.Development.json
+appsettings.Production.json
+appsettings.*.json
+!appsettings.json
+
 # Dependencies
 /api/vendor/
 /frontend/node_modules/

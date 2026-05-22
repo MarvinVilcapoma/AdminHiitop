@@ -1,6 +1,5 @@
-﻿<div class="container-fluid px-3 py-4">
+<div class="container-fluid px-3 py-4">
 
-  <!-- ── Header ───────────────────────────────────────────────────────────── -->
   <div class="dash-header">
     <div class="dash-title">
       <h4><i class="bi bi-bar-chart-fill me-2" style="color:#f97316"></i>Resumen</h4>
@@ -27,41 +26,42 @@
     </div>
   </div>
 
-  @if (loading() && !data()) {
-    <div class="text-center py-5 text-muted">
-      <div class="spinner-border spinner-border-sm me-2"></div>Cargando...
-    </div>
-  }
+  <div class="row g-3 section-gap">
+    <div class="col-12 col-lg-5 col-xl-4">
+      <div class="kpi-outer h-100">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <span class="fw-semibold" style="font-size:.9rem;color:#334155">Indicadores clave</span>
+        </div>
 
-  @if (data(); as d) {
-
-    <!-- ── Row 1: KPIs + line chart ─────────────────────────────────────── -->
-    <div class="row g-3 section-gap">
-
-      <div class="col-12 col-lg-5 col-xl-4">
-        <div class="kpi-outer h-100">
-          <div class="d-flex align-items-center justify-content-between mb-3">
-            <span class="fw-semibold" style="font-size:.9rem;color:#334155">Indicadores clave</span>
+        @if (summarySection().loading && !summarySection().data) {
+          <div class="empty-state">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+            <p>Cargando indicadores...</p>
           </div>
+        } @else if (summarySection().error) {
+          <div class="module-error">
+            <i class="bi bi-exclamation-octagon"></i>
+            <p>{{ summarySection().error }}</p>
+          </div>
+        } @else {
           <div class="kpi-grid">
-
             <div class="kpi-card">
               <div class="kpi-corner"><i class="bi bi-percent text-secondary"></i></div>
               <div class="kpi-label">Margen prom.</div>
               <div class="kpi-value">
-                @if (d.summary.avg_margin_pct !== null) {
-                  {{ d.summary.avg_margin_pct | number:'1.1-1' }}%
+                @if (summary().avg_margin_pct !== null) {
+                  {{ summary().avg_margin_pct | number:'1.1-1' }}%
                 } @else {
                   <span class="text-muted fs-5">N/D</span>
                 }
               </div>
-              <span class="kpi-badge"><i class="bi bi-graph-up-arrow"></i>&nbsp;Utilidad {{ formatCurrency(d.summary.total_profit) }}</span>
+              <span class="kpi-badge"><i class="bi bi-graph-up-arrow"></i>&nbsp;Utilidad {{ formatCurrency(summary().total_profit) }}</span>
             </div>
 
             <div class="kpi-card">
               <div class="kpi-corner"><i class="bi bi-receipt text-warning"></i></div>
               <div class="kpi-label">Ticket prom.</div>
-              <div class="kpi-value" style="font-size:1.3rem">{{ formatCurrency(d.summary.avg_ticket) }}</div>
+              <div class="kpi-value" style="font-size:1.3rem">{{ formatCurrency(summary().avg_ticket) }}</div>
               <span class="kpi-badge" style="background:#fef9c3;color:#a16207">
                 <i class="bi bi-people"></i>&nbsp;por pedido
               </span>
@@ -70,244 +70,362 @@
             <div class="kpi-card">
               <div class="kpi-corner"><i class="bi bi-bag-check text-success"></i></div>
               <div class="kpi-label">Pedidos</div>
-              <div class="kpi-value">{{ d.summary.total_orders | number }}</div>
+              <div class="kpi-value">{{ summary().total_orders | number }}</div>
               <span class="kpi-badge">
-                <i class="bi bi-clock-history"></i>&nbsp;{{ d.summary.pending_orders }} pendientes
+                <i class="bi bi-clock-history"></i>&nbsp;{{ summary().pending_orders }} pendientes
               </span>
             </div>
 
             <div class="kpi-card">
               <div class="kpi-corner"><i class="bi bi-boxes text-info"></i></div>
               <div class="kpi-label">Unidades</div>
-              <div class="kpi-value">{{ d.summary.total_units | number }}</div>
+              <div class="kpi-value">{{ summary().total_units | number }}</div>
               <span class="kpi-badge" style="background:#dbeafe;color:#1d4ed8">
                 <i class="bi bi-box-seam"></i>&nbsp;vendidas
               </span>
             </div>
-
           </div>
+
           <div class="mt-3 pt-2 border-top">
             <div class="d-flex align-items-center justify-content-between mb-1">
               <span class="text-muted" style="font-size:.78rem">Ingresos totales</span>
-              <span class="fw-bold" style="font-size:1.1rem;color:#1e293b">{{ formatCurrency(d.summary.total_revenue) }}</span>
+              <span class="fw-bold" style="font-size:1.1rem;color:#1e293b">{{ formatCurrency(summary().total_revenue) }}</span>
             </div>
             <div class="d-flex align-items-center justify-content-between mb-1">
               <span class="text-muted" style="font-size:.78rem">Costo total</span>
-              <span class="fw-semibold" style="font-size:.95rem;color:#334155">{{ formatCurrency(d.summary.total_cost) }}</span>
+              <span class="fw-semibold" style="font-size:.95rem;color:#334155">{{ formatCurrency(summary().total_cost) }}</span>
             </div>
             <div class="d-flex align-items-center justify-content-between">
               <span class="text-muted" style="font-size:.78rem">Ganancia</span>
-              <span class="fw-semibold" [class.text-success]="d.summary.total_profit >= 0" [class.text-danger]="d.summary.total_profit < 0" style="font-size:.95rem">
-                {{ formatCurrency(d.summary.total_profit) }}
+              <span class="fw-semibold" [class.text-success]="summary().total_profit >= 0" [class.text-danger]="summary().total_profit < 0" style="font-size:.95rem">
+                {{ formatCurrency(summary().total_profit) }}
               </span>
             </div>
             <div class="d-flex align-items-center justify-content-between mt-1">
               <span class="text-muted" style="font-size:.78rem">Ventas POS</span>
               <span class="fw-semibold" style="font-size:.88rem;color:#0f766e">
-                {{ d.summary.pos_sales_count | number }} · {{ formatCurrency(d.summary.pos_sales_revenue) }}
+                {{ summary().pos_sales_count | number }} · {{ formatCurrency(summary().pos_sales_revenue) }}
               </span>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="col-12 col-lg-7 col-xl-8">
-        <div class="chart-card h-100">
-          <div class="card-head">
-            <span class="card-title">
-              <i class="bi bi-graph-up" style="color:#f97316"></i>
-              Ingresos y pedidos por dia
-            </span>
-          </div>
-          <div class="chart-area" style="height:210px">
-            @if (d.sales_by_day.length) {
-              <canvas #salesLineChart></canvas>
-            } @else {
-              <div class="empty-state">
-                <i class="bi bi-graph-up"></i>
-                <p>No hay datos de ventas para el periodo seleccionado.</p>
-              </div>
-            }
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ── Row 2: Branch donut + Top products ───────────────────────────── -->
-    <div class="row g-3 section-gap">
-
-      <div class="col-12 col-md-5 col-xl-4">
-        <div class="chart-card h-100">
-          <div class="card-head">
-            <span class="card-title">
-              <i class="bi bi-shop" style="color:#7c3aed"></i>
-              Ventas por sucursal
-            </span>
-          </div>
-          @if (d.by_branch.length) {
-            <div class="donut-wrap">
-              <div class="donut-canvas-wrap">
-                <canvas #branchDonutChart style="max-height:160px"></canvas>
-              </div>
-              <ul class="donut-legend w-100">
-                @for (b of d.by_branch; track b.branch; let i = $index) {
-                  <li>
-                    <span class="dot" [ngStyle]="{'background': branchColors[i % branchColors.length]}"></span>
-                    <span class="legend-label">{{ b.branch || 'Sin sucursal' }}</span>
-                    <span class="legend-val">{{ formatCurrency(b.total_revenue) }}</span>
-                  </li>
+            <!-- Shopify section in KPI panel -->
+            <div class="mt-3 pt-3 border-top">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-shop text-success"></i>
+                <span class="fw-semibold small text-success">Shopify</span>
+                @if (shopifyMetricsLoading()) {
+                  <span class="spinner-border spinner-border-sm text-success ms-auto" style="width:14px;height:14px"></span>
                 }
-              </ul>
-            </div>
-          } @else {
-            <div class="empty-state">
-              <i class="bi bi-shop"></i>
-              <p>Sin datos de sucursales para este periodo.</p>
-            </div>
-          }
-        </div>
-      </div>
-
-      <div class="col-12 col-md-7 col-xl-8">
-        <div class="chart-card h-100">
-          <div class="card-head">
-            <span class="card-title">
-              <i class="bi bi-trophy" style="color:#f59e0b"></i>
-              Productos mas vendidos
-            </span>
-            <div class="card-actions">
-              <select class="form-select form-select-sm" style="width:130px"
-                [ngModel]="topMode()" (ngModelChange)="topMode.set($event)">
-                <option value="revenue">Por monto</option>
-                <option value="qty">Por cantidad</option>
-              </select>
-            </div>
-          </div>
-          @if (topProducts().length) {
-            <ul class="rank-list">
-              @for (p of topProducts(); track p.product_description; let i = $index) {
-                <li>
-                  <div class="rank-row">
-                    <span class="text-muted me-1" style="font-size:.72rem;min-width:16px">{{ i + 1 }}</span>
-                    <span class="rank-name" [title]="p.product_description">{{ p.product_description }}</span>
-                    <span class="rank-val">
-                      @if (topMode() === 'revenue') { {{ formatCurrency(p.total_revenue) }}
-                      } @else { {{ p.total_qty | number }} u. }
-                    </span>
-                  </div>
-                  <div class="rank-bar-bg">
-                    <div class="rank-bar-fill" style="background:#f59e0b"
-                      [ngStyle]="{'width': barPct(topMode() === 'revenue' ? p.total_revenue : p.total_qty, maxProduct()) + '%'}">
-                    </div>
-                  </div>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="empty-state">
-              <i class="bi bi-trophy"></i>
-              <p>Sin productos para este periodo.</p>
-            </div>
-          }
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ── Row 3: Payment methods ────────────────────────────────────────── -->
-    <div class="row g-3 section-gap">
-
-      <div class="col-12">
-        <div class="chart-card h-100">
-          <div class="card-head">
-            <span class="card-title">
-              <i class="bi bi-credit-card" style="color:#0d9488"></i>
-              Metodos de pago
-            </span>
-          </div>
-          @if (d.by_payment_method.length) {
-            <ul class="rank-list">
-              @for (pm of d.by_payment_method; track pm.method) {
-                <li>
-                  <div class="rank-row">
-                    <span class="rank-name">{{ pm.method }}</span>
-                    <span class="rank-val">{{ formatCurrency(pm.total) }}</span>
-                  </div>
-                  <div class="rank-bar-bg">
-                    <div class="rank-bar-fill" style="background:#0d9488"
-                      [ngStyle]="{'width': barPct(pm.total, maxPayment()) + '%'}">
-                    </div>
-                  </div>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="empty-state">
-              <i class="bi bi-credit-card"></i>
-              <p>Sin datos de metodos de pago.</p>
-            </div>
-          }
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ── Row 4: Ventas por vendedor ────────────────────────────────────── -->
-    <div class="row g-3">
-      <div class="col-12">
-        <div class="chart-card">
-          <div class="card-head">
-            <span class="card-title">
-              <i class="bi bi-person-badge" style="color:#6366f1"></i>
-              Ventas por vendedor
-            </span>
-            <div class="card-actions">
-              <select class="form-select form-select-sm" style="width:150px"
-                [ngModel]="sellerSort()" (ngModelChange)="sellerSort.set($event)">
-                <option value="revenue">Por ingresos</option>
-                <option value="orders">Por pedidos</option>
-                <option value="ticket">Por ticket prom.</option>
-              </select>
-            </div>
-          </div>
-          @if (sortedSellers().length) {
-            <div class="row g-3">
-              @for (s of sortedSellers(); track s.seller) {
-                <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
-                  <div class="p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                      <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white"
-                        style="width:34px;height:34px;background:#6366f1;font-size:.82rem;flex-shrink:0">
-                        {{ sellerInitial(s.seller) }}
-                      </div>
-                      <span class="fw-semibold text-truncate" style="font-size:.83rem;color:#334155"
-                        [title]="s.seller">{{ s.seller }}</span>
-                    </div>
-                    <div class="mb-1" style="font-size:.78rem;color:#475569">
-                      <span class="me-3"><i class="bi bi-bag me-1"></i>{{ s.total_orders }} pedidos</span>
-                      <span><i class="bi bi-receipt me-1"></i>{{ formatCurrency(s.avg_ticket) }} ticket</span>
-                    </div>
-                    <div class="fw-bold mb-2" style="color:#1e293b">{{ formatCurrency(s.total_revenue) }}</div>
-                    <div class="rank-bar-bg">
-                      <div class="rank-bar-fill" style="background:#6366f1"
-                        [ngStyle]="{'width': barPct(sellerBarValue()(s), maxSeller()) + '%'}">
-                      </div>
-                    </div>
-                  </div>
+              </div>
+              @if (shopifyMetrics(); as sh) {
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="text-muted" style="font-size:.78rem">Pedidos Shopify</span>
+                  <span class="fw-semibold" style="font-size:.9rem;color:#16a34a">{{ sh.total_orders | number }}</span>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="text-muted" style="font-size:.78rem">Sin enviar</span>
+                  <span class="fw-semibold" style="font-size:.88rem;color:#ea580c">{{ sh.pending_orders | number }}</span>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <span class="text-muted" style="font-size:.78rem">Ingresos Shopify</span>
+                  <span class="fw-semibold" style="font-size:.9rem;color:#0f766e">{{ formatCurrency(sh.total_revenue) }}</span>
+                </div>
+                <div class="d-flex align-items-center justify-content-between pt-2 border-top mt-2">
+                  <span class="fw-semibold small">Total combinado</span>
+                  <span class="fw-bold" style="color:#1e293b">
+                    {{ formatCurrency(summary().total_revenue + sh.total_revenue) }}
+                  </span>
                 </div>
               }
             </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7 col-xl-8">
+      <div class="chart-card h-100">
+        <div class="card-head">
+          <span class="card-title">
+            <i class="bi bi-graph-up" style="color:#f97316"></i>
+            Ingresos y pedidos por dia
+          </span>
+        </div>
+        <div class="chart-area" style="height:210px">
+          @if (salesByDaySection().loading && !salesByDay().length) {
+            <div class="empty-state">
+              <div class="spinner-border spinner-border-sm mb-2"></div>
+              <p>Cargando evolución diaria...</p>
+            </div>
+          } @else if (salesByDaySection().error) {
+            <div class="module-error">
+              <i class="bi bi-exclamation-octagon"></i>
+              <p>{{ salesByDaySection().error }}</p>
+            </div>
+          } @else if (salesByDay().length) {
+            <canvas #salesLineChart></canvas>
           } @else {
             <div class="empty-state">
-              <i class="bi bi-person-badge"></i>
-              <p>Sin datos de vendedores para este periodo.</p>
+              <i class="bi bi-graph-up"></i>
+              <p>No hay datos de ventas para el periodo seleccionado.</p>
             </div>
           }
         </div>
       </div>
     </div>
+  </div>
 
+  <!-- Combined stat bar -->
+  @if (shopifyMetrics(); as sh) {
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-md-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon bg-primary bg-opacity-10"><i class="bi bi-bag-check text-primary"></i></div>
+          <div>
+            <div class="stat-label">Pedidos locales</div>
+            <div class="stat-value">{{ summary().total_orders | number }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon bg-success bg-opacity-10"><i class="bi bi-shop text-success"></i></div>
+          <div>
+            <div class="stat-label">Pedidos Shopify</div>
+            <div class="stat-value text-success">{{ sh.total_orders | number }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon" style="background:#fff7ed"><i class="bi bi-truck" style="color:#ea580c"></i></div>
+          <div>
+            <div class="stat-label">Sin enviar (Shopify)</div>
+            <div class="stat-value" style="color:#ea580c">{{ sh.pending_orders | number }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon" style="background:#f0fdf4"><i class="bi bi-currency-dollar" style="color:#16a34a"></i></div>
+          <div>
+            <div class="stat-label">Ingresos combinados</div>
+            <div class="stat-value" style="font-size:1rem">{{ formatCurrency(summary().total_revenue + sh.total_revenue) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   }
+
+  <div class="row g-3 section-gap">
+    <div class="col-12 col-md-5 col-xl-4">
+      <div class="chart-card h-100">
+        <div class="card-head">
+          <span class="card-title">
+            <i class="bi bi-shop" style="color:#7c3aed"></i>
+            Ventas por sucursal
+          </span>
+        </div>
+
+        @if (branchSection().loading && !branchData().length) {
+          <div class="empty-state">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+            <p>Cargando sucursales...</p>
+          </div>
+        } @else if (branchSection().error) {
+          <div class="module-error">
+            <i class="bi bi-exclamation-octagon"></i>
+            <p>{{ branchSection().error }}</p>
+          </div>
+        } @else if (branchData().length) {
+          <div class="donut-wrap">
+            <div class="donut-canvas-wrap">
+              <canvas #branchDonutChart style="max-height:160px"></canvas>
+            </div>
+            <ul class="donut-legend w-100">
+              @for (b of branchData(); track b.branch; let i = $index) {
+                <li>
+                  <span class="dot" [ngStyle]="{'background': branchColors[i % branchColors.length]}"></span>
+                  <span class="legend-label">{{ b.branch || 'Sin sucursal' }}</span>
+                  <span class="legend-val">{{ formatCurrency(b.total_revenue) }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        } @else {
+          <div class="empty-state">
+            <i class="bi bi-shop"></i>
+            <p>Sin datos de sucursales para este periodo.</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="col-12 col-md-7 col-xl-8">
+      <div class="chart-card h-100">
+        <div class="card-head">
+          <span class="card-title">
+            <i class="bi bi-trophy" style="color:#f59e0b"></i>
+            Productos mas vendidos
+          </span>
+          <div class="card-actions">
+            <select class="form-select form-select-sm" style="width:130px"
+              [ngModel]="topMode()" (ngModelChange)="topMode.set($event)">
+              <option value="revenue">Por monto</option>
+              <option value="qty">Por cantidad</option>
+            </select>
+          </div>
+        </div>
+
+        @if (topProductsSection().loading && !topProducts().length) {
+          <div class="empty-state">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+            <p>Cargando productos...</p>
+          </div>
+        } @else if (topProductsSection().error) {
+          <div class="module-error">
+            <i class="bi bi-exclamation-octagon"></i>
+            <p>{{ topProductsSection().error }}</p>
+          </div>
+        } @else if (topProducts().length) {
+          <ul class="rank-list">
+            @for (p of topProducts(); track p.product_description; let i = $index) {
+              <li>
+                <div class="rank-row">
+                  <span class="text-muted me-1" style="font-size:.72rem;min-width:16px">{{ i + 1 }}</span>
+                  <span class="rank-name" [title]="p.product_description">{{ p.product_description }}</span>
+                  <span class="rank-val">
+                    @if (topMode() === 'revenue') { {{ formatCurrency(p.total_revenue) }}
+                    } @else { {{ p.total_qty | number }} u. }
+                  </span>
+                </div>
+                <div class="rank-bar-bg">
+                  <div class="rank-bar-fill" style="background:#f59e0b"
+                    [ngStyle]="{'width': barPct(topMode() === 'revenue' ? p.total_revenue : p.total_qty, maxProduct()) + '%'}">
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="empty-state">
+            <i class="bi bi-trophy"></i>
+            <p>Sin productos para este periodo.</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 section-gap">
+    <div class="col-12">
+      <div class="chart-card h-100">
+        <div class="card-head">
+          <span class="card-title">
+            <i class="bi bi-credit-card" style="color:#0d9488"></i>
+            Metodos de pago
+          </span>
+        </div>
+
+        @if (paymentMethodsSection().loading && !paymentMethodData().length) {
+          <div class="empty-state">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+            <p>Cargando métodos de pago...</p>
+          </div>
+        } @else if (paymentMethodsSection().error) {
+          <div class="module-error">
+            <i class="bi bi-exclamation-octagon"></i>
+            <p>{{ paymentMethodsSection().error }}</p>
+          </div>
+        } @else if (paymentMethodData().length) {
+          <ul class="rank-list">
+            @for (pm of paymentMethodData(); track pm.method) {
+              <li>
+                <div class="rank-row">
+                  <span class="rank-name">{{ pm.method }}</span>
+                  <span class="rank-val">{{ formatCurrency(pm.total) }}</span>
+                </div>
+                <div class="rank-bar-bg">
+                  <div class="rank-bar-fill" style="background:#0d9488"
+                    [ngStyle]="{'width': barPct(pm.total, maxPayment()) + '%'}">
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="empty-state">
+            <i class="bi bi-credit-card"></i>
+            <p>Sin datos de metodos de pago.</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12">
+      <div class="chart-card">
+        <div class="card-head">
+          <span class="card-title">
+            <i class="bi bi-person-badge" style="color:#6366f1"></i>
+            Ventas por vendedor
+          </span>
+          <div class="card-actions">
+            <select class="form-select form-select-sm" style="width:150px"
+              [ngModel]="sellerSort()" (ngModelChange)="sellerSort.set($event)">
+              <option value="revenue">Por ingresos</option>
+              <option value="orders">Por pedidos</option>
+              <option value="ticket">Por ticket prom.</option>
+            </select>
+          </div>
+        </div>
+
+        @if (sellersSection().loading && !sortedSellers().length) {
+          <div class="empty-state">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+            <p>Cargando vendedores...</p>
+          </div>
+        } @else if (sellersSection().error) {
+          <div class="module-error">
+            <i class="bi bi-exclamation-octagon"></i>
+            <p>{{ sellersSection().error }}</p>
+          </div>
+        } @else if (sortedSellers().length) {
+          <div class="row g-3">
+            @for (s of sortedSellers(); track s.seller) {
+              <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+                <div class="p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0">
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white"
+                      style="width:34px;height:34px;background:#6366f1;font-size:.82rem;flex-shrink:0">
+                      {{ sellerInitial(s.seller) }}
+                    </div>
+                    <span class="fw-semibold text-truncate" style="font-size:.83rem;color:#334155"
+                      [title]="s.seller">{{ s.seller }}</span>
+                  </div>
+                  <div class="mb-1" style="font-size:.78rem;color:#475569">
+                    <span class="me-3"><i class="bi bi-bag me-1"></i>{{ s.total_orders }} pedidos</span>
+                    <span><i class="bi bi-receipt me-1"></i>{{ formatCurrency(s.avg_ticket) }} ticket</span>
+                  </div>
+                  <div class="fw-bold mb-2" style="color:#1e293b">{{ formatCurrency(s.total_revenue) }}</div>
+                  <div class="rank-bar-bg">
+                    <div class="rank-bar-fill" style="background:#6366f1"
+                      [ngStyle]="{'width': barPct(sellerBarValue()(s), maxSeller()) + '%'}">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="empty-state">
+            <i class="bi bi-person-badge"></i>
+            <p>Sin datos de vendedores para este periodo.</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
 
 </div>

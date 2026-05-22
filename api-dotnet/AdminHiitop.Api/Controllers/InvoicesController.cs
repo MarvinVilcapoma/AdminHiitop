@@ -15,21 +15,20 @@ public sealed class InvoicesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get(
         [FromQuery(Name = "per_page")] int perPage = 15,
-        [FromQuery] int page = 1,
-        CancellationToken cancellationToken = default)
-        => Ok(await _invoiceService.GetAsync(perPage, page, cancellationToken));
+        [FromQuery] int page = 1)
+        => Ok(await _invoiceService.GetAsync(perPage, page));
 
     [HttpGet("series")]
-    public async Task<IActionResult> Series(CancellationToken cancellationToken)
-        => Ok(await _invoiceService.GetSeriesAsync(cancellationToken));
+    public async Task<IActionResult> Series()
+        => Ok(await _invoiceService.GetSeriesAsync());
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
-        => await _invoiceService.GetByIdAsync(id, cancellationToken) is { } entity ? Ok(entity) : NotFound();
+    public async Task<IActionResult> GetById(int id)
+        => await _invoiceService.GetByIdAsync(id) is { } entity ? Ok(entity) : NotFound();
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateInvoiceRequest request, CancellationToken cancellationToken)
-        => Ok(await _invoiceService.CreateAsync(request, cancellationToken));
+    public async Task<IActionResult> Create([FromBody] CreateInvoiceRequest request)
+        => Ok(await _invoiceService.CreateAsync(request));
 
     [HttpPost("test-connection")]
     public async Task<IActionResult> TestConnection()
@@ -40,27 +39,27 @@ public sealed class InvoicesController : ControllerBase
         => Ok(await _invoiceService.SendAsync(id));
 
     [HttpPost("{id:int}/void")]
-    public async Task<IActionResult> Void(int id, CancellationToken cancellationToken)
-        => Ok(await _invoiceService.VoidAsync(id, cancellationToken));
+    public async Task<IActionResult> Void(int id)
+        => Ok(await _invoiceService.VoidAsync(id));
 
     [HttpGet("{id:int}/xml")]
-    public async Task<IActionResult> Xml(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Xml(int id)
     {
-        var file = await _invoiceService.GetXmlAsync(id, cancellationToken);
+        var file = await _invoiceService.GetXmlAsync(id);
         return file is null ? NotFound(new { message = "XML no disponible." }) : File(file.Content, "application/octet-stream", file.FileName);
     }
 
     [HttpGet("{id:int}/cdr")]
-    public async Task<IActionResult> Cdr(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Cdr(int id)
     {
-        var file = await _invoiceService.GetCdrAsync(id, cancellationToken);
+        var file = await _invoiceService.GetCdrAsync(id);
         return file is null ? NotFound(new { message = "CDR no disponible." }) : File(file.Content, "application/octet-stream", file.FileName);
     }
 
     [HttpGet("{id:int}/pdf")]
-    public async Task<IActionResult> Pdf(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Pdf(int id)
     {
-        var file = await _invoiceService.GetPdfAsync(id, cancellationToken);
+        var file = await _invoiceService.GetPdfAsync(id);
         return file is null ? NotFound(new { message = "PDF no disponible." }) : File(file.Content, "application/octet-stream", file.FileName);
     }
 }

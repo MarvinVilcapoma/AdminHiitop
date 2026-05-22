@@ -9,4 +9,6 @@ public sealed class NubeFactOptions
     public string ApiToken { get; set; } = string.Empty;
     public string OperationMode { get; set; } = "beta";
     public int TimeoutSeconds { get; set; } = 30;
+    public int RetryAttempts { get; set; } = 3;
+    public int RetryDelaySeconds { get; set; } = 5;
 }

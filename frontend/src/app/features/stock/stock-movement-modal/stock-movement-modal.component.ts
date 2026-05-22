@@ -1,6 +1,7 @@
 import { Component, EventEmitter, inject, Input, OnInit, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
+import { Product } from '../../../core/models';
 
 export interface StockItem {
   id: number;
@@ -14,6 +15,7 @@ export interface StockItem {
 }
 
 interface Warehouse { id: number; name: string; type: string; }
+type ProductOption = Product & { collection?: { id: number; name: string } };
 
 @Component({
   selector: 'app-stock-movement-modal',
@@ -37,6 +39,7 @@ export class StockMovementModalComponent implements OnInit {
 
   // ── Remote data ──────────────────────────────────────────────────────────
   allStocks        = signal<StockItem[]>([]);
+  products         = signal<ProductOption[]>([]);
   allStocksLoading = signal(false);
   saving           = signal(false);
   error            = signal('');
@@ -52,9 +55,11 @@ export class StockMovementModalComponent implements OnInit {
   movColorDropdownOpen   = false;
   movSizeStr             = '';
 
-  movQty    = 0;
-  movType   = 'purchase';
-  movReason = '';
+  movQty      = 0;
+  movType     = 'purchase';
+  movReason   = '';
+  movUnitPrice = 0;
+  movUnitCost  = 0;
   movDestWarehouseId = 0;  // used in transfer mode
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -71,6 +76,9 @@ export class StockMovementModalComponent implements OnInit {
         next: (r) => { this.allStocks.set(r.data ?? r); this.allStocksLoading.set(false); },
         error: ()  => this.allStocksLoading.set(false),
       });
+      this.api.get<any>('products?per_page=500&active_only=1').subscribe({
+        next: (r) => this.products.set(r?.data ?? r ?? []),
+      });
     }
   }
 
@@ -79,9 +87,17 @@ export class StockMovementModalComponent implements OnInit {
   /** Collections that actually have stock in the selected warehouse, or all if none found. */
   collectionsForModal(): { id: number; name: string }[] {
     if (!this.movWarehouseId) return [];
+    if (this.mode === 'entry') {
+      const ids = new Set(
+        this.products()
+          .filter(p => p.collection_id)
+          .map(p => Number(p.collection_id))
+      );
+      return ids.size > 0 ? this.collections.filter(c => ids.has(c.id)) : this.collections;
+    }
     const ids = new Set(
       this.allStocks()
-        .filter(s => s.warehouse.id === this.movWarehouseId && s.product.collection_id)
+        .filter(s => s.warehouse.id === Number(this.movWarehouseId) && s.product.collection_id)
         .map(s => s.product.collection_id!)
     );
     if (ids.size > 0) return this.collections.filter(c => ids.has(c.id));
@@ -89,11 +105,20 @@ export class StockMovementModalComponent implements OnInit {
   }
 
   movProductsFiltered(): { id: number; name: string; sku?: string }[] {
-    let items = this.allStocks();
-    if (this.movWarehouseId)  items = items.filter(s => s.warehouse.id === this.movWarehouseId);
-    // Use == (loose) to handle potential string/number mismatch from select binding
-    if (this.movCollectionId) items = items.filter(s => s.product.collection_id == (this.movCollectionId as any));
     const q = this.movProductSearch.trim().toLowerCase();
+    if (this.mode === 'entry') {
+      let products = this.products();
+      if (this.movCollectionId) {
+        products = products.filter(p => p.collection_id == (this.movCollectionId as any));
+      }
+      return products.filter(p =>
+        !q || p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
+      );
+    }
+
+    let items = this.allStocks();
+    if (this.movWarehouseId)  items = items.filter(s => s.warehouse.id === Number(this.movWarehouseId));
+    if (this.movCollectionId) items = items.filter(s => s.product.collection_id == (this.movCollectionId as any));
     const seen = new Set<number>();
     const result: { id: number; name: string; sku?: string }[] = [];
     for (const s of items) {
@@ -108,7 +133,7 @@ export class StockMovementModalComponent implements OnInit {
   movColorsFiltered(): { id: number; name: string; hex_code?: string }[] {
     if (!this.movProductId) return [];
     let items = this.allStocks().filter(s => s.product.id === this.movProductId && s.color);
-    if (this.movWarehouseId) items = items.filter(s => s.warehouse.id === this.movWarehouseId);
+    if (this.movWarehouseId) items = items.filter(s => s.warehouse.id === Number(this.movWarehouseId));
     const q = this.movColorSearch.trim().toLowerCase();
     const seen = new Set<number>();
     const result: { id: number; name: string; hex_code?: string }[] = [];
@@ -118,26 +143,46 @@ export class StockMovementModalComponent implements OnInit {
       seen.add(s.color.id);
       result.push(s.color);
     }
-    return result;
+    if (result.length > 0 || this.mode !== 'entry') {
+      return result;
+    }
+
+    const product = this.selectedProduct();
+    return (product?.colors ?? []).filter(c => !q || c.name.toLowerCase().includes(q));
+  }
+
+  movHasColorOptions(): boolean {
+    return this.movColorsFiltered().length > 0 || this.movColorId > 0;
   }
 
   movSizesFiltered(): string[] {
     if (!this.movProductId) return [];
     let items = this.allStocks().filter(s => s.product.id === this.movProductId && s.size);
-    if (this.movWarehouseId) items = items.filter(s => s.warehouse.id === this.movWarehouseId);
+    if (this.movWarehouseId) items = items.filter(s => s.warehouse.id === Number(this.movWarehouseId));
     if (this.movColorId)     items = items.filter(s => s.color?.id === this.movColorId);
-    return [...new Set(items.map(s => s.size!))].sort();
+    const stockSizes = [...new Set(items.map(s => s.size!))].sort();
+    if (stockSizes.length > 0 || this.mode !== 'entry') {
+      return stockSizes;
+    }
+
+    return (this.selectedProduct()?.product_type?.sizes ?? [])
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(s => s.name);
   }
 
   movProductDisplayName(): string {
     if (!this.movProductId) return '';
-    const p = this.allStocks().find(s => s.product.id === this.movProductId)?.product;
+    const p = this.selectedProduct()
+      ?? this.allStocks().find(s => s.product.id === this.movProductId)?.product;
     return p ? p.name + (p.sku ? ' · ' + p.sku : '') : '';
   }
 
   movColorDisplayName(): string {
     if (!this.movColorId) return '';
-    return this.allStocks().find(s => s.color?.id === this.movColorId)?.color?.name ?? '';
+    return this.allStocks().find(s => s.color?.id === this.movColorId)?.color?.name
+      ?? this.selectedProduct()?.colors?.find(c => c.id === this.movColorId)?.name
+      ?? '';
   }
 
   destWarehouseName(): string {
@@ -155,7 +200,7 @@ export class StockMovementModalComponent implements OnInit {
     if (!this.movProductId) return null;
     return this.allStocks().find(s =>
       s.product.id === this.movProductId &&
-      (!this.movWarehouseId || s.warehouse.id === this.movWarehouseId) &&
+      (!this.movWarehouseId || s.warehouse.id === Number(this.movWarehouseId)) &&
       (this.movColorId ? s.color?.id === this.movColorId : !s.color) &&
       ((this.movSizeStr || '') === (s.size ?? ''))
     ) ?? null;
@@ -229,8 +274,33 @@ export class StockMovementModalComponent implements OnInit {
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
+  /** True when we have a product+warehouse but no existing stock record → will create new */
+  get isNewEntry(): boolean {
+    return this.mode === 'entry' && !!this.movProductId && !!this.movWarehouseId && !this.resolvedMovItem() && !this.preselectedItem;
+  }
+
   submit(): void {
     const target = this.preselectedItem ?? this.resolvedMovItem();
+
+    // ── New stock entry (no existing record) ─────────────────────────────────
+    if (!target && this.isNewEntry) {
+      if (!this.movQty || this.movQty <= 0) { this.error.set('La cantidad debe ser mayor a 0.'); return; }
+      this.saving.set(true);
+      this.error.set('');
+      this.api.post('stocks', {
+        product_id:   this.movProductId,
+        warehouse_id: this.movWarehouseId,
+        color_id:     this.movColorId || null,
+        size:         this.movSizeStr || null,
+        quantity:     this.movQty,
+        reserved:     0,
+      }).subscribe({
+        next:  () => { this.saving.set(false); this.saved.emit(); },
+        error: (e: any) => { this.saving.set(false); this.error.set(e?.error?.message ?? 'Error al crear el stock.'); },
+      });
+      return;
+    }
+
     if (!target) { this.error.set('Selecciona una variante de stock.'); return; }
     if (!this.movQty || this.movQty <= 0) { this.error.set('La cantidad debe ser mayor a 0.'); return; }
 
@@ -287,6 +357,13 @@ export class StockMovementModalComponent implements OnInit {
   }
 
   get submitDisabled(): boolean {
-    return this.saving() || !this.activeItem || (this.mode === 'transfer' && !this.movDestWarehouseId);
+    if (this.saving()) return true;
+    if (this.mode === 'transfer') return !this.activeItem || !this.movDestWarehouseId;
+    if (this.isNewEntry) return !this.movQty || this.movQty <= 0;
+    return !this.activeItem;
+  }
+
+  private selectedProduct(): ProductOption | null {
+    return this.products().find(p => p.id === this.movProductId) ?? null;
   }
 }

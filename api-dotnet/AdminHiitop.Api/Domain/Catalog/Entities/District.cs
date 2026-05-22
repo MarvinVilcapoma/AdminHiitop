@@ -10,7 +10,7 @@ public sealed class District : AuditableEntity
     public string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
 
-    public Province Province { get; set; } = null!;
+    public Province? Province { get; set; }
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
     public ICollection<Order> Orders { get; set; } = new List<Order>();
     public ICollection<Warehouse> Warehouses { get; set; } = new List<Warehouse>();

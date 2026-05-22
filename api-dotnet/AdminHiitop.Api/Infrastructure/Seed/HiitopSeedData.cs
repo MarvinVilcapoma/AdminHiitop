@@ -7,7 +7,7 @@ public static class HiitopSeedData
     public static IReadOnlyList<OrderStatus> OrderStatuses { get; } =
     [
         new() { Name = "Reservado", Slug = "reservado", Color = "#6366f1", SortOrder = 0, IsProtected = false, IsActive = true },
-        new() { Name = "Pendiente", Slug = "pending", Color = "#f59e0b", SortOrder = 1, IsProtected = true, IsActive = true },
+        new() { Name = "Pendiente", Slug = "pendiente", Color = "#f59e0b", SortOrder = 1, IsProtected = true, IsActive = true },
         new() { Name = "En proceso", Slug = "en-proceso", Color = "#8b5cf6", SortOrder = 2, IsProtected = false, IsActive = true },
         new() { Name = "En camino", Slug = "en-camino", Color = "#3b82f6", SortOrder = 3, IsProtected = false, IsActive = true },
         new() { Name = "Entregado", Slug = "delivered", Color = "#10b981", SortOrder = 4, IsProtected = true, IsActive = true },
@@ -21,8 +21,8 @@ public static class HiitopSeedData
         ("OLVA_COURIER", "Olva Courier"),
         ("SERPOST", "Serpost"),
         ("DHL", "DHL Express"),
-        ("FEDEX", "FedEx"),
-        ("UPS", "UPS")
+        ("DINSIDES", "Dinsides"),
+        ("RECOJO EN TIENDA", "Recojo en tienda")
     ];
 
     public static IReadOnlyList<DocumentType> DocumentTypes { get; } =
@@ -49,32 +49,18 @@ public static class HiitopSeedData
         ("COMPROBADO", "comprobado"),
         ("CONTRAENTREGA", "contraentrega"),
         ("PREVENTA", "preventa"),
-        ("CONSIGNACION", "consignacion"),
         ("SEPARADO", "separado")
     ];
 
     public static IReadOnlyList<(string Name, string Code, string SunatCode)> UnitMeasures { get; } =
     [
-        ("Unidad", "NIU", "NIU"),
-        ("Kilogramo", "KGM", "KGM"),
-        ("Litro", "LTR", "LTR"),
-        ("Metro", "MTR", "MTR"),
-        ("Caja", "BX", "BX"),
-        ("Par", "PR", "PR"),
-        // Tallas de ropa / calzado
-        ("XS", "XS", "XS"),
-        ("S", "S", "S"),
-        ("M", "M", "M"),
-        ("L", "L", "L"),
-        ("XL", "XL", "XL"),
-        ("XXL", "XXL", "XXL"),
+        ("S",  "S",  "S"),
+        ("M",  "M",  "M"),
+        ("L",  "L",  "L"),
         ("28", "28", "28"),
         ("30", "30", "30"),
         ("32", "32", "32"),
-        ("34", "34", "34"),
-        ("36", "36", "36"),
-        ("38", "38", "38"),
-        ("40", "40", "40")
+        ("34", "34", "34")
     ];
 
     public static IReadOnlyList<(string Name, string HexCode, string Slug)> Colors { get; } =
@@ -86,15 +72,15 @@ public static class HiitopSeedData
         ("Azul", "#3b82f6", "azul"),
         ("Verde", "#22c55e", "verde"),
         ("Beige", "#f5f5dc", "beige"),
-        ("Rosa", "#f9a8d4", "rosa"),
-        ("Camel", "#c19a6b", "camel"),
-        ("Dorado", "#d4af37", "dorado")
+        ("Melange", "#9b9b9b", "melange"),
+        ("Marrón", "#654321", "marron"),
+
     ];
 
     public static IReadOnlyList<(string Name, string Code)> WarehouseTypes { get; } =
     [
-        ("Store", "STORE"),
-        ("Distribution Center", "DISTRIBUTION")
+        ("Tienda", "STORE"),
+        ("Almacén", "WAREHOUSE")
     ];
 
     public static IReadOnlyList<(string Name, string Code, string City, bool IsPos)> Warehouses { get; } =

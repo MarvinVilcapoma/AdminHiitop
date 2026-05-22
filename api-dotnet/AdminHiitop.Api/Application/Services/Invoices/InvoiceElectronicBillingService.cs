@@ -6,6 +6,7 @@ using AdminHiitop.Api.Application.Interfaces.Repositories;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Shared.Exceptions;
+using AdminHiitop.Api.Shared.Helpers;
 
 namespace AdminHiitop.Api.Application.Services.Invoices;
 
@@ -60,7 +61,7 @@ public sealed class InvoiceElectronicBillingService : IInvoiceElectronicBillingS
             ResponseCode = submitResult.Response.SunatResponseCode,
             ResponseDescription = submitResult.Response.SunatDescription,
             ErrorMessage = submitResult.Response.Errors,
-            SentAt = DateTime.UtcNow
+            SentAt = PeruClock.Now
         };
 
         await _invoiceRepository.AddSendLogAsync(sendLog);

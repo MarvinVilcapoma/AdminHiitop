@@ -132,6 +132,10 @@ namespace AdminHiitop.Api.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("PickupKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
                     b.Property<int?>("ProvinceId")
                         .HasColumnType("int");
 
@@ -1138,6 +1142,10 @@ namespace AdminHiitop.Api.Migrations
                     b.Property<decimal>("Total")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -1555,6 +1563,10 @@ namespace AdminHiitop.Api.Migrations
                     b.Property<string>("ProductDescription")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ProductKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
@@ -1569,6 +1581,10 @@ namespace AdminHiitop.Api.Migrations
 
                     b.Property<decimal>("Subtotal")
                         .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("TrackingNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(12,2)");

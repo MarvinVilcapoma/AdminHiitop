@@ -15,4 +15,14 @@ public sealed class StockLookupResponse
     public decimal UnitPrice { get; set; }
     public decimal UnitCost { get; set; }
     public string VariantLabel { get; set; } = string.Empty;
+
+    // Source discriminator — "mysql" (default) | "shopify"
+    public string Source { get; set; } = "mysql";
+
+    // Shopify-only fields (null for MySQL items)
+    public long? ShopifyVariantId       { get; set; }
+    public long? ShopifyProductId       { get; set; }
+    public long? ShopifyLocationId      { get; set; }
+    public long? ShopifyInventoryItemId { get; set; }
+    public string? ImageUrl             { get; set; }
 }

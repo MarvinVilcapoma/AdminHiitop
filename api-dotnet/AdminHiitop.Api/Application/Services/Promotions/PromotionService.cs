@@ -13,7 +13,7 @@ public sealed class PromotionService : IPromotionService
 
     public PromotionService(AdminHiitopDbContext context) => _context = context;
 
-    public async Task<object> GetAsync(int perPage, int page, string? search, bool activeOnly, bool inactiveOnly, CancellationToken cancellationToken)
+    public async Task<object> GetAsync(int perPage, int page, string? search, bool activeOnly, bool inactiveOnly)
     {
         var query = _context.Promotions.AsNoTracking()
             .Include(item => item.Items).ThenInclude(item => item.ProductType)
@@ -27,40 +27,40 @@ public sealed class PromotionService : IPromotionService
         else if (inactiveOnly)
             query = query.Where(item => !item.IsActive);
 
-        return await PaginationHelper.CreateAsync(query.OrderByDescending(item => item.Id), page, perPage, cancellationToken);
+        return await PaginationHelper.CreateAsync(query.OrderByDescending(item => item.Id), page, perPage);
     }
 
-    public Task<Promotion?> GetByIdAsync(int id, CancellationToken cancellationToken)
-        => _context.Promotions.AsNoTracking().Include(item => item.Items).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+    public Task<Promotion?> GetByIdAsync(int id)
+        => _context.Promotions.AsNoTracking().Include(item => item.Items).FirstOrDefaultAsync(item => item.Id == id);
 
-    public async Task<Promotion> CreateAsync(Promotion request, CancellationToken cancellationToken)
+    public async Task<Promotion> CreateAsync(Promotion request)
     {
         _context.Promotions.Add(request);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return request;
     }
 
-    public async Task<Promotion> UpdateAsync(int id, Promotion request, CancellationToken cancellationToken)
+    public async Task<Promotion> UpdateAsync(int id, Promotion request)
     {
-        Promotion entity = await FindAsync(id, cancellationToken);
+        Promotion entity = await FindAsync(id);
         entity.Name = string.IsNullOrWhiteSpace(request.Name) ? entity.Name : request.Name;
         entity.Description = request.Description ?? entity.Description;
         entity.IsActive = request.IsActive;
         entity.FixedPrice = request.FixedPrice;
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return entity;
     }
 
-    public async Task DeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task DeleteAsync(int id)
     {
-        Promotion entity = await FindAsync(id, cancellationToken);
+        Promotion entity = await FindAsync(id);
         _context.Promotions.Remove(entity);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task<Promotion> FindAsync(int id, CancellationToken cancellationToken)
+    private async Task<Promotion> FindAsync(int id)
     {
-        Promotion? entity = await _context.Promotions.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        Promotion? entity = await _context.Promotions.FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) throw new AppException("Promoción no encontrada.", 404);
         return entity;
     }

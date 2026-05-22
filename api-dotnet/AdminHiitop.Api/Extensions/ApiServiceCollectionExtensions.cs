@@ -12,7 +12,7 @@ public static class ApiServiceCollectionExtensions
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddApiControllers();
-        services.AddSwaggerDocumentation();
+        services.AddSwaggerDocumentation(configuration);
         services.AddDefaultCors(configuration);
         services.AddApplicationServices();
         services.AddInfrastructureServices(configuration);
@@ -33,10 +33,13 @@ public static class ApiServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddSwaggerDocumentation(this IServiceCollection services)
+    private static IServiceCollection AddSwaggerDocumentation(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen();
+
+        bool swaggerEnabled = configuration.GetValue("Swagger:Enabled", true);
+        if (swaggerEnabled)
+            services.AddSwaggerGen();
 
         return services;
     }

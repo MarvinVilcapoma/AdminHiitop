@@ -27,7 +27,8 @@ public sealed class ProductRepository : IProductRepository
             .Include(item => item.ProductColors)
                 .ThenInclude(item => item.Color)
             .Include(item => item.Stocks)
-            .OrderBy(item => item.Name);
+            //.OrderBy(item => item.Name);
+            .OrderByDescending(item => item.CreatedAt);
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {

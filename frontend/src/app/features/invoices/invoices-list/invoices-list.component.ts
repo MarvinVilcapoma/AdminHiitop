@@ -2,6 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
+import { PageStateComponent } from '../../../core/components';
 import { Invoice, InvoiceStatus, Page } from '../../../core/models';
 import { ToastService } from '../../../core/services/toast.service';
 
@@ -14,7 +15,7 @@ interface VoidForm {
 @Component({
   selector: 'app-invoices-list',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, NgClass, FormsModule],
+  imports: [DatePipe, DecimalPipe, NgClass, FormsModule, PageStateComponent],
   templateUrl: './invoices-list.component.html',
   styleUrl: './invoices-list.component.scss',
 })

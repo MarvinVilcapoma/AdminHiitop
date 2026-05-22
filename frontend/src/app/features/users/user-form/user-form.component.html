@@ -47,15 +47,15 @@
         <h6 class="form-section-title">Rol del usuario</h6>
         <p class="text-muted small mb-3">Selecciona un solo rol. El usuario heredará los módulos definidos en ese rol.</p>
         <div class="row g-2">
-          @for (role of availableRoles(); track role.name) {
+          @for (role of availableRoles(); track role.id) {
             <div class="col-12 col-sm-6 col-md-4">
               <button
                 type="button"
                 class="card border-2 p-3 d-flex flex-row align-items-start gap-2 role-card w-100 text-start"
-                [class.border-primary]="selectedRole() === role.name"
-                (click)="selectRole(role.name)">
+                [class.border-primary]="selectedRoleId() === role.id"
+                (click)="selectRole(role.id)">
                 <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="role"
-                  [checked]="selectedRole() === role.name" readonly>
+                  [checked]="selectedRoleId() === role.id" readonly>
                 <div>
                   <span class="badge mb-1" [class]="roleBadge(role.name)">{{ role.name }}</span>
                   <div class="text-muted small">{{ role.description }}</div>

@@ -18,26 +18,25 @@ public sealed class PromotionsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] string? search = null,
         [FromQuery(Name = "active_only")]   int? activeOnly   = null,
-        [FromQuery(Name = "inactive_only")] int? inactiveOnly = null,
-        CancellationToken cancellationToken = default)
-        => Ok(await _promotionService.GetAsync(perPage, page, search, activeOnly == 1, inactiveOnly == 1, cancellationToken));
+        [FromQuery(Name = "inactive_only")] int? inactiveOnly = null)
+        => Ok(await _promotionService.GetAsync(perPage, page, search, activeOnly == 1, inactiveOnly == 1));
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
-        => await _promotionService.GetByIdAsync(id, cancellationToken) is { } entity ? Ok(entity) : NotFound();
+    public async Task<IActionResult> GetById(int id)
+        => await _promotionService.GetByIdAsync(id) is { } entity ? Ok(entity) : NotFound();
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] Promotion request, CancellationToken cancellationToken)
-        => Ok(await _promotionService.CreateAsync(request, cancellationToken));
+    public async Task<IActionResult> Create([FromBody] Promotion request)
+        => Ok(await _promotionService.CreateAsync(request));
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Promotion request, CancellationToken cancellationToken)
-        => Ok(await _promotionService.UpdateAsync(id, request, cancellationToken));
+    public async Task<IActionResult> Update(int id, [FromBody] Promotion request)
+        => Ok(await _promotionService.UpdateAsync(id, request));
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(int id)
     {
-        await _promotionService.DeleteAsync(id, cancellationToken);
+        await _promotionService.DeleteAsync(id);
         return Ok(new { success = true });
     }
 }

@@ -17,7 +17,6 @@ interface ConfigItem {
 })
 export class SettingsComponent {
   configItems: ConfigItem[] = [
-    { title: 'Guías de remisión',   description: 'Emisión de guías separada del POS',        path: '/dashboard/guides',                   icon: 'bi-truck'         },
     { title: 'Roles',               description: 'Gestión de roles y permisos',              path: '/dashboard/settings/roles',            icon: 'bi-shield-check'  },
     { title: 'Estados de pedido',     description: 'En camino, Entregado, Pendiente...',    path: '/dashboard/settings/order-statuses',  icon: 'bi-tag'           },
     { title: 'Agencias de envío',    description: 'SHALOM, OLVA, Serpost...',              path: '/dashboard/settings/shipping-agencies', icon: 'bi-truck'         },

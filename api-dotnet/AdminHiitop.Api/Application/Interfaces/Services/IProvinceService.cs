@@ -4,9 +4,9 @@ namespace AdminHiitop.Api.Application.Interfaces.Services;
 
 public interface IProvinceService
 {
-    Task<object> GetAsync(int perPage, int page, CancellationToken cancellationToken);
-    Task<Province?> GetByIdAsync(int id, CancellationToken cancellationToken);
-    Task<Province> CreateAsync(Province request, CancellationToken cancellationToken);
-    Task<Province> UpdateAsync(int id, Province request, CancellationToken cancellationToken);
-    Task DeleteAsync(int id, CancellationToken cancellationToken);
+    Task<object> GetAsync(int perPage, int page, string? search);
+    Task<Province?> GetByIdAsync(int id);
+    Task<Province> CreateAsync(Province request);
+    Task<Province> UpdateAsync(int id, Province request);
+    Task DeleteAsync(int id);
 }

@@ -15,48 +15,59 @@ public static class NubeFactMappingHelper
                 .ThenBy(item => item.Id)
                 .ToList();
 
-        decimal total = invoice.MtoImpVenta;
-        decimal gravada = invoice.MtoOperGravadas == 0 ? total - invoice.MtoIgv : invoice.MtoOperGravadas;
         string customerName = string.IsNullOrWhiteSpace(invoice.CustomerName)
             ? order?.CustomerName ?? "CLIENTE VARIOS"
             : invoice.CustomerName;
 
         string customerDocumentNumber = string.IsNullOrWhiteSpace(invoice.CustomerDocNumber)
-            ? order?.DocumentNumber ?? "00000000"
+            ? order?.Dni ?? order?.Customer?.Dni ?? "00000000"
             : invoice.CustomerDocNumber;
+
+        IReadOnlyList<NubeFactItemRequest> mappedItems = BuildItems(items);
+
+        // Derive document totals from item sums to avoid header/line rounding discrepancies
+        decimal totalGravada = mappedItems.Count > 0
+            ? mappedItems.Sum(i => i.Subtotal)
+            : Math.Round(invoice.MtoImpVenta / 1.18m, 2);
+        decimal totalIgv = mappedItems.Count > 0
+            ? mappedItems.Sum(i => i.Igv)
+            : invoice.MtoIgv;
+        decimal total = mappedItems.Count > 0
+            ? mappedItems.Sum(i => i.Total)
+            : invoice.MtoImpVenta;
 
         return new NubeFactDocumentRequest
         {
-            Operacion = "generar_comprobante",
-            TipoDeComprobante = MapInvoiceType(invoice.DocType),
-            Serie = invoice.Serie,
-            Numero = invoice.Correlativo,
-            SunatTransaction = 1,
-            ClienteTipoDeDocumento = MapCustomerDocumentType(invoice.CustomerDocType),
-            ClienteNumeroDeDocumento = customerDocumentNumber,
-            ClienteDenominacion = customerName,
-            ClienteDireccion = order?.Address ?? string.Empty,
-            ClienteEmail = order?.CustomerEmail ?? string.Empty,
-            FechaDeEmision = invoice.IssuedAt.ToString("dd-MM-yyyy"),
-            FechaDeVencimiento = null,
-            Moneda = MapCurrency(invoice.Currency),
-            PorcentajeDeIgv = 18.00m,
-            TotalGravada = gravada,
-            TotalIgv = invoice.MtoIgv,
-            Total = total,
-            Detraccion = false,
-            Observaciones = invoice.Observations ?? string.Empty,
-            DocumentoQueSeModificaTipo = invoice.RefDocType,
-            DocumentoQueSeModificaSerie = ExtractReferenceSeries(invoice.RefDocNumber),
-            DocumentoQueSeModificaNumero = ExtractReferenceNumber(invoice.RefDocNumber),
-            TipoDeNotaDeCredito = invoice.NoteMotive,
-            TipoDeNotaDeDebito = invoice.NoteMotive,
-            EnviarAutomaticamenteALaSunat = true,
+            Operacion                  = "generar_comprobante",
+            TipoDeComprobante          = MapInvoiceType(invoice.DocType),
+            Serie                      = invoice.Serie,
+            Numero                     = invoice.Correlativo,
+            SunatTransaction           = 1,
+            ClienteTipoDeDocumento     = MapCustomerDocumentType(invoice.CustomerDocType),
+            ClienteNumeroDeDocumento   = customerDocumentNumber,
+            ClienteDenominacion        = customerName,
+            ClienteDireccion           = order?.Address ?? string.Empty,
+            ClienteEmail               = order?.CustomerEmail ?? string.Empty,
+            FechaDeEmision             = invoice.IssuedAt.ToString("dd-MM-yyyy"),
+            FechaDeVencimiento         = null,
+            Moneda                     = MapCurrency(invoice.Currency),
+            PorcentajeDeIgv            = 18.00m,
+            TotalGravada               = totalGravada,
+            TotalIgv                   = totalIgv,
+            Total                      = total,
+            Detraccion                 = false,
+            Observaciones              = invoice.Observations ?? string.Empty,
+            DocumentoQueSeModificaTipo    = invoice.RefDocType,
+            DocumentoQueSeModificaSerie   = ExtractReferenceSeries(invoice.RefDocNumber),
+            DocumentoQueSeModificaNumero  = ExtractReferenceNumber(invoice.RefDocNumber),
+            TipoDeNotaDeCredito        = invoice.NoteMotive,
+            TipoDeNotaDeDebito         = invoice.NoteMotive,
+            EnviarAutomaticamenteALaSunat  = true,
             EnviarAutomaticamenteAlCliente = false,
-            CondicionesDePago = invoice.FormOfPayment,
-            MedioDePago = invoice.FormOfPayment,
-            FormatoDePdf = "A4",
-            Items = BuildItems(items)
+            CondicionesDePago          = invoice.FormOfPayment,
+            MedioDePago                = invoice.FormOfPayment,
+            FormatoDePdf               = "A4",
+            Items                      = mappedItems
         };
     }
 
@@ -84,12 +95,19 @@ public static class NubeFactMappingHelper
 
         List<NubeFactItemRequest> mappedItems = new(items.Count);
 
+        // Prices include IGV (PricesIncludeIgv = true):
+        //   item.Subtotal    = total con IGV  (precio final)
+        //   baseAmount       = base sin IGV   (= subtotal / 1.18)
+        //   igv              = item.Subtotal - baseAmount
+        //   valor_unitario   = base unitaria sin IGV
+        //   precio_unitario  = unit_price con IGV (precio final por unidad)
         foreach (OrderItem item in items)
         {
-            decimal subtotal = item.Subtotal;
-            decimal valorUnitario = item.Quantity == 0 ? 0 : Math.Round(subtotal / item.Quantity, 2);
-            decimal precioUnitario = Math.Round(valorUnitario * 1.18m, 2);
-            decimal igv = Math.Round((precioUnitario - valorUnitario) * item.Quantity, 2);
+            decimal totalConIgv    = item.Subtotal;
+            decimal baseAmount     = Math.Round(totalConIgv / 1.18m, 2);
+            decimal igv            = Math.Round(totalConIgv - baseAmount, 2);
+            decimal valorUnitario  = item.Quantity == 0 ? 0m : Math.Round(baseAmount / item.Quantity, 6);
+            decimal precioUnitario = item.Quantity == 0 ? 0m : Math.Round(item.UnitPrice, 2);
 
             mappedItems.Add(new NubeFactItemRequest
             {
@@ -98,13 +116,13 @@ public static class NubeFactMappingHelper
                 Descripcion = string.IsNullOrWhiteSpace(item.ProductDescription)
                     ? item.Product?.Name ?? "ITEM"
                     : item.ProductDescription,
-                Cantidad = item.Quantity,
-                ValorUnitario = valorUnitario,
+                Cantidad       = item.Quantity,
+                ValorUnitario  = valorUnitario,
                 PrecioUnitario = precioUnitario,
-                Subtotal = subtotal,
-                TipoDeIgv = 1,
-                Igv = igv,
-                Total = subtotal + igv
+                Subtotal       = baseAmount,    // NubeFact: base sin IGV
+                TipoDeIgv      = 1,
+                Igv            = igv,
+                Total          = totalConIgv    // NubeFact: total con IGV
             });
         }
 

@@ -66,9 +66,22 @@
         <div class="search-wrap d-none d-md-flex">
           <i class="bi bi-search search-icon"></i>
           <input type="text" class="form-control form-control-sm search-input"
-            placeholder="Buscar pedidos, clientes..."
+            placeholder="Buscar pedidos..."
             [(ngModel)]="globalSearch"
-            (keydown)="onGlobalSearch($event)" />
+            (input)="onSearchInput()"
+            (keydown)="onSearchKeydown($event)"
+            autocomplete="off" />
+          @if (showSuggestions() && suggestions().length > 0) {
+            <div class="search-dropdown">
+              @for (order of suggestions(); track order.id) {
+                <button class="search-suggestion" type="button" (click)="selectSuggestion(order)">
+                  <span class="suggestion-number">{{ order.order_number ?? ('#' + order.id) }}</span>
+                  <span class="suggestion-customer">{{ order.customer_name ?? '—' }}</span>
+                  <span class="suggestion-status badge bg-secondary bg-opacity-10 text-secondary">{{ order.order_status?.name ?? '' }}</span>
+                </button>
+              }
+            </div>
+          }
         </div>
       </div>
     </header>

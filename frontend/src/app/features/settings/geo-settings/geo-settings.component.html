@@ -13,9 +13,14 @@
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <span class="fw-semibold">Provincias</span>
-        <button class="btn btn-sm btn-primary" (click)="openProvinceCreate()">
-          <i class="bi bi-plus-lg me-1"></i>Nueva provincia
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary" (click)="refreshProvinces()" [disabled]="loadingProvinces()" title="Refrescar provincias">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-primary" (click)="openProvinceCreate()">
+            <i class="bi bi-plus-lg me-1"></i>Nueva provincia
+          </button>
+        </div>
       </div>
       <div class="card-body">
         <div class="input-group input-group-sm mb-3">
@@ -72,9 +77,14 @@
           <small class="text-muted">{{ selectedProvince()?.name || 'Selecciona una provincia' }}</small>
         </div>
 
-        <button class="btn btn-sm btn-primary" (click)="openDistrictCreate()" [disabled]="!selectedProvince()">
-          <i class="bi bi-plus-lg me-1"></i>Nuevo distrito
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary" (click)="refreshDistricts()" [disabled]="!selectedProvince() || loadingDistricts()" title="Refrescar distritos">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-primary" (click)="openDistrictCreate()" [disabled]="!selectedProvince()">
+            <i class="bi bi-plus-lg me-1"></i>Nuevo distrito
+          </button>
+        </div>
       </div>
 
       <div class="card-body">

@@ -32,9 +32,10 @@ public sealed class StockService : IStockService
         return await _stockRepository.GetAvailableGroupedAsync(productId, warehouseId);
     }
 
-    public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search)
+    public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(
+        string? search, int? warehouseId, int? colorId, bool availableOnly, int limit)
     {
-        return await _stockRepository.GetLookupAsync(search);
+        return await _stockRepository.GetLookupAsync(search, warehouseId, colorId, availableOnly, limit);
     }
 
     public async Task<StockResponse> GetByIdAsync(int id)
@@ -53,17 +54,35 @@ public sealed class StockService : IStockService
     {
         InventoryValidationHelper.ValidateStock(request);
 
-        Stock stock = new()
-        {
-            ProductId = request.ProductId,
-            WarehouseId = request.WarehouseId,
-            ColorId = request.ColorId,
-            Size = string.IsNullOrWhiteSpace(request.Size) ? null : request.Size.Trim(),
-            Quantity = request.Quantity,
-            Reserved = request.Reserved
-        };
+        string? normalizedSize = NormalizeSize(request.Size);
+        List<Stock> matchingStocks = await _stockRepository.FindMatchingStocksAsync(
+            request.ProductId,
+            request.WarehouseId,
+            request.ColorId,
+            normalizedSize);
 
-        await _stockRepository.AddAsync(stock);
+        Stock stock;
+        if (matchingStocks.Count > 0)
+        {
+            stock = await MergeMatchingStocksAsync(matchingStocks);
+            stock.Quantity += request.Quantity;
+            stock.Reserved += request.Reserved;
+        }
+        else
+        {
+            stock = new Stock
+            {
+                ProductId = request.ProductId,
+                WarehouseId = request.WarehouseId,
+                ColorId = request.ColorId,
+                Size = normalizedSize,
+                Quantity = request.Quantity,
+                Reserved = request.Reserved
+            };
+
+            await _stockRepository.AddAsync(stock);
+        }
+
         await _stockRepository.SaveChangesAsync();
 
         return await GetByIdAsync(stock.Id);
@@ -76,29 +95,72 @@ public sealed class StockService : IStockService
             throw new AppException("La carga masiva requiere al menos un registro.");
         }
 
-        List<Stock> stocks = new(request.Count);
-
         foreach (StockUpsertRequest item in request)
         {
             InventoryValidationHelper.ValidateStock(item);
-            stocks.Add(new Stock
+        }
+
+        var groupedItems = request
+            .GroupBy(item => new
+            {
+                item.ProductId,
+                item.WarehouseId,
+                item.ColorId,
+                Size = NormalizeSize(item.Size)
+            })
+            .Select(group => new
+            {
+                group.Key.ProductId,
+                group.Key.WarehouseId,
+                group.Key.ColorId,
+                group.Key.Size,
+                Quantity = group.Sum(item => item.Quantity),
+                Reserved = group.Sum(item => item.Reserved)
+            })
+            .ToList();
+
+        int mergedCount = 0;
+        int createdCount = 0;
+
+        foreach (var item in groupedItems)
+        {
+            List<Stock> matchingStocks = await _stockRepository.FindMatchingStocksAsync(
+                item.ProductId,
+                item.WarehouseId,
+                item.ColorId,
+                item.Size);
+
+            if (matchingStocks.Count > 0)
+            {
+                Stock stock = await MergeMatchingStocksAsync(matchingStocks);
+                stock.Quantity += item.Quantity;
+                stock.Reserved += item.Reserved;
+                mergedCount++;
+                continue;
+            }
+
+            await _stockRepository.AddAsync(new Stock
             {
                 ProductId = item.ProductId,
                 WarehouseId = item.WarehouseId,
                 ColorId = item.ColorId,
-                Size = string.IsNullOrWhiteSpace(item.Size) ? null : item.Size.Trim(),
+                Size = item.Size,
                 Quantity = item.Quantity,
                 Reserved = item.Reserved
             });
+            createdCount++;
         }
 
-        await _stockRepository.AddRangeAsync(stocks);
         await _stockRepository.SaveChangesAsync();
 
         return new SuccessResponse
         {
             Success = true,
-            Message = $"Se registraron {stocks.Count} stocks."
+            Message = createdCount > 0 && mergedCount > 0
+                ? $"Se crearon {createdCount} registros y se acumularon {mergedCount} en stocks existentes."
+                : mergedCount > 0
+                    ? $"Se acumularon {mergedCount} cargas en stocks existentes."
+                    : $"Se registraron {createdCount} stocks."
         };
     }
 
@@ -110,7 +172,7 @@ public sealed class StockService : IStockService
         {
             await ExecuteTransferAsync(item.StockId, new StockTransferRequest
             {
-                TargetWarehouseId = item.TargetWarehouseId,
+                DestinationWarehouseId = item.TargetWarehouseId,
                 Quantity = item.Quantity
             });
         }
@@ -140,9 +202,8 @@ public sealed class StockService : IStockService
 
     public async Task DeleteAsync(int id)
     {
-        Stock stock = await FindStockAsync(id);
-        await _stockRepository.DeleteAsync(stock);
-        await _stockRepository.SaveChangesAsync();
+        await FindStockAsync(id);
+        throw new AppException("Los movimientos de stock no se pueden eliminar. Ajusta o transfiere el stock en su lugar.", 422);
     }
 
     public async Task<StockResponse> AdjustAsync(int id, StockAdjustRequest request)
@@ -192,7 +253,7 @@ public sealed class StockService : IStockService
 
         Stock? target = await _stockRepository.FindTransferTargetAsync(
             source.ProductId,
-            request.TargetWarehouseId,
+            request.DestinationWarehouseId,
             source.ColorId,
             source.Size);
 
@@ -201,7 +262,7 @@ public sealed class StockService : IStockService
             target = new Stock
             {
                 ProductId = source.ProductId,
-                WarehouseId = request.TargetWarehouseId,
+                WarehouseId = request.DestinationWarehouseId,
                 ColorId = source.ColorId,
                 Size = source.Size,
                 Quantity = request.Quantity,
@@ -228,5 +289,29 @@ public sealed class StockService : IStockService
         }
 
         return stock;
+    }
+
+    private static string? NormalizeSize(string? size)
+    {
+        return string.IsNullOrWhiteSpace(size) ? null : size.Trim();
+    }
+
+    private async Task<Stock> MergeMatchingStocksAsync(List<Stock> matchingStocks)
+    {
+        Stock primary = matchingStocks[0];
+
+        if (matchingStocks.Count == 1)
+        {
+            return primary;
+        }
+
+        foreach (Stock duplicate in matchingStocks.Skip(1))
+        {
+            primary.Quantity += duplicate.Quantity;
+            primary.Reserved += duplicate.Reserved;
+            await _stockRepository.DeleteAsync(duplicate);
+        }
+
+        return primary;
     }
 }

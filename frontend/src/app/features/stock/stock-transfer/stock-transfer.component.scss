@@ -5,6 +5,12 @@ $col-size: minmax(110px, 0.6fr);
 $col-qty: 90px;
 $col-actions: 72px;
 
+// Allow dropdowns to overflow card boundaries
+:host ::ng-deep .card,
+:host ::ng-deep .card-body {
+  overflow: visible !important;
+}
+
 .stock-line-header,
 .stock-line {
   @media (min-width: 992px) {
@@ -93,14 +99,16 @@ $col-actions: 72px;
     position: absolute;
     top: calc(100% + 2px);
     left: 0;
-    right: 0;
-    z-index: 1050;
+    min-width: 100%;
+    max-width: 280px;
+    z-index: 2000;
     background: #fff;
     border: 1px solid #dee2e6;
     border-radius: 0.375rem;
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
     max-height: 210px;
     overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .ss-option {
@@ -110,6 +118,7 @@ $col-actions: 72px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
 
     &:hover   { background: #f8f9fa; }
     &.active  { background: #e7f3ff; color: #0d6efd; font-weight: 500; }

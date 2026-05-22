@@ -16,26 +16,25 @@ public sealed class PurchaseTypesController : ControllerBase
     public async Task<IActionResult> Get(
         [FromQuery(Name = "per_page")] int perPage = 15,
         [FromQuery] int page = 1,
-        [FromQuery] string? search = null,
-        CancellationToken cancellationToken = default)
-        => Ok(await _purchaseTypeService.GetAsync(perPage, page, search, cancellationToken));
+        [FromQuery] string? search = null)
+        => Ok(await _purchaseTypeService.GetAsync(perPage, page, search));
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
-        => await _purchaseTypeService.GetByIdAsync(id, cancellationToken) is { } entity ? Ok(entity) : NotFound();
+    public async Task<IActionResult> GetById(int id)
+        => await _purchaseTypeService.GetByIdAsync(id) is { } entity ? Ok(entity) : NotFound();
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] PurchaseType request, CancellationToken cancellationToken)
-        => Ok(await _purchaseTypeService.CreateAsync(request, cancellationToken));
+    public async Task<IActionResult> Create([FromBody] PurchaseType request)
+        => Ok(await _purchaseTypeService.CreateAsync(request));
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] PurchaseType request, CancellationToken cancellationToken)
-        => Ok(await _purchaseTypeService.UpdateAsync(id, request, cancellationToken));
+    public async Task<IActionResult> Update(int id, [FromBody] PurchaseType request)
+        => Ok(await _purchaseTypeService.UpdateAsync(id, request));
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(int id)
     {
-        await _purchaseTypeService.DeleteAsync(id, cancellationToken);
+        await _purchaseTypeService.DeleteAsync(id);
         return Ok(new { success = true });
     }
 }

@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
+import { ShopifyInventoryComponent } from '../../shopify/shopify-inventory/shopify-inventory.component';
+import { AppConfigService } from '../../../core/services/app-config.service';
 
 interface Product {
   id: number;
@@ -21,12 +24,19 @@ interface Product {
 @Component({
   selector: 'app-products-list',
   standalone: true,
-  imports: [RouterLink, FormsModule, DecimalPipe, PageStateComponent],
+  imports: [RouterLink, FormsModule, DecimalPipe, PageStateComponent, ShopifyInventoryComponent],
   templateUrl: './products-list.component.html',
   styleUrl: './products-list.component.scss',
 })
 export class ProductsListComponent implements OnInit {
-  private readonly api = inject(ApiService);
+  private readonly api       = inject(ApiService);
+  private readonly toast     = inject(ToastService);
+  readonly appConfig         = inject(AppConfigService);
+
+  // Default to Shopify tab when UseShopifyMode = true
+  activeTab = signal<'local' | 'shopify'>(
+    inject(AppConfigService).shopifyMode() ? 'shopify' : 'local'
+  );
 
   products   = signal<Product[]>([]);
   productTypes = signal<{ id: number; name: string }[]>([]);
@@ -69,12 +79,20 @@ export class ProductsListComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.api.get<{ data: Product[] }>('products?per_page=200&with=productType,collection,colors,totalStock').subscribe({
-      next: r => { this.products.set(r.data ?? (r as any)); this.loading.set(false); },
-      error: () => this.loading.set(false),
-    });
+    this.loadProducts();
     this.api.get<{ data: { id: number; name: string }[] }>('product-types?per_page=100').subscribe({
       next: r => this.productTypes.set(r.data ?? (r as any)),
+    });
+  }
+
+  loadProducts(): void {
+    this.loading.set(true);
+    this.api.get<{ data: Product[] }>('products?per_page=200&with=productType,collection,colors,totalStock').subscribe({
+      next: r => {
+        this.products.set(r.data ?? (r as any));
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
     });
   }
 
@@ -109,16 +127,22 @@ export class ProductsListComponent implements OnInit {
   delete(p: Product): void {
     this.openConfirm(`Se eliminará permanentemente "${p.name}".`, () => {
       this.api.delete(`products/${p.id}`).subscribe({
-        next: () => this.products.update(list => list.filter(x => x.id !== p.id)),
+        next: () => {
+          this.toast.success('Producto eliminado correctamente.');
+          this.loadProducts();
+        },
+        error: (e) => this.toast.error(e?.error?.message ?? 'No se pudo eliminar el producto.'),
       });
     });
   }
 
   toggleActive(p: Product): void {
     this.api.put(`products/${p.id}`, { is_active: !p.is_active }).subscribe({
-      next: (updated: any) => this.products.update(list =>
-        list.map(x => x.id === p.id ? { ...x, is_active: updated.is_active } : x)
-      ),
+      next: () => {
+        this.toast.success(`Producto ${p.is_active ? 'desactivado' : 'activado'} correctamente.`);
+        this.loadProducts();
+      },
+      error: (e) => this.toast.error(e?.error?.message ?? 'No se pudo actualizar el producto.'),
     });
   }
 }

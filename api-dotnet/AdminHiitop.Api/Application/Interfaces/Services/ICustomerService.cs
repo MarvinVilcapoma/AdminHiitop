@@ -4,9 +4,9 @@ namespace AdminHiitop.Api.Application.Interfaces.Services;
 
 public interface ICustomerService
 {
-    Task<object> GetAsync(string? search, CancellationToken cancellationToken);
-    Task<Customer?> GetByIdAsync(int id, CancellationToken cancellationToken);
-    Task<Customer> CreateAsync(Customer request, CancellationToken cancellationToken);
-    Task<Customer> UpdateAsync(int id, Customer request, CancellationToken cancellationToken);
-    Task DeleteAsync(int id, CancellationToken cancellationToken);
+    Task<object> GetAsync(string? search);
+    Task<Customer?> GetByIdAsync(int id);
+    Task<Customer> CreateAsync(Customer request);
+    Task<Customer> UpdateAsync(int id, Customer request);
+    Task DeleteAsync(int id);
 }

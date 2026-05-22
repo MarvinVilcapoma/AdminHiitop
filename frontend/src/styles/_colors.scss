@@ -1,0 +1,29 @@
+:root {
+  --hiitop-primary: #0d9488;
+  --hiitop-primary-strong: #0f766e;
+  --hiitop-primary-soft: #f0fdfa;
+  --hiitop-primary-soft-hover: #ccfbf1;
+  --hiitop-success: #059669;
+  --hiitop-success-strong: #047857;
+  --hiitop-danger: #dc2626;
+  --hiitop-danger-strong: #b91c1c;
+  --hiitop-warning: #f59e0b;
+  --hiitop-warning-strong: #d97706;
+  --hiitop-neutral-0: #ffffff;
+  --hiitop-neutral-50: #f9fafb;
+  --hiitop-neutral-100: #f3f4f6;
+  --hiitop-neutral-200: #e5e7eb;
+  --hiitop-neutral-300: #d1d5db;
+  --hiitop-neutral-400: #9ca3af;
+  --hiitop-neutral-500: #6b7280;
+  --hiitop-neutral-700: #374151;
+  --hiitop-neutral-800: #1f2937;
+  --hiitop-surface: #f5f7f9;
+  --hiitop-sidebar-bg: #111827;
+  --hiitop-sidebar-text: #e5e7eb;
+  --hiitop-control-height: 36px;
+  --hiitop-control-height-sm: 30px;
+  --bs-primary: var(--hiitop-primary);
+  --bs-primary-rgb: 13, 148, 136;
+  --bs-body-font-family: Inter, system-ui, -apple-system, sans-serif;
+}

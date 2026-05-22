@@ -19,18 +19,18 @@
       }
 
       <div class="form-section">
-        <h6 class="form-section-title">Información personal</h6>
+        <h6 class="form-section-title">Informacion personal</h6>
         <div class="row g-3">
           <div class="col-12 col-md-6">
             <label class="form-label">Nombre completo <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" [(ngModel)]="form.full_name" placeholder="Ej. Juan Pérez García">
+            <input type="text" class="form-control" [(ngModel)]="form.full_name" placeholder="Ej. Juan Perez Garcia">
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">DNI / Documento</label>
             <input type="text" class="form-control" [(ngModel)]="form.dni" placeholder="12345678" maxlength="12">
           </div>
           <div class="col-12 col-md-6">
-            <label class="form-label">Teléfono / Celular</label>
+            <label class="form-label">Telefono / Celular</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-telephone"></i></span>
               <input type="tel" class="form-control" [(ngModel)]="form.phone" placeholder="987654321">
@@ -47,28 +47,30 @@
       </div>
 
       <div class="form-section">
-        <h6 class="form-section-title">Dirección</h6>
+        <h6 class="form-section-title">Direccion</h6>
         <div class="row g-3">
           <div class="col-12 col-md-6">
             <label class="form-label">Provincia</label>
-            <select class="form-select" [(ngModel)]="form.province_id" (change)="onProvinceChange()">
-              <option value="">Seleccione provincia</option>
-              @for (p of provinces(); track p.id) {
-                <option [value]="p.id">{{ p.name }}</option>
-              }
-            </select>
+            <app-searchable-select
+              [(ngModel)]="form.province_id"
+              (ngModelChange)="onProvinceChange()"
+              [options]="provinceOptions()"
+              placeholder="Seleccione provincia"
+              searchPlaceholder="Buscar provincia...">
+            </app-searchable-select>
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label">Distrito</label>
-            <select class="form-select" [(ngModel)]="form.district_id" [disabled]="!form.province_id">
-              <option value="">Seleccione distrito</option>
-              @for (d of districts(); track d.id) {
-                <option [value]="d.id">{{ d.name }}</option>
-              }
-            </select>
+            <app-searchable-select
+              [(ngModel)]="form.district_id"
+              [options]="districtOptions()"
+              placeholder="Seleccione distrito"
+              searchPlaceholder="Buscar distrito..."
+              [disabled]="!form.province_id">
+            </app-searchable-select>
           </div>
           <div class="col-12">
-            <label class="form-label">Dirección</label>
+            <label class="form-label">Direccion</label>
             <textarea class="form-control" rows="2" [(ngModel)]="form.address" placeholder="Av. Los Olivos 123, depto 4B..."></textarea>
           </div>
         </div>

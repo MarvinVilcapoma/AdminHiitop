@@ -10,7 +10,8 @@ public static class WebApplicationExtensions
     {
         app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-        if (app.Environment.IsDevelopment())
+        bool swaggerEnabled = app.Configuration.GetValue("Swagger:Enabled", app.Environment.IsDevelopment());
+        if (swaggerEnabled)
         {
             app.UseSwagger();
             app.UseSwaggerUI();
@@ -29,7 +30,7 @@ public static class WebApplicationExtensions
     {
         bool autoMigrate = app.Configuration.GetValue<bool>("Database:AutoMigrate");
         bool autoSeed = app.Configuration.GetValue<bool>("Database:AutoSeed");
-        string databaseProvider = app.Configuration["Database:Provider"] ?? "MySql";
+        string databaseProvider = app.Configuration["Database:Provider"] ?? "SqlServer";
 
         if (!autoMigrate && !autoSeed)
         {

@@ -38,12 +38,12 @@ public sealed class NubeFactClient
 
         if (string.IsNullOrWhiteSpace(apiUrl))
         {
-            throw new AppException("La URL de Nubefact no est\u00e1 configurada.");
+            throw new AppException("La URL de Nubefact no est� configurada.");
         }
 
         if (string.IsNullOrWhiteSpace(_options.ApiToken))
         {
-            throw new AppException("El token de Nubefact no est\u00e1 configurado.");
+            throw new AppException("El token de Nubefact no est� configurado.");
         }
 
         string requestJson = JsonSerializer.Serialize(request, JsonOptions);
@@ -70,7 +70,7 @@ public sealed class NubeFactClient
         {
             response = new NubeFactDocumentResponse
             {
-                Errors = "La respuesta de Nubefact no tiene un JSON v\u00e1lido."
+                Errors = "La respuesta de Nubefact no tiene un JSON v�lido."
             };
         }
 
@@ -89,17 +89,20 @@ public sealed class NubeFactClient
 
     private string ResolveApiUrl()
     {
-        if (!string.IsNullOrWhiteSpace(_options.ApiUrl))
+        // Demo environment always uses DemoApiUrl
+        if (string.Equals(_options.Environment, "Demo", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(_options.DemoApiUrl))
         {
-            return _options.ApiUrl.Trim();
+            return _options.DemoApiUrl.Trim();
         }
 
-        if (string.Equals(_options.Environment, "Production", StringComparison.OrdinalIgnoreCase))
+        // Production: prefer explicit ProductionApiUrl, fallback to ApiUrl
+        if (!string.IsNullOrWhiteSpace(_options.ProductionApiUrl))
         {
             return _options.ProductionApiUrl.Trim();
         }
 
-        return _options.DemoApiUrl.Trim();
+        return _options.ApiUrl.Trim();
     }
 
     private string ResolveEnvironmentName()

@@ -1,0 +1,1213 @@
+<!-- Header — hidden when embedded in Products page -->
+@if (!embedded()) {
+  <div class="page-header">
+    <h1><i class="bi bi-shop me-2 text-success"></i>Shopify</h1>
+    <div class="d-flex gap-2 align-items-center">
+      @if (activeTab() === 'inventory') {
+        @if (locations().length > 1) {
+          <select class="form-select form-select-sm" style="max-width:200px"
+                  [ngModel]="activeLocationId()" [ngModelOptions]="{standalone:true}"
+                  (ngModelChange)="onLocationChange(+$event)">
+            @for (loc of locations(); track loc.id) {
+              <option [ngValue]="loc.id">{{ loc.name }}</option>
+            }
+          </select>
+        } @else if (activeLocation()) {
+          <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+            <i class="bi bi-geo-alt me-1"></i>{{ activeLocation()!.name }}
+          </span>
+        }
+      }
+    </div>
+  </div>
+}
+
+<!-- Tab bar -->
+@if (!embedded()) {
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'inventory'"
+              (click)="activeTab.set('inventory')">
+        <i class="bi bi-boxes me-1"></i>Inventario
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" [class.active]="activeTab() === 'customers'"
+              (click)="activeTab.set('customers')">
+        <i class="bi bi-people me-1"></i>Clientes
+      </button>
+    </li>
+  </ul>
+}
+
+<!-- Customers tab -->
+@if (activeTab() === 'customers') {
+  <app-shopify-customers />
+}
+
+<!-- ── Inventory tab ──────────────────────────────────────────────────────── -->
+@if (activeTab() === 'inventory') {
+
+<!-- Stats cards (shown always) -->
+@if (!loading()) {
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Productos Shopify</div>
+        <div class="stat-value">{{ total() }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Stock total</div>
+        <div class="stat-value text-primary">{{ shopifyTotalStock() }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Stock bajo (≤5)</div>
+        <div class="stat-value text-warning">{{ shopifyLowStock() }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Sin stock</div>
+        <div class="stat-value text-danger">{{ shopifyOutOfStock() }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location selector inside embedded mode -->
+  @if (embedded() && locations().length > 0) {
+    <div class="d-flex gap-2 align-items-center mb-3">
+      <span class="text-muted small fw-semibold">Ubicación:</span>
+      @if (locations().length > 1) {
+        <select class="form-select form-select-sm" style="max-width:200px"
+                [ngModel]="activeLocationId()" [ngModelOptions]="{standalone:true}"
+                (ngModelChange)="onLocationChange(+$event)">
+          @for (loc of locations(); track loc.id) {
+            <option [ngValue]="loc.id">{{ loc.name }}</option>
+          }
+        </select>
+      } @else {
+        <span class="badge bg-success-subtle text-success border border-success-subtle">
+          <i class="bi bi-geo-alt me-1"></i>{{ activeLocation()?.name }}
+        </span>
+      }
+    </div>
+  }
+}
+
+<!-- Status tabs — like Shopify -->
+@if (!bulkMode()) {
+  <ul class="nav nav-tabs mb-0 border-bottom-0">
+    @for (tab of STATUS_TABS; track tab.value) {
+      <li class="nav-item">
+        <button class="nav-link px-4" [class.active]="activeStatus() === tab.value"
+                (click)="onStatusTab(tab.value)">
+          {{ tab.label }}
+        </button>
+      </li>
+    }
+  </ul>
+}
+
+<!-- Toolbar -->
+<div class="mb-3 d-flex gap-2 flex-wrap align-items-center border rounded-bottom rounded-top-end px-3 py-2 bg-light">
+  @if (!bulkMode()) {
+    <div class="input-group" style="max-width:360px">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="text" class="form-control" placeholder="Buscar por nombre, tipo, SKU…"
+             [(ngModel)]="search" (ngModelChange)="onSearchInput()" />
+      @if (search) {
+        <button class="btn btn-outline-secondary" type="button" (click)="search=''; loadProducts(1)">
+          <i class="bi bi-x"></i>
+        </button>
+      }
+    </div>
+    <span class="text-muted small">
+      {{ total() }} producto{{ total() !== 1 ? 's' : '' }}
+    </span>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm btn-outline-info" (click)="loadTransferHistory()">
+        <i class="bi bi-arrow-left-right me-1"></i>Traspasos
+      </button>
+      <button class="btn btn-sm btn-outline-warning" (click)="enterBulkMode()">
+        <i class="bi bi-table me-1"></i>Bulk Edit
+      </button>
+      <button class="btn btn-sm btn-success" (click)="resetNewProductForm(); showNewProductModal.set(true)">
+        <i class="bi bi-plus-lg me-1"></i>Agregar producto
+      </button>
+    </div>
+  } @else {
+    <span class="fw-semibold text-warning"><i class="bi bi-table me-1"></i>Modo Bulk Edit</span>
+    <span class="text-muted small">{{ bulkRows().length }} variantes · {{ bulkChanged().length }} cambios</span>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" [disabled]="bulkSaving()" (click)="exitBulkMode()">
+        <i class="bi bi-x me-1"></i>Cancelar
+      </button>
+      <button class="btn btn-sm btn-success" [disabled]="bulkSaving() || !bulkChanged().length" (click)="saveBulkEdit()">
+        @if (bulkSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        <i class="bi bi-check2 me-1"></i>Guardar {{ bulkChanged().length }} cambios
+      </button>
+    </div>
+  }
+</div>
+
+<!-- Loading -->
+@if (loading()) {
+  <div class="text-center py-5 text-muted">
+    <span class="spinner-border me-2"></span>Cargando inventario desde Shopify…
+  </div>
+}
+
+<!-- Products table -->
+@if (!loading()) {
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width:52px"></th>
+          <th>Producto</th>
+          <th>Tipo</th>
+          <th class="text-center">Variantes</th>
+          <th class="text-center">Stock total</th>
+          <th class="text-end">Precio desde</th>
+          <th class="text-center">Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (product of products(); track product.id) {
+          <!-- Product row -->
+          <tr class="cursor-pointer" (click)="toggleProduct(product)"
+              [class.table-active]="product.expanded">
+            <td class="text-center pe-0">
+              @if (product.image_url) {
+                <img [src]="product.image_url" [alt]="product.title"
+                     class="rounded" style="width:40px;height:40px;object-fit:cover">
+              } @else {
+                <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                     style="width:40px;height:40px">
+                  <i class="bi bi-image text-muted"></i>
+                </div>
+              }
+            </td>
+            <td>
+              <div class="fw-semibold small">{{ product.title }}</div>
+              @if (product.tags) {
+                <div class="text-muted" style="font-size:.71rem">{{ product.tags }}</div>
+              }
+            </td>
+            <td class="text-muted small">{{ product.product_type || '—' }}</td>
+            <td class="text-center small">{{ product.variant_count }}</td>
+            <td class="text-center">
+              <span [class]="stockClass(product.total_stock)">{{ product.total_stock }}</span>
+            </td>
+            <td class="text-end small">S/ {{ product.min_price | number:'1.2-2' }}</td>
+            <td class="text-center">
+              <span class="badge" [class]="statusBadge(product.status)">
+                {{ statusLabel(product.status) }}
+              </span>
+            </td>
+            <td class="text-end pe-2" (click)="$event.stopPropagation()">
+              <button class="btn btn-sm btn-outline-primary me-1 py-0"
+                      (click)="openEditProduct(product)" title="Editar producto">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <i class="bi" [class.bi-chevron-down]="!product.expanded"
+                            [class.bi-chevron-up]="product.expanded"
+                            (click)="toggleProduct(product)"></i>
+            </td>
+          </tr>
+
+          <!-- Variants expansion -->
+          @if (product.expanded) {
+            <tr>
+              <td colspan="8" class="p-0 border-0">
+                <div class="bg-light border-bottom">
+                  @if (product.loadingVariants) {
+                    <div class="text-center py-3 text-muted small">
+                      <span class="spinner-border spinner-border-sm me-1"></span>Cargando variantes…
+                    </div>
+                  } @else if (product.variants?.length) {
+                    <table class="table table-sm mb-0">
+                      <thead>
+                        <tr class="small text-muted">
+                          <th class="ps-5">Variante</th>
+                          <th>SKU</th>
+                          <th class="text-end">Precio</th>
+                          <th class="text-end">P. original (con desc.)</th>
+                          <th class="text-center" style="min-width:180px">
+                            Stock en <strong>{{ activeLocation()?.name || '—' }}</strong>
+                          </th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (v of product.variants; track v.id) {
+                          <tr>
+                            <td class="ps-5 small fw-semibold">
+                              {{ v.title === 'Default Title' ? product.title : v.title }}
+                            </td>
+
+                            <!-- SKU / Price editing -->
+                            @if (v.editingVariant) {
+                              <td>
+                                <input type="text" class="form-control form-control-sm" [(ngModel)]="v.editSku"
+                                       placeholder="SKU" style="max-width:120px">
+                              </td>
+                              <td class="text-end">
+                                <input type="number" class="form-control form-control-sm text-end"
+                                       [(ngModel)]="v.editPrice" min="0" step="0.01" style="max-width:90px">
+                              </td>
+                              <td class="text-end">
+                                <input type="number" class="form-control form-control-sm text-end"
+                                       [(ngModel)]="v.editCompare" min="0" step="0.01" style="max-width:90px"
+                                       placeholder="—">
+                              </td>
+                            } @else {
+                              <td class="text-muted small">{{ v.sku || '—' }}</td>
+                              <td class="text-end small fw-semibold">S/ {{ v.price | number:'1.2-2' }}</td>
+                              <td class="text-end small">
+                                @if (v.compare_at_price && v.compare_at_price > v.price) {
+                                  <span class="text-muted">S/ {{ v.compare_at_price | number:'1.2-2' }}</span>
+                                  <span class="badge bg-danger-subtle text-danger ms-1" style="font-size:.65rem">
+                                    -{{ ((1 - v.price / v.compare_at_price) * 100) | number:'1.0-0' }}%
+                                  </span>
+                                } @else { <span class="text-muted">—</span> }
+                              </td>
+                            }
+
+                            <!-- Stock / Adjustment -->
+                            <td class="text-center">
+                              @if (!v.editing) {
+                                <span [class]="stockClass(v.inventory_qty)" style="font-size:.9rem">
+                                  {{ v.inventory_qty }}
+                                </span>
+                                <span class="text-muted small ms-1">uds.</span>
+                              } @else {
+                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                          (click)="v.editDelta = (v.editDelta ?? 0) - 1; $event.stopPropagation()">
+                                    <i class="bi bi-dash"></i>
+                                  </button>
+                                  <input type="number" class="form-control form-control-sm text-center"
+                                         [(ngModel)]="v.editDelta"
+                                         style="max-width:70px" (click)="$event.stopPropagation()">
+                                  <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                          (click)="v.editDelta = (v.editDelta ?? 0) + 1; $event.stopPropagation()">
+                                    <i class="bi bi-plus"></i>
+                                  </button>
+                                  <span class="text-muted small">
+                                    → {{ v.inventory_qty + (v.editDelta ?? 0) }}
+                                  </span>
+                                </div>
+                              }
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="text-end pe-2">
+                              @if (v.saving) {
+                                <span class="spinner-border spinner-border-sm text-primary"></span>
+                              } @else if (v.editing) {
+                                <button class="btn btn-sm btn-success py-0 me-1"
+                                        (click)="confirmAdjust(v); $event.stopPropagation()"
+                                        title="Guardar ajuste">
+                                  <i class="bi bi-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary py-0"
+                                        (click)="cancelAdjust(v); $event.stopPropagation()"
+                                        title="Cancelar">
+                                  <i class="bi bi-x"></i>
+                                </button>
+                              } @else if (v.editingVariant) {
+                                <button class="btn btn-sm btn-success py-0 me-1"
+                                        (click)="saveEditVariant(v); $event.stopPropagation()"
+                                        title="Guardar">
+                                  <i class="bi bi-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary py-0"
+                                        (click)="cancelEditVariant(v); $event.stopPropagation()"
+                                        title="Cancelar">
+                                  <i class="bi bi-x"></i>
+                                </button>
+                              } @else {
+                                <button class="btn btn-sm btn-outline-primary py-0 me-1"
+                                        title="Ajustar stock"
+                                        (click)="startAdjust(v); $event.stopPropagation()">
+                                  <i class="bi bi-plus-slash-minus"></i>
+                                </button>
+                                @if (locations().length > 1) {
+                                  <button class="btn btn-sm btn-outline-info py-0 me-1"
+                                          title="Traspasar entre sucursales"
+                                          (click)="openTransferModal(product, v); $event.stopPropagation()">
+                                    <i class="bi bi-arrow-left-right"></i>
+                                  </button>
+                                }
+                                <button class="btn btn-sm btn-outline-secondary py-0"
+                                        title="Editar precio / SKU"
+                                        (click)="startEditVariant(v); $event.stopPropagation()">
+                                  <i class="bi bi-pencil"></i>
+                                </button>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  } @else {
+                    <div class="text-center text-muted small py-3">Sin variantes.</div>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        } @empty {
+          @if (!loading()) {
+            <tr>
+              <td colspan="8" class="text-center text-muted py-5">
+                <i class="bi bi-box-seam fs-3 d-block mb-2 text-muted opacity-50"></i>
+                No se encontraron productos en Shopify.
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  @if (totalPages() > 1) {
+    <div class="d-flex justify-content-center gap-1 mt-3">
+      <button class="btn btn-sm btn-outline-secondary" [disabled]="currentPage() <= 1"
+              (click)="goToPage(currentPage() - 1)">
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      @for (p of pageRange(); track p) {
+        <button class="btn btn-sm" [class.btn-primary]="p === currentPage()"
+                [class.btn-outline-secondary]="p !== currentPage()"
+                (click)="goToPage(p)">{{ p }}</button>
+      }
+      <button class="btn btn-sm btn-outline-secondary" [disabled]="currentPage() >= totalPages()"
+              (click)="goToPage(currentPage() + 1)">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  }
+}
+
+<!-- ── BULK EDIT TABLE ──────────────────────────────────────────────────────── -->
+@if (bulkMode()) {
+  @if (bulkLoading()) {
+    <div class="text-center py-5 text-muted">
+      <span class="spinner-border me-2"></span>Cargando variantes…
+    </div>
+  } @else {
+    <div class="table-responsive" style="max-height:65vh;overflow-y:auto">
+      <table class="table table-sm align-middle table-hover mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>Producto</th>
+            <th>Variante</th>
+            <th style="min-width:110px">SKU</th>
+            <th style="min-width:130px">
+              Precio
+              <div class="text-muted fw-normal" style="font-size:.68rem">
+                <i class="bi bi-info-circle me-1"></i>Clic en el valor → aplica a todos
+              </div>
+            </th>
+            <th style="min-width:130px">
+              Precio original
+              <div class="text-muted fw-normal" style="font-size:.68rem">
+                <i class="bi bi-info-circle me-1"></i>Clic en el valor → aplica a todos
+              </div>
+            </th>
+            <th class="text-center" style="min-width:110px">
+              Stock · {{ activeLocation()?.name || 'sucursal' }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of bulkRows(); track row.variantId) {
+            <tr [class.table-warning]="
+              (row.newQty     !== null && row.newQty     !== row.currentQty)  ||
+              (row.newPrice   !== null && row.newPrice   !== row.currentPrice) ||
+              (row.newCompare !== null && row.newCompare !== row.currentCompare) ||
+              (row.newSku     !== null && row.newSku     !== row.currentSku)">
+
+              <td class="small fw-semibold">{{ row.productTitle }}</td>
+              <td class="small text-muted">{{ row.variantTitle }}</td>
+
+              <!-- SKU -->
+              <td>
+                <input type="text" class="form-control form-control-sm"
+                       [ngModel]="row.newSku ?? row.currentSku"
+                       [ngModelOptions]="{standalone:true}"
+                       (ngModelChange)="onBulkSkuChange(row, $event)">
+              </td>
+
+              <!-- Price + apply-to-all -->
+              <td>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">S/</span>
+                  <input type="number" class="form-control text-end" min="0" step="0.01"
+                         [ngModel]="row.newPrice ?? row.currentPrice"
+                         [ngModelOptions]="{standalone:true}"
+                         (ngModelChange)="onBulkPriceChange(row, $event)">
+                  <button class="btn btn-outline-secondary btn-sm px-1" type="button"
+                          title="Aplicar este precio a TODOS los productos"
+                          (click)="applyPriceToAll(row)">
+                    <i class="bi bi-arrow-down-up" style="font-size:.7rem"></i>
+                  </button>
+                </div>
+              </td>
+
+              <!-- Compare-at + apply-to-all -->
+              <td>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">S/</span>
+                  <input type="number" class="form-control text-end" min="0" step="0.01"
+                         [ngModel]="row.newCompare ?? row.currentCompare ?? ''"
+                         [ngModelOptions]="{standalone:true}"
+                         placeholder="—"
+                         (ngModelChange)="onBulkCompareChange(row, $event)">
+                  <button class="btn btn-outline-secondary btn-sm px-1" type="button"
+                          title="Aplicar este precio original a TODOS los productos"
+                          (click)="applyCompareToAll(row)">
+                    <i class="bi bi-arrow-down-up" style="font-size:.7rem"></i>
+                  </button>
+                </div>
+              </td>
+
+              <!-- Stock -->
+              <td class="text-center">
+                <input type="number" class="form-control form-control-sm text-center"
+                       style="max-width:90px;margin:auto" min="0"
+                       [ngModel]="row.newQty ?? row.currentQty"
+                       [ngModelOptions]="{standalone:true}"
+                       (ngModelChange)="onBulkQtyChange(row, $event)">
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <span class="text-muted small">
+        {{ bulkRows().length }} variantes ·
+        @if (bulkChanged().length) {
+          <span class="text-warning fw-semibold">{{ bulkChanged().length }} cambios pendientes</span>
+        } @else {
+          sin cambios
+        }
+      </span>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" (click)="exitBulkMode()">
+          <i class="bi bi-x me-1"></i>Salir
+        </button>
+        <button class="btn btn-success" [disabled]="bulkSaving() || !bulkChanged().length"
+                (click)="saveBulkEdit()">
+          @if (bulkSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-check2-all me-1"></i>Guardar {{ bulkChanged().length }} cambios
+        </button>
+      </div>
+    </div>
+  }
+}
+
+<!-- ── MODAL: Editar Producto ─────────────────────────────────────────────── -->
+@if (editState()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.55)">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-pencil-square me-2 text-primary"></i>Editar producto
+          </h5>
+          <button class="btn-close" [disabled]="editSaving()" (click)="discardEdit()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-4">
+
+            <!-- LEFT: main content -->
+            <div class="col-lg-8">
+
+              <!-- Title + Description -->
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Título</label>
+                <input type="text" class="form-control" [(ngModel)]="editState()!.title" maxlength="255">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold mb-1">Descripción</label>
+                <quill-editor
+                  [(ngModel)]="editState()!.body_html"
+                  [styles]="{ minHeight: '140px' }"
+                  placeholder="Descripción del producto…"
+                  class="w-100">
+                </quill-editor>
+              </div>
+
+              <!-- Images -->
+              <div class="mb-4">
+                <label class="form-label fw-semibold">Imágenes</label>
+                @if (editState()!.images.length > 0) {
+                  <div class="d-flex flex-wrap gap-2 mb-2">
+                    @for (img of editState()!.images; track img.id) {
+                      <img [src]="img.src" [alt]="img.alt || ''" class="rounded border"
+                           style="height:80px;width:80px;object-fit:cover"
+                           title="{{ img.src }}">
+                    }
+                  </div>
+                }
+                <!-- File upload -->
+                <div class="mb-2">
+                  <label class="btn btn-sm btn-outline-secondary w-100">
+                    <i class="bi bi-upload me-1"></i>Subir imagen desde archivo
+                    <input type="file" hidden accept="image/*"
+                           (change)="onImageFileSelected($event, editState()!.id, editState()!)">
+                  </label>
+                </div>
+                <!-- Or by URL -->
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                  <input type="url" class="form-control" [(ngModel)]="editState()!.new_image_url"
+                         placeholder="O pega una URL de imagen…">
+                </div>
+                @if (editState()!.new_image_url.trim()) {
+                  <img [src]="editState()!.new_image_url" class="mt-2 rounded border"
+                       style="max-height:100px;max-width:160px;object-fit:contain"
+                       onerror="this.style.display='none'">
+                }
+              </div>
+
+              <!-- Variants table -->
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Variantes</label>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Variante</th>
+                        <th>SKU</th>
+                        <th style="width:110px">Precio</th>
+                        <th style="width:110px">Comparar</th>
+                        <th class="text-center" style="width:90px">Tracking</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (v of editState()!.variants; track v.id) {
+                        <tr>
+                          <td class="small fw-semibold">{{ v.title }}</td>
+                          <td>
+                            <input type="text" class="form-control form-control-sm"
+                                   [(ngModel)]="v.sku" placeholder="SKU">
+                          </td>
+                          <td>
+                            <input type="number" class="form-control form-control-sm"
+                                   [(ngModel)]="v.price" min="0" step="0.01">
+                          </td>
+                          <td>
+                            <input type="number" class="form-control form-control-sm"
+                                   [(ngModel)]="v.compare_at_price" min="0" step="0.01" placeholder="—">
+                          </td>
+                          <td class="text-center">
+                            <div class="form-check form-switch d-flex justify-content-center m-0">
+                              <input class="form-check-input" type="checkbox"
+                                     [checked]="v.inventory_management === 'shopify'"
+                                     (change)="v.inventory_management = $any($event.target).checked ? 'shopify' : null">
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Inventory per location -->
+              @if (editState()!.loading_inventory) {
+                <div class="text-muted small py-2"><span class="spinner-border spinner-border-sm me-1"></span>Cargando inventario…</div>
+              } @else if (editState()!.inventory_levels.length > 0) {
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Inventario por sucursal</label>
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Variante</th>
+                          <th>Sucursal</th>
+                          <th class="text-center">Actual</th>
+                          <th class="text-center" style="width:100px">Nuevo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (lvl of editState()!.inventory_levels; track lvl.inventory_item_id + '-' + lvl.location_id) {
+                          @if (getVariantTitle(lvl.variant_id) !== 'Default Title') {
+                            <tr [class.table-warning]="lvl.new_available !== null && lvl.new_available !== lvl.available">
+                              <td class="small fw-semibold">{{ getVariantTitle(lvl.variant_id) }}</td>
+                              <td class="small text-muted">{{ lvl.location_name }}</td>
+                              <td class="text-center"><span [class]="stockClass(lvl.available)">{{ lvl.available }}</span></td>
+                              <td class="text-center">
+                                <input type="number" class="form-control form-control-sm text-center"
+                                       style="max-width:80px;margin:auto" min="0"
+                                       [ngModel]="lvl.new_available ?? lvl.available"
+                                       [ngModelOptions]="{standalone:true}"
+                                       (ngModelChange)="onEditInventoryChange(lvl, $event)">
+                              </td>
+                            </tr>
+                          }
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- RIGHT: organization -->
+            <div class="col-lg-4">
+
+              <!-- Status -->
+              <div class="card mb-3">
+                <div class="card-body">
+                  <label class="form-label fw-semibold">Estado</label>
+                  <select class="form-select" [(ngModel)]="editState()!.status">
+                    <option value="active">Activo</option>
+                    <option value="draft">Borrador</option>
+                    <option value="archived">Archivado</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Organization -->
+              <div class="card mb-3">
+                <div class="card-header fw-semibold small">Organización</div>
+                <div class="card-body">
+                  <div class="mb-2">
+                    <label class="form-label small mb-1">Tipo de producto</label>
+                    <input type="text" class="form-control form-control-sm"
+                           [(ngModel)]="editState()!.product_type"
+                           list="productTypeList" placeholder="HOODIE, JEANS…">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small mb-1">Vendedor</label>
+                    <input type="text" class="form-control form-control-sm"
+                           [(ngModel)]="editState()!.vendor"
+                           list="vendorList" placeholder="Hiitop">
+                  </div>
+                  <div>
+                    <label class="form-label small mb-1">Tags</label>
+                    <input type="text" class="form-control form-control-sm"
+                           [(ngModel)]="editState()!.tags"
+                           list="tagsList" placeholder="Ropa, Hombre, Verano">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Collections -->
+              <div class="card">
+                <div class="card-header fw-semibold small">Colecciones</div>
+                <div class="card-body" style="max-height:280px;overflow-y:auto">
+                  @if (allCollections().length === 0) {
+                    <span class="text-muted small">Cargando colecciones…</span>
+                  }
+                  @for (col of allCollections(); track col.id) {
+                    <div class="form-check mb-1">
+                      <input class="form-check-input" type="checkbox"
+                             [id]="'col-' + col.id"
+                             [checked]="editState()!.selected_collection_ids.includes(col.id)"
+                             (change)="toggleCollection(editState()!, col.id)">
+                      <label class="form-check-label small" [for]="'col-' + col.id">
+                        {{ col.title }}
+                        @if (col.type === 'smart') {
+                          <span class="badge bg-info-subtle text-info ms-1" style="font-size:.65rem">auto</span>
+                        }
+                      </label>
+                    </div>
+                  }
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" [disabled]="editSaving()" (click)="discardEdit()">
+            <i class="bi bi-x me-1"></i>Descartar
+          </button>
+          <button class="btn btn-primary" [disabled]="editSaving()" (click)="saveEditProduct()">
+            @if (editSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-check2 me-1"></i>Guardar cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── MODAL: Nuevo Producto — igual a Shopify ────────────────────────────── -->
+@if (showNewProductModal()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.6)">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header border-bottom bg-light">
+          <div>
+            <h5 class="modal-title fw-semibold mb-0">
+              <i class="bi bi-shop me-2 text-success"></i>Agregar producto
+            </h5>
+            <small class="text-muted">Nuevo producto en Shopify</small>
+          </div>
+          <button class="btn-close" [disabled]="newProductSaving()" (click)="showNewProductModal.set(false)"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-4">
+
+            <!-- ── IZQUIERDA: contenido principal ── -->
+            <div class="col-lg-8">
+
+              <!-- Título -->
+              <div class="card mb-3">
+                <div class="card-body">
+                  <label class="form-label fw-semibold">Título *</label>
+                  <input type="text" class="form-control" [(ngModel)]="newProduct.title"
+                         placeholder="Nombre corto del producto" maxlength="255">
+                </div>
+              </div>
+
+              <!-- Descripción -->
+              <div class="card mb-3">
+                <div class="card-body">
+                  <label class="form-label fw-semibold mb-2">Descripción</label>
+                  <quill-editor
+                    [(ngModel)]="newProduct.bodyHtml"
+                    [styles]="{ minHeight: '140px' }"
+                    placeholder="Descripción del producto…"
+                    class="w-100">
+                  </quill-editor>
+                </div>
+              </div>
+
+              <!-- Media — dropzone igual a Shopify -->
+              <div class="card mb-3">
+                <div class="card-header fw-semibold small">Multimedia</div>
+                <div class="card-body p-2">
+                  @if (newProduct.imageUrl.trim()) {
+                    <!-- Preview with remove -->
+                    <div class="d-flex gap-2 flex-wrap mb-2">
+                      <div class="position-relative" style="width:100px;height:100px">
+                        <img [src]="newProduct.imageUrl" alt="Preview"
+                             class="rounded border w-100 h-100" style="object-fit:cover"
+                             onerror="this.style.display='none'">
+                        <button class="btn btn-danger btn-sm position-absolute top-0 end-0 py-0 px-1"
+                                style="font-size:.7rem"
+                                (click)="clearNewProductImage()">
+                          <i class="bi bi-x"></i>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                  <!-- Dropzone -->
+                  <label class="d-block text-center rounded p-4 cursor-pointer"
+                         style="border: 2px dashed #ced4da; background:#f8f9fa; transition:.2s"
+                         onmouseenter="this.style.borderColor='#198754';this.style.background='#f0fff4'"
+                         onmouseleave="this.style.borderColor='#ced4da';this.style.background='#f8f9fa'">
+                    <i class="bi bi-cloud-arrow-up fs-2 text-muted d-block mb-1"></i>
+                    <div class="fw-semibold small">Subir imagen</div>
+                    <div class="text-muted" style="font-size:.75rem">PNG, JPG, WEBP · máx 20 MB</div>
+                    <input type="file" hidden accept="image/*" (change)="onNewProductImageSelected($event)">
+                  </label>
+                  <!-- URL -->
+                  <div class="input-group input-group-sm mt-2">
+                    <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                    <input type="url" class="form-control" [(ngModel)]="newProduct.imageUrl"
+                           placeholder="O pega una URL de imagen…">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Precio: dentro de la tabla de variantes, no se necesita tarjeta separada -->
+
+              <!-- Inventario — todas las sucursales × variantes -->
+              <div class="card mb-3">
+                <div class="card-header fw-semibold small d-flex align-items-center justify-content-between">
+                  <span><i class="bi bi-boxes me-1"></i>Inventario</span>
+                  <button class="btn btn-sm btn-outline-primary" (click)="addNewVariantRow()">
+                    <i class="bi bi-plus me-1"></i>Agregar variante
+                  </button>
+                </div>
+
+                <!-- Option name sub-header -->
+                <div class="px-3 py-2 border-bottom bg-light d-flex gap-2 align-items-center">
+                  <span class="small text-muted">Nombre de opción:</span>
+                  <input type="text" class="form-control form-control-sm" style="max-width:160px"
+                         [(ngModel)]="newProduct.optionName" placeholder="Talla">
+                </div>
+
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" style="min-width:900px">
+                      <thead class="table-light">
+                        <tr>
+                          <th style="min-width:110px">{{ newProduct.optionName || 'Variante' }}</th>
+                          <th style="min-width:150px">SKU</th>
+                          <th style="min-width:130px">Cód. barras</th>
+                          <th style="min-width:110px" class="text-end">Precio</th>
+                          <th style="min-width:110px" class="text-end">Original</th>
+                          @for (loc of locations(); track loc.id) {
+                            <th class="text-center" style="min-width:90px">
+                              <i class="bi bi-geo-alt me-1 text-success"></i>{{ loc.name }}
+                            </th>
+                          }
+                          <th style="width:36px"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (v of newProductVariants(); track $index; let i = $index) {
+                          <tr>
+                            <td>
+                              <input type="text" class="form-control form-control-sm"
+                                     [(ngModel)]="v.option1" placeholder="S, M, L…">
+                            </td>
+                            <td>
+                              <input type="text" class="form-control form-control-sm w-100"
+                                     [(ngModel)]="v.sku" placeholder="SKU-001">
+                            </td>
+                            <td>
+                              <input type="text" class="form-control form-control-sm w-100"
+                                     [(ngModel)]="v.barcode" placeholder="—">
+                            </td>
+                            <td>
+                              <div class="input-group input-group-sm">
+                                <span class="input-group-text">S/</span>
+                                <input type="number" class="form-control text-end"
+                                       [(ngModel)]="v.price" min="0" step="0.01">
+                              </div>
+                            </td>
+                            <td>
+                              <div class="input-group input-group-sm">
+                                <span class="input-group-text">S/</span>
+                                <input type="number" class="form-control text-end"
+                                       [(ngModel)]="v.compareAtPrice" min="0" step="0.01" placeholder="—">
+                              </div>
+                            </td>
+                            <!-- Stock per location -->
+                            @for (loc of locations(); track loc.id) {
+                              <td class="text-center">
+                                <input type="number" class="form-control form-control-sm text-center"
+                                       style="max-width:70px;margin:auto" min="0"
+                                       [ngModel]="v.locationQtys[loc.id] || 0"
+                                       [ngModelOptions]="{standalone:true}"
+                                       (ngModelChange)="onNewVariantLocationQtyChange(i, loc.id, +$event)">
+                              </td>
+                            }
+                            <td class="text-center">
+                              @if (newProductVariants().length > 1) {
+                                <button class="btn btn-sm btn-outline-danger py-0"
+                                        (click)="removeNewVariantRow(i)">
+                                  <i class="bi bi-trash"></i>
+                                </button>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Envío -->
+              <div class="card mb-3">
+                <div class="card-header fw-semibold small d-flex align-items-center justify-content-between">
+                  <span><i class="bi bi-truck me-1"></i>Envío</span>
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="isPhysical"
+                           [(ngModel)]="newProduct.isPhysical">
+                    <label class="form-check-label small" for="isPhysical">Producto físico</label>
+                  </div>
+                </div>
+                @if (newProduct.isPhysical) {
+                  <div class="card-body">
+                    <label class="form-label small mb-1 fw-semibold">Peso del producto</label>
+                    <div class="d-flex gap-2" style="max-width:220px">
+                      <input type="number" class="form-control form-control-sm"
+                             [(ngModel)]="newProduct.weight" min="0" step="0.1" placeholder="0.0">
+                      <select class="form-select form-select-sm" style="max-width:70px"
+                              [(ngModel)]="newProduct.weightUnit">
+                        <option value="kg">kg</option>
+                        <option value="g">g</option>
+                        <option value="lb">lb</option>
+                        <option value="oz">oz</option>
+                      </select>
+                    </div>
+                  </div>
+                }
+              </div>
+
+            </div>
+
+            <!-- ── DERECHA: organización (igual a Shopify) ── -->
+            <div class="col-lg-4">
+
+              <!-- Estado -->
+              <div class="card mb-3">
+                <div class="card-body">
+                  <label class="form-label fw-semibold">Estado</label>
+                  <select class="form-select" [(ngModel)]="newProduct.status">
+                    <option value="active">Activo</option>
+                    <option value="draft">Borrador</option>
+                    <option value="archived">Archivado</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Organización del producto -->
+              <div class="card mb-3">
+                <div class="card-header fw-semibold small">Organización del producto</div>
+                <div class="card-body">
+
+                  <div class="mb-3">
+                    <label class="form-label small mb-1">Tipo de producto</label>
+                    <input type="text" class="form-control form-control-sm"
+                           [(ngModel)]="newProduct.productType"
+                           list="productTypeList"
+                           placeholder="Ej: HOODIE, POLO, JEANS…">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small mb-1">Vendedor</label>
+                    <input type="text" class="form-control form-control-sm"
+                           [(ngModel)]="newProduct.vendor"
+                           list="vendorList"
+                           placeholder="Ej: Hiitop">
+                  </div>
+                  <div>
+                    <label class="form-label small mb-1">Tags</label>
+                    <input type="text" class="form-control form-control-sm"
+                           [(ngModel)]="newProduct.tags"
+                           list="tagsList"
+                           placeholder="Ropa, Hombre, Verano…">
+                    <div class="form-text">Separados por coma</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Colecciones -->
+              <div class="card">
+                <div class="card-header fw-semibold small">Colecciones</div>
+                <div class="card-body" style="max-height:260px;overflow-y:auto">
+                  @if (allCollections().length === 0) {
+                    <span class="text-muted small">Cargando colecciones…</span>
+                  }
+                  @for (col of allCollections(); track col.id) {
+                    <div class="form-check mb-1">
+                      <input class="form-check-input" type="checkbox"
+                             [id]="'new-col-' + col.id"
+                             [checked]="newProductCollectionIds().includes(col.id)"
+                             (change)="toggleNewProductCollection(col.id)">
+                      <label class="form-check-label small" [for]="'new-col-' + col.id">
+                        {{ col.title }}
+                        @if (col.type === 'smart') {
+                          <span class="badge bg-info-subtle text-info ms-1" style="font-size:.65rem">auto</span>
+                        }
+                      </label>
+                    </div>
+                  }
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer border-top">
+          <button class="btn btn-secondary" [disabled]="newProductSaving()"
+                  (click)="showNewProductModal.set(false)">
+            <i class="bi bi-x me-1"></i>Cancelar
+          </button>
+          <button class="btn btn-success" [disabled]="newProductSaving()" (click)="saveNewProduct()">
+            @if (newProductSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-shop me-1"></i>Crear en Shopify
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── MODAL: Traspaso de inventario ──────────────────────────────────────── -->
+@if (showTransferModal()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-arrow-left-right me-2 text-info"></i>Traspaso de inventario
+          </h5>
+          <button class="btn-close" [disabled]="transferSaving()" (click)="showTransferModal.set(false)"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Product/Variant info -->
+          <div class="alert alert-light border mb-3 py-2">
+            <div class="small fw-semibold">{{ transferForm.product_title }}</div>
+            @if (transferForm.variant_title && transferForm.variant_title !== 'Default Title') {
+              <div class="text-muted small">{{ transferForm.variant_title }}</div>
+            }
+            <div class="mt-1 small">
+              Stock disponible en sucursal origen:
+              <span [class]="stockClass(transferForm.available_at_source)" class="fw-bold ms-1">
+                {{ transferForm.available_at_source }}
+              </span>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <!-- From location -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">Sucursal de origen</label>
+              <select class="form-select" [(ngModel)]="transferForm.from_location_id"
+                      (ngModelChange)="onTransferFromLocationChange(+$event)">
+                @for (loc of locations(); track loc.id) {
+                  <option [ngValue]="loc.id">{{ loc.name }}</option>
+                }
+              </select>
+            </div>
+
+            <!-- To location -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">Sucursal de destino</label>
+              <select class="form-select" [(ngModel)]="transferForm.to_location_id">
+                @for (loc of locations(); track loc.id) {
+                  @if (loc.id !== transferForm.from_location_id) {
+                    <option [ngValue]="loc.id">{{ loc.name }}</option>
+                  }
+                }
+              </select>
+            </div>
+
+            <!-- Quantity -->
+            <div class="col-6">
+              <label class="form-label fw-semibold">Cantidad a traspasar</label>
+              <input type="number" class="form-control" [(ngModel)]="transferForm.quantity"
+                     min="1" [max]="transferForm.available_at_source">
+            </div>
+
+            <!-- Reason -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">Motivo (opcional)</label>
+              <input type="text" class="form-control" [(ngModel)]="transferForm.reason"
+                     placeholder="Ej: Reposición tienda, evento, etc.">
+            </div>
+          </div>
+
+          <!-- Summary -->
+          @if (transferForm.quantity > 0 && transferForm.from_location_id !== transferForm.to_location_id) {
+            <div class="alert alert-info border mt-3 py-2 small">
+              <i class="bi bi-info-circle me-1"></i>
+              Se moverán <strong>{{ transferForm.quantity }}</strong> unidades
+              de <strong>{{ getLocationName(transferForm.from_location_id) }}</strong>
+              a <strong>{{ getLocationName(transferForm.to_location_id) }}</strong>.
+              Este movimiento quedará registrado en el historial.
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" [disabled]="transferSaving()" (click)="showTransferModal.set(false)">
+            Cancelar
+          </button>
+          <button class="btn btn-info text-white" [disabled]="transferSaving()" (click)="confirmTransfer()">
+            @if (transferSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-arrow-left-right me-1"></i>Confirmar traspaso
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── MODAL: Historial de traspasos ──────────────────────────────────────── -->
+@if (showTransferHistory()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-clock-history me-2 text-info"></i>Historial de traspasos
+          </h5>
+          <button class="btn-close" (click)="showTransferHistory.set(false)"></button>
+        </div>
+        <div class="modal-body p-0">
+          @if (!transferHistory().length) {
+            <div class="text-center text-muted py-5">
+              <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+              No hay traspasos registrados todavía.
+            </div>
+          } @else {
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th>#</th>
+                    <th>Producto</th>
+                    <th>Variante</th>
+                    <th class="text-center">Cant.</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Motivo</th>
+                    <th>Fecha</th>
+                    <th>Operador</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (t of transferHistory(); track t.id) {
+                    <tr>
+                      <td class="text-muted small">{{ t.id }}</td>
+                      <td class="small fw-semibold">{{ t.product_title }}</td>
+                      <td class="small text-muted">{{ t.variant_title || '—' }}</td>
+                      <td class="text-center">
+                        <span class="badge bg-info-subtle text-info border border-info-subtle fw-bold">
+                          {{ t.quantity }}
+                        </span>
+                      </td>
+                      <td class="small">
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                          <i class="bi bi-geo-alt me-1"></i>{{ t.from_location_name }}
+                        </span>
+                      </td>
+                      <td class="small">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                          <i class="bi bi-geo-alt-fill me-1"></i>{{ t.to_location_name }}
+                        </span>
+                      </td>
+                      <td class="small text-muted">{{ t.reason || '—' }}</td>
+                      <td class="small text-muted">{{ formatDate(t.created_at) }}</td>
+                      <td class="small text-muted">{{ t.created_by || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="showTransferHistory.set(false)">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Global datalists — must be outside @if blocks so they are always in DOM -->
+<datalist id="productTypeList">
+  @for (t of existingProductTypes(); track t) { <option value="{{ t }}"> }
+</datalist>
+<datalist id="vendorList">
+  @for (v of existingVendors(); track v) { <option value="{{ v }}"> }
+</datalist>
+<datalist id="tagsList">
+  @for (t of existingTags(); track t) { <option value="{{ t }}"> }
+</datalist>
+
+} <!-- end @if activeTab === 'inventory' -->

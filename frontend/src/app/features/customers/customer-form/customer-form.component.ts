@@ -4,12 +4,13 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Province, District, Page } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { SearchableSelectComponent, SelectOption } from '../../../core/components/searchable-select/searchable-select.component';
 import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-customer-form',
   standalone: true,
-  imports: [FormsModule, RouterLink, PageStateComponent],
+  imports: [FormsModule, RouterLink, PageStateComponent, SearchableSelectComponent],
   templateUrl: './customer-form.component.html',
   styleUrl: './customer-form.component.scss',
 })
@@ -25,11 +26,17 @@ export class CustomerFormComponent implements OnInit {
   error     = signal('');
   provinces = signal<Province[]>([]);
   districts = signal<District[]>([]);
+  provinceOptions = signal<SelectOption[]>([]);
+  districtOptions = signal<SelectOption[]>([]);
 
   form: any = { full_name: '', dni: '', phone: '', email: '', province_id: '', district_id: '', address: '' };
 
   ngOnInit(): void {
-    this.api.get<Page<Province>>('provinces?per_page=500').subscribe(r => this.provinces.set(r.data ?? (r as unknown as Province[])));
+    this.api.get<Page<Province>>('provinces?per_page=500').subscribe(r => {
+      const provinces = r.data ?? (r as unknown as Province[]);
+      this.provinces.set(provinces);
+      this.provinceOptions.set(provinces.map(p => ({ id: p.id, name: p.name })));
+    });
     const id = this.route.snapshot.paramMap.get('id');
     if (id && id !== 'new') {
       this.isEdit.set(true);
@@ -56,11 +63,16 @@ export class CustomerFormComponent implements OnInit {
   onProvinceChange(): void {
     this.form.district_id = '';
     this.districts.set([]);
+    this.districtOptions.set([]);
     if (this.form.province_id) this.loadDistricts(this.form.province_id);
   }
 
   private loadDistricts(provId: string | number): void {
-    this.api.get<any>(`districts?province_id=${provId}&per_page=500`).subscribe(r => this.districts.set(r.data ?? r));
+    this.api.get<any>(`districts?province_id=${provId}&per_page=500`).subscribe(r => {
+      const districts = r.data ?? r;
+      this.districts.set(districts);
+      this.districtOptions.set((districts as District[]).map(d => ({ id: d.id, name: d.name })));
+    });
   }
 
   save(): void {

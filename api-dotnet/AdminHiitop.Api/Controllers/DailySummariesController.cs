@@ -15,19 +15,18 @@ public sealed class DailySummariesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get(
         [FromQuery(Name = "per_page")] int perPage = 30,
-        [FromQuery] int page = 1,
-        CancellationToken cancellationToken = default)
-        => Ok(await _dailySummaryService.GetAsync(perPage, page, cancellationToken));
+        [FromQuery] int page = 1)
+        => Ok(await _dailySummaryService.GetAsync(perPage, page));
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
-        => await _dailySummaryService.GetByIdAsync(id, cancellationToken) is { } entity ? Ok(entity) : NotFound();
+    public async Task<IActionResult> GetById(int id)
+        => await _dailySummaryService.GetByIdAsync(id) is { } entity ? Ok(entity) : NotFound();
 
     [HttpPost("send")]
-    public async Task<IActionResult> Send([FromBody] SendDailySummaryRequest? request, CancellationToken cancellationToken)
-        => Ok(await _dailySummaryService.SendAsync(request?.Date, cancellationToken));
+    public async Task<IActionResult> Send([FromBody] SendDailySummaryRequest? request)
+        => Ok(await _dailySummaryService.SendAsync(request?.Date));
 
     [HttpPost("{id:int}/check-ticket")]
-    public async Task<IActionResult> CheckTicket(int id, CancellationToken cancellationToken)
-        => Ok(await _dailySummaryService.CheckTicketAsync(id, cancellationToken));
+    public async Task<IActionResult> CheckTicket(int id)
+        => Ok(await _dailySummaryService.CheckTicketAsync(id));
 }

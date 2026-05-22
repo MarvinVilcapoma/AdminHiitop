@@ -20,6 +20,7 @@ public sealed class StockRepository : IStockRepository
 
     public async Task<PagedResponse<StockResponse>> GetPagedAsync(StockQueryRequest request)
     {
+        await ConsolidateDuplicatesAsync();
         IQueryable<Stock> query = BuildBaseQuery();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -104,6 +105,7 @@ public sealed class StockRepository : IStockRepository
 
     public async Task<IReadOnlyList<StockSummaryResponse>> GetSummaryAsync()
     {
+        await ConsolidateDuplicatesAsync();
         return await _context.Stocks
             .AsNoTracking()
             .GroupBy(item => new { item.WarehouseId, item.Warehouse.Name, item.Warehouse.Type })
@@ -120,6 +122,7 @@ public sealed class StockRepository : IStockRepository
 
     public async Task<object> GetAvailableGroupedAsync(int? productId, int? warehouseId)
     {
+        await ConsolidateDuplicatesAsync();
         IQueryable<Stock> query = BuildBaseQuery()
             .Where(item => item.Quantity - item.Reserved > 0);
 
@@ -164,31 +167,47 @@ public sealed class StockRepository : IStockRepository
         return new { by_color = byColor };
     }
 
-    public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(string? search)
+    public async Task<IReadOnlyList<StockLookupResponse>> GetLookupAsync(
+        string? search, int? warehouseId, int? colorId, bool availableOnly, int limit)
     {
+        await ConsolidateDuplicatesAsync();
         IQueryable<Stock> query = BuildBaseQuery();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
             string term = search.Trim();
-            query = query.Where(item => item.Product.Name.Contains(term) || (item.Product.Sku != null && item.Product.Sku.Contains(term)));
+            query = query.Where(item =>
+                item.Product.Name.Contains(term) ||
+                (item.Product.Sku != null && item.Product.Sku.Contains(term)) ||
+                (item.Color != null && item.Color.Name.Contains(term)) ||
+                (item.Size != null && item.Size.Contains(term)));
         }
 
+        if (warehouseId.HasValue)
+            query = query.Where(item => item.WarehouseId == warehouseId.Value);
+
+        if (colorId.HasValue)
+            query = query.Where(item => item.ColorId == colorId.Value);
+
+        if (availableOnly)
+            query = query.Where(item => item.Quantity - item.Reserved > 0);
+
         return await query
+            .Take(limit)
             .Select(item => new StockLookupResponse
             {
-                StockId = item.Id,
-                ProductId = item.ProductId,
-                ProductName = item.Product.Name,
-                Sku = item.Product.Sku,
-                WarehouseId = item.WarehouseId,
+                StockId      = item.Id,
+                ProductId    = item.ProductId,
+                ProductName  = item.Product.Name,
+                Sku          = item.Product.Sku,
+                WarehouseId  = item.WarehouseId,
                 WarehouseName = item.Warehouse.Name,
-                ColorId = item.ColorId,
-                ColorName = item.Color != null ? item.Color.Name : null,
-                Size = item.Size,
+                ColorId      = item.ColorId,
+                ColorName    = item.Color != null ? item.Color.Name : null,
+                Size         = item.Size,
                 AvailableQty = item.Quantity - item.Reserved,
-                UnitPrice = item.Product.BasePrice,
-                UnitCost = item.Product.UnitCost,
+                UnitPrice    = item.Product.BasePrice,
+                UnitCost     = item.Product.UnitCost,
                 VariantLabel = ((item.Color != null ? item.Color.Name : string.Empty) + " " + (item.Size ?? string.Empty)).Trim()
             })
             .ToListAsync();
@@ -208,8 +227,45 @@ public sealed class StockRepository : IStockRepository
 
     public async Task<StockResponse?> GetDetailByIdAsync(int id)
     {
+        await ConsolidateDuplicatesAsync();
         Stock? stock = await GetByIdAsync(id);
         return stock is null ? null : InventoryMappingHelper.MapStock(stock);
+    }
+
+    public async Task ConsolidateDuplicatesAsync()
+    {
+        List<Stock> stocks = await _context.Stocks
+            .OrderBy(item => item.Id)
+            .ToListAsync();
+
+        foreach (var group in stocks.GroupBy(item => new
+                 {
+                     item.ProductId,
+                     item.WarehouseId,
+                     item.ColorId,
+                     item.Size
+                 }))
+        {
+            Stock primary = group.First();
+            List<Stock> duplicates = group.Skip(1).ToList();
+
+            if (duplicates.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (Stock duplicate in duplicates)
+            {
+                primary.Quantity += duplicate.Quantity;
+                primary.Reserved += duplicate.Reserved;
+                _context.Stocks.Remove(duplicate);
+            }
+        }
+
+        if (_context.ChangeTracker.HasChanges())
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 
     public Task<Stock?> FindTransferTargetAsync(int productId, int warehouseId, int? colorId, string? size)
@@ -219,6 +275,17 @@ public sealed class StockRepository : IStockRepository
                     item.WarehouseId == warehouseId &&
                     item.ColorId == colorId &&
                     item.Size == size);
+    }
+
+    public Task<List<Stock>> FindMatchingStocksAsync(int productId, int warehouseId, int? colorId, string? size)
+    {
+        return _context.Stocks
+            .Where(item => item.ProductId == productId &&
+                           item.WarehouseId == warehouseId &&
+                           item.ColorId == colorId &&
+                           item.Size == size)
+            .OrderBy(item => item.Id)
+            .ToListAsync();
     }
 
     public Task AddAsync(Stock stock)
@@ -246,6 +313,7 @@ public sealed class StockRepository : IStockRepository
     {
         return _context.Stocks
             .AsNoTracking()
+            .Where(item => item.Product.IsActive)
             .Include(item => item.Product)
             .ThenInclude(item => item.ProductType)
             .Include(item => item.Product)

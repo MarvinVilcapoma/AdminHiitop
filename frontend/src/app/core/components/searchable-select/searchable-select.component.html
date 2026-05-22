@@ -1,4 +1,4 @@
-<div class="ss-wrapper" [class.ss-open]="open()" [class.ss-disabled]="disabled">
+<div class="ss-wrapper" [class.ss-open]="open()" [class.ss-disabled]="disabled" [class.ss-compact]="compact">
 
   <!-- Trigger -->
   <button type="button" class="ss-trigger" [id]="inputId || null" (click)="toggle()" [disabled]="disabled">
@@ -41,7 +41,7 @@
       <ul class="ss-list" role="listbox">
         <!-- Clear option -->
         <li role="option" class="ss-option ss-option-clear" (click)="select(null)">
-          <span class="text-muted fst-italic">— Ninguno —</span>
+          <span class="text-muted fst-italic">Sin seleccion</span>
         </li>
         @for (opt of filtered(); track opt.id) {
           <li

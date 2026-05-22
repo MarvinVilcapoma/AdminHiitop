@@ -1,6 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { SearchableSelectComponent, SelectOption } from '../../../core/components/searchable-select/searchable-select.component';
 import { ApiService } from '../../../core/services/api.service';
 import { Collection, Color, Page, Product, Warehouse } from '../../../core/models';
 import { ToastService } from '../../../core/services/toast.service';
@@ -32,7 +33,7 @@ function blankLine(): StockLine {
 @Component({
   selector: 'app-stock-form',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, SearchableSelectComponent],
   templateUrl: './stock-form.component.html',
   styleUrl: './stock-form.component.scss',
 })
@@ -63,6 +64,17 @@ export class StockFormComponent implements OnInit {
 
   totalUnits = computed(() =>
     this.lines().reduce((s, l) => s + (l.quantity || 0), 0)
+  );
+
+  warehouseOptions = computed<SelectOption[]>(() =>
+    this.warehouses().map(w => ({
+      id: w.id,
+      name: `${w.name}${w.warehouse_type ? ` (${w.warehouse_type.name})` : ''}`,
+    }))
+  );
+
+  collectionOptions = computed<SelectOption[]>(() =>
+    this.collections().map(c => ({ id: c.id, name: c.name }))
   );
 
   ngOnInit(): void {
@@ -110,6 +122,16 @@ export class StockFormComponent implements OnInit {
         this.loadProductVariants(line, product);
       }
     });
+  }
+
+  onWarehouseSelect(value: number | string | null): void {
+    this.warehouseId = value === null || value === '' ? '' : Number(value);
+    this.onWarehouseChange();
+  }
+
+  onCollectionSelect(line: StockLine, value: number | string | null): void {
+    line.collection_id = value === null || value === '' ? '' : Number(value);
+    this.onCollectionChange(line);
   }
 
   // ── Per-line filtered lists ────────────────────────────────────────────

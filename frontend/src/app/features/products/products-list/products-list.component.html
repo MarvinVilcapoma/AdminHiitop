@@ -1,9 +1,28 @@
 <div class="page-header">
   <h1><i class="bi bi-box-seam me-2 text-primary"></i>Productos</h1>
-  <a routerLink="/dashboard/products/new" class="btn btn-primary">
-    <i class="bi bi-plus-lg me-1"></i>Nuevo producto
-  </a>
+  <div class="d-flex gap-2 align-items-center">
+    <!-- Tab toggle -->
+    <div class="btn-group btn-group-sm">
+      <button class="btn" [class.btn-primary]="activeTab() === 'local'"
+              [class.btn-outline-secondary]="activeTab() !== 'local'"
+              (click)="activeTab.set('local')">
+        <i class="bi bi-archive me-1"></i>Mis Productos
+      </button>
+      <button class="btn" [class.btn-success]="activeTab() === 'shopify'"
+              [class.btn-outline-secondary]="activeTab() !== 'shopify'"
+              (click)="activeTab.set('shopify')">
+        <i class="bi bi-shop me-1"></i>Shopify
+      </button>
+    </div>
+    @if (activeTab() === 'local') {
+      <a routerLink="/dashboard/products/new" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1"></i>Nuevo producto
+      </a>
+    }
+  </div>
 </div>
+
+@if (activeTab() === 'local') {
 
 <!-- Stat cards -->
 <div class="row g-3 mb-4">
@@ -74,6 +93,7 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
+          <th>Nº de Producto</th>
           <th>Producto</th>
           <th>SKU</th>
           <th>Tipo</th>
@@ -89,6 +109,7 @@
       <tbody>
         @for (p of pagedProducts(); track p.id) {
           <tr>
+            <td><code class="text-muted small">{{ p.id }}</code></td>
             <td class="fw-500">{{ p.name }}</td>
             <td><code class="text-muted small">{{ p.sku }}</code></td>
             <td>{{ p.product_type?.name ?? '—' }}</td>
@@ -179,4 +200,11 @@
       </div>
     </div>
   </div>
+}
+
+} <!-- end @if activeTab === 'local' -->
+
+<!-- ── Shopify Tab ─────────────────────────────────────────────────────────── -->
+@if (activeTab() === 'shopify') {
+  <app-shopify-inventory [embedded]="true" />
 }

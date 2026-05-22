@@ -3,6 +3,7 @@ using AdminHiitop.Api.Application.DTOs.Common;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
+using AdminHiitop.Api.Shared.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace AdminHiitop.Api.Application.Services.OrderGuides;
@@ -47,7 +48,7 @@ public sealed class OrderGuideService : IOrderGuideService
         order.GuideSunatDescription = "Guia enviada correctamente.";
         order.GuideXmlContent = "<xml>guide</xml>";
         order.GuideCdrContent = "cdr-guide";
-        order.GuideSentAt = DateTime.UtcNow;
+        order.GuideSentAt = PeruClock.Now;
 
         await _context.SaveChangesAsync();
 

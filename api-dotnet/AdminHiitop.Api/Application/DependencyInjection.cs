@@ -1,5 +1,6 @@
 using AdminHiitop.Api.Application.Interfaces.ElectronicBilling;
 using AdminHiitop.Api.Application.Interfaces.Services;
+using AdminHiitop.Api.Application.Services.Shopify;
 using AdminHiitop.Api.Application.Services.Auth;
 using AdminHiitop.Api.Application.Services.Catalogs;
 using AdminHiitop.Api.Application.Services.Collections;
@@ -63,6 +64,8 @@ public static class DependencyInjection
         services.AddScoped<IOrderStatusService, OrderStatusService>();
         services.AddScoped<IPosService, PosService>();
         services.AddScoped<IElectronicBillingProvider, NubeFactProviderFacade>();
+        services.AddScoped<IShopifyOrderService, ShopifyOrderService>();
+        services.AddScoped<IShopifyProductService, ShopifyProductService>();
         services.AddScoped<ICollectionService, CollectionService>();
         services.AddScoped<IColorService, ColorService>();
         services.AddScoped<IDailySummaryService, DailySummaryService>();

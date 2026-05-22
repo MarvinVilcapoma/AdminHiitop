@@ -3,6 +3,8 @@ using AdminHiitop.Api.Domain.Common;
 using AdminHiitop.Api.Domain.Identity.Entities;
 using AdminHiitop.Api.Domain.Inventory.Entities;
 using AdminHiitop.Api.Domain.Sales.Entities;
+using AdminHiitop.Api.Domain.Shopify.Entities;
+using AdminHiitop.Api.Shared.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace AdminHiitop.Api.Infrastructure.Persistence;
@@ -52,6 +54,7 @@ public sealed class AdminHiitopDbContext : DbContext
     public DbSet<ModelHasRole> ModelHasRoles => Set<ModelHasRole>();
     public DbSet<ProductColor> ProductColors => Set<ProductColor>();
     public DbSet<DocumentTypePrintFormat> DocumentTypePrintFormats => Set<DocumentTypePrintFormat>();
+    public DbSet<ShopifyTransfer> ShopifyTransfers => Set<ShopifyTransfer>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -73,6 +76,10 @@ public sealed class AdminHiitopDbContext : DbContext
         ConfigureIdentitySchema(modelBuilder);
         ConfigureLaravelTableNames(modelBuilder);
         ConfigureSchemaCompatibility(modelBuilder);
+
+        modelBuilder.Entity<ShopifyTransfer>().ToTable("shopify_transfers");
+        modelBuilder.Entity<ShopifyTransfer>().HasKey(t => t.Id);
+        modelBuilder.Entity<ShopifyTransfer>().Property(t => t.Id).ValueGeneratedOnAdd();
 
         modelBuilder.Entity<Setting>().HasKey(item => item.Key);
         modelBuilder.Entity<Setting>().Property(item => item.Key).HasMaxLength(200);
@@ -104,6 +111,10 @@ public sealed class AdminHiitopDbContext : DbContext
         modelBuilder.Entity<Order>().Property(item => item.Total).HasColumnType("decimal(12,2)");
         modelBuilder.Entity<Order>().Property(item => item.DeliveryCost).HasColumnType("decimal(12,2)");
         modelBuilder.Entity<Order>().Property(item => item.GuideTotalWeight).HasColumnType("decimal(12,3)");
+        modelBuilder.Entity<Order>().Property(item => item.PickupKey).HasMaxLength(120);
+        modelBuilder.Entity<Order>().Property(item => item.TrackingNumber).HasMaxLength(120);
+        modelBuilder.Entity<OrderItem>().Property(item => item.ProductKey).HasMaxLength(120);
+        modelBuilder.Entity<OrderItem>().Property(item => item.TrackingNumber).HasMaxLength(120);
         modelBuilder.Entity<OrderItem>().Property(item => item.UnitPrice).HasColumnType("decimal(12,2)");
         modelBuilder.Entity<OrderItem>().Property(item => item.Subtotal).HasColumnType("decimal(12,2)");
         modelBuilder.Entity<Product>().Property(item => item.BasePrice).HasColumnType("decimal(12,2)");
@@ -142,7 +153,7 @@ public sealed class AdminHiitopDbContext : DbContext
 
     private void ApplyAuditInformation()
     {
-        DateTime utcNow = DateTime.UtcNow;
+        DateTime utcNow = PeruClock.Now;
 
         foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
         {

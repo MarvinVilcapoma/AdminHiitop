@@ -15,26 +15,25 @@ public sealed class ShippingAgenciesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get(
         [FromQuery(Name = "per_page")] int perPage = 15,
-        [FromQuery] int page = 1,
-        CancellationToken cancellationToken = default)
-        => Ok(await _shippingAgencyService.GetAsync(perPage, page, cancellationToken));
+        [FromQuery] int page = 1)
+        => Ok(await _shippingAgencyService.GetAsync(perPage, page));
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
-        => await _shippingAgencyService.GetByIdAsync(id, cancellationToken) is { } entity ? Ok(entity) : NotFound();
+    public async Task<IActionResult> GetById(int id)
+        => await _shippingAgencyService.GetByIdAsync(id) is { } entity ? Ok(entity) : NotFound();
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] ShippingAgency request, CancellationToken cancellationToken)
-        => Ok(await _shippingAgencyService.CreateAsync(request, cancellationToken));
+    public async Task<IActionResult> Create([FromBody] ShippingAgency request)
+        => Ok(await _shippingAgencyService.CreateAsync(request));
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] ShippingAgency request, CancellationToken cancellationToken)
-        => Ok(await _shippingAgencyService.UpdateAsync(id, request, cancellationToken));
+    public async Task<IActionResult> Update(int id, [FromBody] ShippingAgency request)
+        => Ok(await _shippingAgencyService.UpdateAsync(id, request));
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(int id)
     {
-        await _shippingAgencyService.DeleteAsync(id, cancellationToken);
+        await _shippingAgencyService.DeleteAsync(id);
         return Ok(new { success = true });
     }
 }

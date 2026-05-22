@@ -1,33 +1,39 @@
 <div class="product-lookup" [class.is-disabled]="disabled()" [class.is-panel]="mode() === 'panel'">
-  <div class="product-lookup__bar">
-    <div class="product-lookup__icon">
-      <i class="bi bi-upc-scan"></i>
-    </div>
+  @if (showSearchBar()) {
+    <div class="product-lookup__bar">
+      <div class="product-lookup__icon">
+        <i class="bi bi-upc-scan"></i>
+      </div>
 
-    <div class="product-lookup__field">
-      <input
-        class="product-lookup__input"
-        [(ngModel)]="query"
-        (input)="onInputChange()"
-        (focus)="onInputChange()"
-        (blur)="closeDropdown()"
-        [placeholder]="placeholder()"
-        [disabled]="disabled()"
-        autocomplete="off"
-      />
-      <small>{{ hint() }}</small>
-    </div>
+      <div class="product-lookup__field">
+        <input
+          class="product-lookup__input"
+          [(ngModel)]="query"
+          data-search-trigger
+          (input)="onInputChange()"
+          (paste)="onPasteSearch()"
+          (focus)="onInputChange()"
+          (blur)="closeDropdown()"
+          [placeholder]="placeholder()"
+          [disabled]="disabled()"
+          autocomplete="off"
+        />
+        <small>{{ hint() }}</small>
+      </div>
 
-    <button class="product-lookup__action" type="button" (click)="onInputChange()" [disabled]="disabled()">
-      <i class="bi bi-search"></i>
-    </button>
-  </div>
+      <button class="product-lookup__action" type="button" (click)="onInputChange()" [disabled]="disabled()">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  }
 
   @if (mode() === 'panel') {
     <section class="product-lookup__panel">
-      <div class="product-lookup__panel-head">
-        <strong>{{ panelTitle() }}</strong>
-      </div>
+      @if (showPanelHeader()) {
+        <div class="product-lookup__panel-head">
+          <strong>{{ panelTitle() }}</strong>
+        </div>
+      }
 
       <div class="product-lookup__panel-body">
         @if (searching()) {
@@ -59,8 +65,18 @@
               </div>
             </button>
           }
+        } @else if (!query.trim()) {
+          <div class="div-product-lookup product-lookup__state product-lookup__state--empty">
+            <i class="bi bi-grid-3x3-gap"></i>
+            <strong>Empieza a buscar productos</strong>
+            <span>Escribe en el buscador de la izquierda para ver coincidencias aquí.</span>
+          </div>
         } @else {
-          <div class="product-lookup__state">{{ emptyText() }}</div>
+          <div class="product-lookup__state product-lookup__state--empty">
+            <i class="bi bi-search"></i>
+            <strong>Sin coincidencias</strong>
+            <span>{{ emptyText() }}</span>
+          </div>
         }
       </div>
     </section>

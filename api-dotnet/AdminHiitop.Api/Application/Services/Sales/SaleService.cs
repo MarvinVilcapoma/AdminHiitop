@@ -13,26 +13,26 @@ public sealed class SaleService : ISaleService
 
     public SaleService(AdminHiitopDbContext context) => _context = context;
 
-    public async Task<object> GetAsync(int perPage, int page, CancellationToken cancellationToken)
+    public async Task<object> GetAsync(int perPage, int page)
         => await PaginationHelper.CreateAsync(
             _context.Sales.AsNoTracking().Include(item => item.Items).OrderByDescending(item => item.SaleDateTime).ThenByDescending(item => item.Id),
-            page, perPage, cancellationToken);
+            page, perPage);
 
     public IEnumerable<string> GetBranches() => ["Tienda Principal", "Sucursal 1"];
 
-    public Task<Sale?> GetByIdAsync(int id, CancellationToken cancellationToken)
-        => _context.Sales.AsNoTracking().Include(item => item.Items).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+    public Task<Sale?> GetByIdAsync(int id)
+        => _context.Sales.AsNoTracking().Include(item => item.Items).FirstOrDefaultAsync(item => item.Id == id);
 
-    public async Task<Sale> CreateAsync(Sale request, CancellationToken cancellationToken)
+    public async Task<Sale> CreateAsync(Sale request)
     {
         _context.Sales.Add(request);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return request;
     }
 
-    public async Task<Sale> UpdateAsync(int id, Sale request, CancellationToken cancellationToken)
+    public async Task<Sale> UpdateAsync(int id, Sale request)
     {
-        Sale entity = await FindAsync(id, cancellationToken);
+        Sale entity = await FindAsync(id);
         entity.DocumentTypeLabel = request.DocumentTypeLabel ?? entity.DocumentTypeLabel;
         entity.SeriesNumber = request.SeriesNumber ?? entity.SeriesNumber;
         entity.SaleDateTime = request.SaleDateTime;
@@ -44,20 +44,20 @@ public sealed class SaleService : ISaleService
         entity.TotalGross = request.TotalGross;
         entity.TotalNet = request.TotalNet;
         entity.TotalTax = request.TotalTax;
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return entity;
     }
 
-    public async Task DeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task DeleteAsync(int id)
     {
-        Sale entity = await FindAsync(id, cancellationToken);
+        Sale entity = await FindAsync(id);
         _context.Sales.Remove(entity);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task<Sale> FindAsync(int id, CancellationToken cancellationToken)
+    private async Task<Sale> FindAsync(int id)
     {
-        Sale? entity = await _context.Sales.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        Sale? entity = await _context.Sales.FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) throw new AppException("Venta no encontrada.", 404);
         return entity;
     }

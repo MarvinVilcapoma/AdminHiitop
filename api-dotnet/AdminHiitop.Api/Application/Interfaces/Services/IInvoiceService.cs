@@ -7,14 +7,14 @@ public record InvoiceFileContent(byte[] Content, string FileName);
 
 public interface IInvoiceService
 {
-    Task<object> GetAsync(int perPage, int page, CancellationToken cancellationToken);
-    Task<object> GetSeriesAsync(CancellationToken cancellationToken);
-    Task<Invoice?> GetByIdAsync(int id, CancellationToken cancellationToken);
-    Task<object> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken);
+    Task<object> GetAsync(int perPage, int page);
+    Task<object> GetSeriesAsync();
+    Task<Invoice?> GetByIdAsync(int id);
+    Task<object> CreateAsync(CreateInvoiceRequest request);
     Task<object> TestConnectionAsync();
     Task<object> SendAsync(int id);
-    Task<object> VoidAsync(int id, CancellationToken cancellationToken);
-    Task<InvoiceFileContent?> GetXmlAsync(int id, CancellationToken cancellationToken);
-    Task<InvoiceFileContent?> GetCdrAsync(int id, CancellationToken cancellationToken);
-    Task<InvoiceFileContent?> GetPdfAsync(int id, CancellationToken cancellationToken);
+    Task<object> VoidAsync(int id);
+    Task<InvoiceFileContent?> GetXmlAsync(int id);
+    Task<InvoiceFileContent?> GetCdrAsync(int id);
+    Task<InvoiceFileContent?> GetPdfAsync(int id);
 }

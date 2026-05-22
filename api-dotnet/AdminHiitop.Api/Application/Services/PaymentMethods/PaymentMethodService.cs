@@ -18,48 +18,48 @@ public sealed class PaymentMethodService : IPaymentMethodService
         _context = context;
     }
 
-    public async Task<object> GetAsync(int? perPage, int page, string? search, CancellationToken cancellationToken)
+    public async Task<object> GetAsync(int? perPage, int page, string? search)
     {
         if (perPage.HasValue)
         {
             IQueryable<PaymentMethod> query = _context.PaymentMethods.AsNoTracking().OrderBy(item => item.Name);
             if (!string.IsNullOrWhiteSpace(search))
                 query = query.Where(item => item.Name.Contains(search) || item.Code.Contains(search));
-            return await PaginationHelper.CreateAsync(query, page, perPage.Value, cancellationToken);
+            return await PaginationHelper.CreateAsync(query, page, perPage.Value);
         }
         return (object)await _catalogQueryService.GetPaymentMethodsAsync();
     }
 
-    public Task<PaymentMethod?> GetByIdAsync(int id, CancellationToken cancellationToken)
-        => _context.PaymentMethods.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+    public Task<PaymentMethod?> GetByIdAsync(int id)
+        => _context.PaymentMethods.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
 
-    public async Task<PaymentMethod> CreateAsync(PaymentMethod request, CancellationToken cancellationToken)
+    public async Task<PaymentMethod> CreateAsync(PaymentMethod request)
     {
         _context.PaymentMethods.Add(request);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return request;
     }
 
-    public async Task<PaymentMethod> UpdateAsync(int id, PaymentMethod request, CancellationToken cancellationToken)
+    public async Task<PaymentMethod> UpdateAsync(int id, PaymentMethod request)
     {
-        PaymentMethod entity = await FindAsync(id, cancellationToken);
+        PaymentMethod entity = await FindAsync(id);
         entity.Name = string.IsNullOrWhiteSpace(request.Name) ? entity.Name : request.Name;
         entity.Code = string.IsNullOrWhiteSpace(request.Code) ? entity.Code : request.Code;
         entity.IsActive = request.IsActive;
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
         return entity;
     }
 
-    public async Task DeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task DeleteAsync(int id)
     {
-        PaymentMethod entity = await FindAsync(id, cancellationToken);
+        PaymentMethod entity = await FindAsync(id);
         _context.PaymentMethods.Remove(entity);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task<PaymentMethod> FindAsync(int id, CancellationToken cancellationToken)
+    private async Task<PaymentMethod> FindAsync(int id)
     {
-        PaymentMethod? entity = await _context.PaymentMethods.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        PaymentMethod? entity = await _context.PaymentMethods.FirstOrDefaultAsync(item => item.Id == id);
         if (entity is null) throw new AppException("Método de pago no encontrado.", 404);
         return entity;
     }

@@ -132,13 +132,15 @@ export class StockListComponent implements OnInit {
       const whs: Warehouse[] = r.data ?? r;
       this.warehouses.set(whs);
       const firstStore = whs.find(w => w.type === 'store');
-      if (firstStore) { this.activeWh.set(firstStore.id); }
+      if (firstStore) {
+        this.activeWh.set(firstStore.id);
+      }
+      this.loadStocks();
     });
     this.api.get<any>('colors?per_page=100').subscribe(r => this.colors.set(r.data ?? r));
     this.api.get<any>('product-types?per_page=100').subscribe(r => this.productTypes.set(r.data ?? r));
     this.api.get<any>('collections?per_page=100').subscribe(r => this.collections.set(r.data ?? r));
     this.api.get<Summary[]>('stocks/summary').subscribe(r => this.summaries.set(r));
-    this.loadStocks();
   }
 
   filterWh(id: number): void {
@@ -204,17 +206,5 @@ export class StockListComponent implements OnInit {
     this.movItem.set(null);
   }
 
-  delConfirm = signal<{ message: string; action: () => void } | null>(null);
-
-  openConfirm(message: string, action: () => void): void {
-    this.delConfirm.set({ message, action });
-  }
-
-  deleteStock(s: StockItem): void {
-    this.openConfirm(
-      `Esto eliminará el registro de "${s.product.name}" en ${s.warehouse.name}.`,
-      () => this.api.delete(`stocks/${s.id}`).subscribe(() => this.loadStocks())
-    );
-  }
 }
 

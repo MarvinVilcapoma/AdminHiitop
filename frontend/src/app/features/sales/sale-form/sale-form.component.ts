@@ -6,6 +6,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { Stock } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
 import { ToastService } from '../../../core/services/toast.service';
+import { formatPeruDate, formatPeruDateTimeLocal } from '../../../core/utils/peru-date.util';
 
 interface ItemRow {
   sku: string;
@@ -93,11 +94,11 @@ export class SaleFormComponent implements OnInit {
   private saleId: number | null = null;
 
   private today(): string {
-    return new Date().toISOString().split('T')[0];
+    return formatPeruDate();
   }
 
   private now(): string {
-    return new Date().toISOString().substring(0, 16);
+    return formatPeruDateTimeLocal();
   }
 
   get totalGross(): number {
@@ -125,8 +126,8 @@ export class SaleFormComponent implements OnInit {
             document_number:     sale.document_number ?? '',
             series_number:       sale.series_number ?? '',
             series_prefix:       sale.series_prefix ?? '',
-            issue_date:          sale.issue_date?.substring(0, 10) ?? this.today(),
-            sale_datetime:       sale.sale_datetime?.substring(0, 16) ?? this.now(),
+            issue_date:          sale.issue_date ? formatPeruDate(sale.issue_date) : this.today(),
+            sale_datetime:       sale.sale_datetime ? formatPeruDateTimeLocal(sale.sale_datetime) : this.now(),
             branch:              sale.branch ?? '',
             seller:              sale.seller ?? '',
             customer_name:       sale.customer_name ?? '',

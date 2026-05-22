@@ -13,7 +13,14 @@
           <label class="form-label mb-1 small fw-semibold">Buscar</label>
           <div class="input-group input-group-sm">
             <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" class="form-control" placeholder="Numero, cliente..." [(ngModel)]="search" (keyup.enter)="onFilterChange()" />
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Numero, cliente..."
+              [(ngModel)]="search"
+              data-search-trigger
+              data-search-trigger-enter
+              (keyup.enter)="onFilterChange()" />
           </div>
         </div>
         <div class="col-md-2">
@@ -58,6 +65,7 @@
     </div>
   </div>
 
+  <app-page-state [loading]="loading()">
   <div class="card shadow-sm">
     <div class="table-responsive">
       <table class="table table-hover table-sm align-middle mb-0">
@@ -74,15 +82,7 @@
           </tr>
         </thead>
         <tbody>
-          @if (loading()) {
-            @for (_ of [1,2,3,4,5]; track $index) {
-              <tr>
-                @for (__ of [1,2,3,4,5,6,7,8]; track $index) {
-                  <td><span class="placeholder col-8 placeholder-sm rounded"></span></td>
-                }
-              </tr>
-            }
-          } @else if (invoices().length === 0) {
+          @if (invoices().length === 0) {
             <tr>
               <td colspan="8" class="text-center text-muted py-4">No hay comprobantes con esos filtros.</td>
             </tr>
@@ -160,6 +160,7 @@
       </div>
     }
   </div>
+  </app-page-state>
 </div>
 
 @if (voidInvoice(); as inv) {

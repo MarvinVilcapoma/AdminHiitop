@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { District, Province } from '../../../core/models';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-geo-settings',
@@ -13,6 +14,7 @@ import { District, Province } from '../../../core/models';
 })
 export class GeoSettingsComponent implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
 
   provinces = signal<Province[]>([]);
   districts = signal<District[]>([]);
@@ -156,6 +158,14 @@ export class GeoSettingsComponent implements OnInit {
     this.provinceModalOpen.set(false);
   }
 
+  refreshProvinces(): void {
+    this.loadProvinces();
+  }
+
+  refreshDistricts(): void {
+    this.loadDistricts();
+  }
+
   saveProvince(): void {
     if (!this.provinceForm.name.trim()) {
       return;
@@ -177,10 +187,12 @@ export class GeoSettingsComponent implements OnInit {
       next: () => {
         this.saving.set(false);
         this.provinceModalOpen.set(false);
+        this.toast.success(this.editingProvinceId ? 'Provincia actualizada correctamente.' : 'Provincia creada correctamente.');
         this.loadProvinces();
       },
       error: () => {
         this.saving.set(false);
+        this.toast.error('No se pudo guardar la provincia.');
       },
     });
   }
@@ -233,10 +245,12 @@ export class GeoSettingsComponent implements OnInit {
       next: () => {
         this.saving.set(false);
         this.districtModalOpen.set(false);
+        this.toast.success(this.editingDistrictId ? 'Distrito actualizado correctamente.' : 'Distrito creado correctamente.');
         this.loadDistricts();
       },
       error: () => {
         this.saving.set(false);
+        this.toast.error('No se pudo guardar el distrito.');
       },
     });
   }
@@ -262,19 +276,33 @@ export class GeoSettingsComponent implements OnInit {
     this.saving.set(true);
 
     const endpoint = del.type === 'province' ? `provinces/${del.id}` : `districts/${del.id}`;
+    const shouldGoPrevPage =
+      del.type === 'province'
+        ? this.provinces().length <= 1 && this.provincePage > 1
+        : this.districts().length <= 1 && this.districtPage > 1;
+
     this.api.delete(endpoint).subscribe({
       next: () => {
         this.saving.set(false);
         this.confirmDelete.set(null);
 
         if (del.type === 'province') {
+          if (shouldGoPrevPage) {
+            this.provincePage = Math.max(1, this.provincePage - 1);
+          }
+          this.toast.success('Provincia eliminada correctamente.');
           this.loadProvinces();
         } else {
+          if (shouldGoPrevPage) {
+            this.districtPage = Math.max(1, this.districtPage - 1);
+          }
+          this.toast.success('Distrito eliminado correctamente.');
           this.loadDistricts();
         }
       },
       error: () => {
         this.saving.set(false);
+        this.toast.error('No se pudo eliminar el registro.');
       },
     });
   }

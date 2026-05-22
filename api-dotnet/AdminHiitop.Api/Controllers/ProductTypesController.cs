@@ -17,30 +17,29 @@ public sealed class ProductTypesController : ControllerBase
     public async Task<IActionResult> Get(
         [FromQuery(Name = "per_page")] int perPage = 15,
         [FromQuery] int page = 1,
-        [FromQuery] string? search = null,
-        CancellationToken cancellationToken = default)
-        => Ok(await _productTypeService.GetAsync(perPage, page, search, cancellationToken));
+        [FromQuery] string? search = null)
+        => Ok(await _productTypeService.GetAsync(perPage, page, search));
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
-        => await _productTypeService.GetByIdAsync(id, cancellationToken) is { } entity ? Ok(entity) : NotFound();
+    public async Task<IActionResult> GetById(int id)
+        => await _productTypeService.GetByIdAsync(id) is { } entity ? Ok(entity) : NotFound();
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] ProductType request, CancellationToken cancellationToken)
-        => Ok(await _productTypeService.CreateAsync(request, cancellationToken));
+    public async Task<IActionResult> Create([FromBody] ProductType request)
+        => Ok(await _productTypeService.CreateAsync(request));
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] ProductType request, CancellationToken cancellationToken)
-        => Ok(await _productTypeService.UpdateAsync(id, request, cancellationToken));
+    public async Task<IActionResult> Update(int id, [FromBody] ProductType request)
+        => Ok(await _productTypeService.UpdateAsync(id, request));
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(int id)
     {
-        await _productTypeService.DeleteAsync(id, cancellationToken);
+        await _productTypeService.DeleteAsync(id);
         return Ok(new { success = true });
     }
 
     [HttpPost("{productTypeId:int}/sizes")]
-    public async Task<IActionResult> SyncSizes(int productTypeId, [FromBody] SyncSizesRequest request, CancellationToken cancellationToken)
-        => Ok(await _productTypeService.SyncSizesAsync(productTypeId, request, cancellationToken));
+    public async Task<IActionResult> SyncSizes(int productTypeId, [FromBody] SyncSizesRequest request)
+        => Ok(await _productTypeService.SyncSizesAsync(productTypeId, request));
 }

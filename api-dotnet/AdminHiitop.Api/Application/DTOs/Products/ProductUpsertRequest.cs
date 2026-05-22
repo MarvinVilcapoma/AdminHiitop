@@ -10,5 +10,6 @@ public sealed class ProductUpsertRequest
     public string? Description { get; set; }
     public decimal BasePrice { get; set; }
     public decimal UnitCost { get; set; }
+    public List<int> ColorIds { get; set; } = new();
     public bool IsActive { get; set; } = true;
 }

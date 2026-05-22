@@ -1,32 +1,47 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { ProductLookupComponent } from '../../core/components';
 import {
   Color,
+  Customer,
   DocumentPrintFormat,
   DocumentType,
+  OrderItem,
+  OrderStatus,
   PaymentMethod,
   PosInitialData,
+  PosOrderCreateRequest,
+  PosOrderCreateResponse,
   ProductLookupItem,
+  ShopifyLocation,
   Warehouse,
 } from '../../core/models';
+import { AppConfigService } from '../../core/services/app-config.service';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
+import { formatPeruDateTimeLabel, formatPeruDateTimeLocal } from '../../core/utils/peru-date.util';
 
 interface PosLine {
-  stock_id: number;
-  product_id: number;
+  stock_id: number | null;
+  product_id: number | null;
   product_name: string;
   variant_label: string;
   color_id: number | null;
   size: string | null;
   quantity: number;
   unit_price: number;
+  discount_type: 'percent' | 'amount';
+  discount_value: number;
+  discount_amount: number;
   subtotal: number;
   available_qty: number;
   unit_cost: number;
+  // Shopify fields
+  source: 'mysql' | 'shopify';
+  shopify_variant_id: number | null;
+  shopify_inventory_item_id: number | null;
+  shopify_location_id: number | null;
 }
 
 interface PosPrintLine {
@@ -64,41 +79,77 @@ interface PosPrintPayload {
 @Component({
   selector: 'app-pos',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, RouterLink, ProductLookupComponent],
+  imports: [FormsModule, DecimalPipe, ProductLookupComponent],
   templateUrl: './pos.component.html',
   styleUrl: './pos.component.scss',
 })
 export class PosComponent implements OnInit {
-  private readonly api = inject(ApiService);
-  private readonly toast = inject(ToastService);
+  private readonly api       = inject(ApiService);
+  private readonly toast     = inject(ToastService);
+  readonly appConfig         = inject(AppConfigService);
+  private lastErrorMessage = '';
+  private lastInfoMessage = '';
 
   loading = signal(false);
   saving = signal(false);
   btTesting = signal(false);
+  activeRightPanel = signal<'products' | 'customer' | 'customerForm' | 'document'>('products');
+  customerSearchLoading = signal(false);
+  customerSearchResults = signal<Customer[]>([]);
+  customerSearchAttempted = signal(false);
 
   error = signal('');
   info = signal('');
 
   warehouses = signal<Warehouse[]>([]);
+  orderStatuses = signal<OrderStatus[]>([]);
   paymentMethods = signal<PaymentMethod[]>([]);
   documentTypes = signal<DocumentType[]>([]);
   colors = signal<Color[]>([]);
 
   selectedWarehouseId: number | null = null;
+
+  // Shopify stock source
+  stockSource       = signal<'mysql' | 'shopify'>('mysql');
+  shopifyLocations  = signal<ShopifyLocation[]>([]);
+  shopifyLocationId = signal<number | null>(null);
+
+  get isShopifyMode(): boolean { return this.stockSource() === 'shopify'; }
+
+  setStockSource(source: 'mysql' | 'shopify'): void {
+    this.stockSource.set(source);
+    if (source === 'shopify') {
+      const locs = this.shopifyLocations();
+      this.shopifyLocationId.set(locs.length === 1 ? locs[0].id : null);
+      this.lines.set([]);
+    } else {
+      this.shopifyLocationId.set(null);
+      this.lines.set([]);
+    }
+  }
   selectedPaymentMethodId: number | null = null;
   selectedDocumentTypeId: number | null = null;
   selectedColorId: number | null = null;
   selectedPrintFormatId: number | null = null;
+  productSearchTerm = signal('');
 
   includeCustomerData = false;
   printAfterSave = true;
   lookupResetKey = 0;
   lookupRefreshKey = 0;
 
+  customerLookupLoading = signal(false);
+  customerFound = signal(false);
+  customerLocked = signal(false);
+  selectedCustomerId = signal<number | null>(null);
+
   customerName = '';
   customerDni = '';
   customerPhone = '';
+  customerEmail = '';
   customerAddress = '';
+  customerDocumentType = 'DNI';
+  customerSearchTerm = '';
   note = '';
 
   lines = signal<PosLine[]>([]);
@@ -118,6 +169,19 @@ export class PosComponent implements OnInit {
     this.paymentMethods().find((method) => method.id === this.selectedPaymentMethodId)?.name ?? 'Sin metodo'
   );
   selectedPrintFormatName = computed(() => this.getSelectedPrintFormat()?.label ?? 'Sin formato');
+  selectedCustomerLabel = computed(() => {
+    if (this.customerName.trim()) {
+      return this.customerDni.trim()
+        ? `${this.customerName.trim()} · ${this.customerDni.trim()}`
+        : this.customerName.trim();
+    }
+
+    if (this.customerDni.trim()) {
+      return this.customerDni.trim();
+    }
+
+    return 'Cliente: nombre, DNI, correo...';
+  });
 
   discountType = signal<'percent' | 'fixed'>('percent');
   discountValue = signal(0);
@@ -136,9 +200,57 @@ export class PosComponent implements OnInit {
   });
 
   finalTotal = computed(() => +(this.total() - this.discountAmount()).toFixed(2));
+  totalTax = computed(() => +(this.finalTotal() - (this.finalTotal() / 1.18)).toFixed(2));
+  defaultOrderStatusId = computed(() => {
+    const statuses = this.orderStatuses();
+    const preferredSlugs = ['delivered', 'entregado', 'pagado'];
+
+    for (const slug of preferredSlugs) {
+      const match = statuses.find((status) => String(status.slug ?? '').toLowerCase() === slug);
+      if (match?.id) {
+        return match.id;
+      }
+    }
+
+    const preferredNames = ['entregado', 'pagado'];
+    for (const name of preferredNames) {
+      const match = statuses.find((status) => String(status.name ?? '').toLowerCase() === name);
+      if (match?.id) {
+        return match.id;
+      }
+    }
+
+    return statuses[0]?.id ?? null;
+  });
+
+  constructor() {
+    effect(() => {
+      const message = this.error();
+      if (!message || message === this.lastErrorMessage) {
+        return;
+      }
+
+      this.lastErrorMessage = message;
+      this.toast.error(message);
+    });
+
+    effect(() => {
+      const message = this.info();
+      if (!message || message === this.lastInfoMessage) {
+        return;
+      }
+
+      this.lastInfoMessage = message;
+      this.toast.info(message);
+    });
+  }
 
   ngOnInit(): void {
     this.loadCatalogs();
+    // Auto-enable Shopify mode if configured in AppSettings
+    if (this.appConfig.shopifyMode()) {
+      this.stockSource.set('shopify');
+    }
   }
 
   loadCatalogs(): void {
@@ -181,6 +293,19 @@ export class PosComponent implements OnInit {
         this.error.set('No se pudo cargar la configuracion inicial del POS.');
       },
     });
+
+    this.api.get<any>('order-statuses?per_page=100').subscribe({
+      next: (response) => {
+        const rows: OrderStatus[] = Array.isArray(response) ? response : response?.data ?? [];
+        this.orderStatuses.set(rows);
+      },
+      error: () => { this.orderStatuses.set([]); },
+    });
+
+    this.api.get<ShopifyLocation[]>('shopify/locations').subscribe({
+      next: locs => this.shopifyLocations.set(locs.filter(l => l.active)),
+      error: () => {},
+    });
   }
 
   private resolveDefaultWarehouseId(rows: Warehouse[], settings: PosInitialData['settings']): number | null {
@@ -209,12 +334,14 @@ export class PosComponent implements OnInit {
     this.error.set('');
     this.info.set('');
     this.lookupRefreshKey += 1;
+    this.activeRightPanel.set('products');
   }
 
   onWarehouseChange(): void {
     this.error.set('');
     this.info.set('');
     this.lookupRefreshKey += 1;
+    this.activeRightPanel.set('products');
   }
 
   handleLookupError(message: string): void {
@@ -222,6 +349,9 @@ export class PosComponent implements OnInit {
   }
 
   handleLookupQueryChange(query: string): void {
+    this.productSearchTerm.set(query);
+    this.activeRightPanel.set('products');
+
     if (!query.trim()) {
       this.info.set('');
       this.error.set('');
@@ -297,58 +427,63 @@ export class PosComponent implements OnInit {
   }
 
   addVariantToCart(variant: ProductLookupItem): void {
-    if (!variant.stock_id) {
+    const isShopify = variant.source === 'shopify';
+
+    if (!isShopify && !variant.stock_id) {
       this.error.set('La variante seleccionada no tiene stock asociado.');
       return;
     }
 
     this.lines.update((rows) => {
       const next = [...rows];
-      const existingIndex = next.findIndex((line) => line.stock_id === variant.stock_id);
+
+      // Deduplicate by stock_id (MySQL) or shopify_variant_id (Shopify)
+      const existingIndex = isShopify
+        ? next.findIndex(l => l.shopify_variant_id === (variant.shopify_variant_id ?? null))
+        : next.findIndex(l => l.stock_id === variant.stock_id);
 
       if (existingIndex >= 0) {
         const line = next[existingIndex];
-        line.quantity = Math.min(line.available_qty, line.quantity + 1);
-        line.subtotal = +(line.quantity * line.unit_price).toFixed(2);
+        const maxQty = line.available_qty > 0 ? line.available_qty : 9999;
+        line.quantity = Math.min(maxQty, line.quantity + 1);
+        this.recalculateLine(line);
         return next;
       }
 
-      const stockId = variant.stock_id as number;
-
       next.push({
-        stock_id: stockId,
-        product_id: variant.product_id,
+        stock_id: isShopify ? null : (variant.stock_id as number),
+        product_id: isShopify ? null : variant.product_id,
         product_name: variant.product_name,
         variant_label: variant.variant_label ?? '',
         color_id: variant.color_id ?? null,
         size: variant.size ?? null,
         quantity: 1,
         unit_price: Number(variant.unit_price ?? 0),
+        discount_type: 'percent',
+        discount_value: 0,
+        discount_amount: 0,
         subtotal: +Number(variant.unit_price ?? 0).toFixed(2),
         available_qty: Number(variant.available_qty ?? 0),
         unit_cost: Number(variant.unit_cost ?? 0),
+        source: (variant.source as 'mysql' | 'shopify') ?? 'mysql',
+        shopify_variant_id: variant.shopify_variant_id ?? null,
+        shopify_inventory_item_id: variant.shopify_inventory_item_id ?? null,
+        shopify_location_id: variant.shopify_location_id ?? null,
       });
 
       return next;
     });
+
+    this.activeRightPanel.set('products');
   }
 
   cancelSale(): void {
     this.clearCart();
+    this.productSearchTerm.set('');
     this.lookupResetKey += 1;
     this.includeCustomerData = this.selectedDocumentType()?.requires_customer === true;
-    this.customerName = '';
-    this.customerDni = '';
-    this.customerPhone = '';
-    this.customerAddress = '';
-    this.note = '';
+    this.resetCustomerState();
     this.info.set('Venta reiniciada.');
-  }
-
-  saveDraft(): void {
-    this.info.set(
-      'La opcion de borrador quedara enlazada al flujo comercial en la siguiente fase. Por ahora puedes seguir registrando la venta normal.'
-    );
   }
 
   onLineChange(index: number): void {
@@ -362,12 +497,35 @@ export class PosComponent implements OnInit {
 
       line.quantity = Math.max(1, Number(line.quantity || 1));
       line.unit_price = Math.max(0, Number(line.unit_price || 0));
+      line.discount_value = Math.max(0, Number(line.discount_value || 0));
 
       if (line.quantity > line.available_qty) {
         line.quantity = line.available_qty;
       }
 
-      line.subtotal = +(line.quantity * line.unit_price).toFixed(2);
+      this.recalculateLine(line);
+      return next;
+    });
+  }
+
+  incrementLine(index: number): void {
+    this.lines.update((rows) => {
+      const next = [...rows];
+      const line = next[index];
+      if (!line) return rows;
+      line.quantity = Math.min(line.available_qty, line.quantity + 1);
+      this.recalculateLine(line);
+      return next;
+    });
+  }
+
+  decrementLine(index: number): void {
+    this.lines.update((rows) => {
+      const next = [...rows];
+      const line = next[index];
+      if (!line) return rows;
+      line.quantity = Math.max(1, line.quantity - 1);
+      this.recalculateLine(line);
       return next;
     });
   }
@@ -383,20 +541,182 @@ export class PosComponent implements OnInit {
 
   clearSearch(): void {
     this.selectedColorId = null;
+    this.productSearchTerm.set('');
     this.lookupResetKey += 1;
     this.info.set('');
+    this.activeRightPanel.set('products');
   }
 
   requiresCustomerData(): boolean {
     return this.selectedDocumentType()?.requires_customer === true || this.includeCustomerData;
   }
 
+  hasCustomerContext(): boolean {
+    return (
+      this.requiresCustomerData() ||
+      this.customerFound() ||
+      this.customerLocked() ||
+      this.selectedCustomerId() !== null ||
+      this.customerDni.trim().length > 0 ||
+      this.customerName.trim().length > 0
+    );
+  }
+
+  searchCustomerByDocument(): void {
+    const document = this.customerDni.trim();
+    if (document.length < 7) {
+      this.customerFound.set(false);
+      this.customerLocked.set(false);
+      this.selectedCustomerId.set(null);
+      return;
+    }
+
+    this.customerLookupLoading.set(true);
+    this.error.set('');
+    this.info.set('');
+
+    this.api.get<any>(`customers?search=${encodeURIComponent(document)}&per_page=5`).subscribe({
+      next: (response) => {
+        const rows: Customer[] = Array.isArray(response) ? response : response?.data ?? [];
+        const match = rows.find((customer) => customer.dni === document || customer.ruc === document);
+
+        if (match) {
+          this.applyCustomer(match);
+        } else {
+          this.selectedCustomerId.set(null);
+          this.customerFound.set(false);
+          this.customerLocked.set(false);
+          this.customerName = '';
+          this.customerPhone = '';
+          this.customerEmail = '';
+          this.customerAddress = '';
+        }
+
+        this.customerLookupLoading.set(false);
+      },
+      error: () => {
+        this.customerLookupLoading.set(false);
+        this.customerFound.set(false);
+        this.customerLocked.set(false);
+        this.selectedCustomerId.set(null);
+      },
+    });
+  }
+
+  showProductsPanel(): void {
+    this.activeRightPanel.set('products');
+  }
+
+  showDocumentPanel(): void {
+    this.activeRightPanel.set('document');
+  }
+
+  clearCustomerSelection(): void {
+    const currentDocument = this.customerDni.trim();
+    this.customerFound.set(false);
+    this.customerLocked.set(false);
+    this.selectedCustomerId.set(null);
+    this.customerName = '';
+    this.customerPhone = '';
+    this.customerEmail = '';
+    this.customerAddress = '';
+    this.customerDni = currentDocument;
+    this.customerDocumentType = 'DNI';
+  }
+
+  showCustomerPanel(): void {
+    this.activeRightPanel.set('customer');
+    this.customerSearchTerm = this.customerDni.trim() || this.customerName.trim();
+    this.customerSearchResults.set([]);
+    this.customerSearchAttempted.set(false);
+  }
+
+  searchCustomerFromFooter(): void {
+    this.activeRightPanel.set('customer');
+    this.customerSearchResults.set([]);
+    this.searchCustomers();
+  }
+
+  showCustomerForm(prefill = true): void {
+    this.activeRightPanel.set('customerForm');
+    this.customerSearchResults.set([]);
+    this.customerSearchAttempted.set(false);
+    if (!prefill) {
+      return;
+    }
+
+    const query = this.customerSearchTerm.trim();
+    if (!query) {
+      return;
+    }
+
+    if (/^\d+$/.test(query)) {
+      this.customerDni = query;
+      this.customerDocumentType = query.length > 8 ? 'RUC' : 'DNI';
+      return;
+    }
+
+    if (query.includes('@')) {
+      this.customerEmail = query;
+      return;
+    }
+
+    this.customerName = query;
+  }
+
+  cancelCustomerForm(): void {
+    this.activeRightPanel.set('customer');
+  }
+
+  searchCustomers(): void {
+    const query = this.customerSearchTerm.trim();
+    if (!query) {
+      this.customerSearchResults.set([]);
+      this.customerSearchAttempted.set(false);
+      return;
+    }
+
+    this.customerSearchAttempted.set(true);
+    this.customerSearchLoading.set(true);
+    this.api.get<any>(`customers?search=${encodeURIComponent(query)}&per_page=8`).subscribe({
+      next: (response) => {
+        const rows: Customer[] = Array.isArray(response) ? response : response?.data ?? [];
+        this.customerSearchResults.set(rows);
+        this.customerSearchLoading.set(false);
+        this.activeRightPanel.set('customer');
+      },
+      error: () => {
+        this.customerSearchResults.set([]);
+        this.customerSearchLoading.set(false);
+      },
+    });
+  }
+
+  selectCustomer(customer: Customer): void {
+    this.applyCustomer(customer);
+    this.activeRightPanel.set('products');
+    this.customerSearchResults.set([]);
+    this.customerSearchAttempted.set(false);
+  }
+
+  saveCustomerOnly(): void {
+    this.persistCustomer(false);
+  }
+
+  saveCustomerAndUse(): void {
+    this.persistCustomer(true);
+  }
+
   saveSale(): void {
     this.error.set('');
     this.info.set('');
 
-    if (!this.selectedWarehouseId) {
+    if (!this.selectedWarehouseId && !this.isShopifyMode) {
       this.error.set('No hay almacen configurado para POS. Activa uno en Configuracion > Almacenes.');
+      return;
+    }
+    if (this.isShopifyMode && !this.shopifyLocationId()) {
+      this.error.set('Selecciona una ubicación de Shopify para continuar.');
       return;
     }
 
@@ -410,24 +730,27 @@ export class PosComponent implements OnInit {
       return;
     }
 
-    const requiresCustomerData = this.requiresCustomerData();
-    if (requiresCustomerData && !this.customerName.trim()) {
+    const needsCustomerPayload = this.hasCustomerContext();
+    if (needsCustomerPayload && !this.customerName.trim()) {
       this.error.set('Ingresa el nombre del cliente para completar la venta.');
       return;
     }
 
-    if (requiresCustomerData && !this.customerDni.trim()) {
+    if (needsCustomerPayload && !this.customerDni.trim()) {
       this.error.set('Ingresa DNI/RUC del cliente para completar la venta.');
       return;
     }
 
-    const validLines = this.lines()
-      .filter((line) => line.product_id > 0 && line.quantity > 0)
+    const validLines: OrderItem[] = this.lines()
+      .filter((line) => (line.product_id != null && line.product_id > 0 || line.source === 'shopify') && line.quantity > 0)
       .map((line) => ({
-        product_id: line.product_id,
+        product_id: line.source === 'shopify' ? null : line.product_id,
         color_id: line.color_id,
         size: line.size,
         product_description: [line.product_name, line.variant_label].filter(Boolean).join(' · '),
+        product_key: line.source === 'shopify' && line.shopify_variant_id
+          ? `shopify:${line.shopify_variant_id}:${line.shopify_inventory_item_id ?? 0}:${line.shopify_location_id ?? 0}`
+          : undefined,
         quantity: line.quantity,
         unit_price: +line.unit_price,
         subtotal: +line.subtotal,
@@ -461,65 +784,100 @@ export class PosComponent implements OnInit {
       printWindow = this.openPrintWindow(selectedPrintFormat);
     }
 
-    this.saving.set(true);
+    const submitOrder = (customerId: number | null) => {
+      this.saving.set(true);
 
-    this.api.post<any>('orders', {
-      is_pos: true,
-      order_date: new Date().toISOString(),
-      warehouse_id: this.selectedWarehouseId,
-      shipping_agency_id: null,
-      purchase_type_id: null,
-      observations,
-      phone: requiresCustomerData ? (this.customerPhone || null) : null,
-      customer_id: null,
-      customer_name: requiresCustomerData ? (this.customerName || null) : null,
-      dni: requiresCustomerData ? (this.customerDni || null) : null,
-      province_id: null,
-      district_id: null,
-      address: requiresCustomerData ? (this.customerAddress || null) : null,
-      delivery_cost: 0,
-      discount_type: this.discountAmount() > 0 ? this.discountType() : null,
-      discount_value: this.discountAmount() > 0 ? this.discountValue() : null,
-      discount_amount: this.discountAmount(),
-      total: this.finalTotal(),
-      document_type_id: this.selectedDocumentTypeId,
-      document_print_format_id: this.selectedPrintFormatId,
-      customer_email: null,
-      needs_receipt: false,
-      items: validLines,
-    }).subscribe({
-      next: (created) => {
-        this.saving.set(false);
+      // In Shopify mode use the first available local warehouse (or 0) as the POS warehouse
+      const posWarehouseId = this.isShopifyMode
+        ? (this.warehouses()[0]?.id ?? 0)
+        : this.selectedWarehouseId!;
 
-        const orderNumber = String(created?.order_number ?? `#${created?.id ?? '-'}`);
-        if (printWindow && this.printAfterSave && selectedPrintFormat) {
-          this.renderPrintDocument(printWindow, {
-            orderNumber,
-            paymentMethod: paymentMethod?.name ?? 'No especificado',
-            documentType: this.selectedDocumentType()?.name ?? 'Documento',
-            subtotal: this.total(),
-            discountAmount: this.discountAmount(),
-            total: this.finalTotal(),
-            lines: ticketLines,
-            customerName: this.customerName || null,
-            customerDoc: this.customerDni || null,
-            printFormat: selectedPrintFormat,
-            storeName: this.selectedWarehouseName(),
-          });
-        }
+      const payload: PosOrderCreateRequest = {
+        order_date: formatPeruDateTimeLocal(),
+        warehouse_id: posWarehouseId,
+        payment_method_id: this.selectedPaymentMethodId!,
+        document_type_id: this.selectedDocumentTypeId!,
+        document_print_format_id: this.selectedPrintFormatId,
+        order_status_id: this.defaultOrderStatusId(),
+        observations,
+        discount_type: this.discountAmount() > 0 ? this.discountType() : null,
+        discount_value: this.discountAmount() > 0 ? this.discountValue() : null,
+        discount_amount: this.discountAmount(),
+        total: this.finalTotal(),
+        customer_id: customerId,
+        customer_name: needsCustomerPayload ? (this.customerName || null) : null,
+        customer_document: needsCustomerPayload ? (this.customerDni || null) : null,
+        customer_document_type: needsCustomerPayload ? this.customerDocumentType : null,
+        customer_email: needsCustomerPayload ? (this.customerEmail || null) : null,
+        phone: needsCustomerPayload ? (this.customerPhone || null) : null,
+        address: needsCustomerPayload ? (this.customerAddress || null) : null,
+        print_after_save: this.printAfterSave,
+        items: validLines,
+      };
 
-        this.resetAfterSale();
-        this.toast.success(`Venta registrada correctamente (${orderNumber}).`);
-      },
-      error: (errorResponse) => {
-        this.saving.set(false);
-        const message = errorResponse?.error?.message ?? errorResponse?.error?.errors ?? 'No se pudo registrar la venta POS.';
-        this.error.set(typeof message === 'string' ? message : JSON.stringify(message));
-        if (printWindow) {
-          printWindow.close();
-        }
-      },
-    });
+      this.api.post<PosOrderCreateResponse>('pos/orders', payload).subscribe({
+        next: (created) => {
+          this.saving.set(false);
+
+          const orderNumber = String(created?.order_number ?? `#${created?.id ?? '-'}`);
+          if (printWindow && this.printAfterSave && selectedPrintFormat) {
+            this.renderPrintDocument(printWindow, {
+              orderNumber,
+              paymentMethod: paymentMethod?.name ?? 'No especificado',
+              documentType: this.selectedDocumentType()?.name ?? 'Documento',
+              subtotal: this.total(),
+              discountAmount: this.discountAmount(),
+              total: this.finalTotal(),
+              lines: ticketLines,
+              customerName: this.customerName || null,
+              customerDoc: this.customerDni || null,
+              printFormat: selectedPrintFormat,
+              storeName: this.selectedWarehouseName(),
+            });
+          }
+
+          this.resetAfterSale();
+          this.toast.success(`Venta registrada correctamente (${orderNumber}).`);
+        },
+        error: (errorResponse) => {
+          this.saving.set(false);
+          this.error.set(this.extractApiErrorMessage(errorResponse?.error) ?? 'No se pudo registrar la venta POS.');
+          if (printWindow) {
+            printWindow.close();
+          }
+        },
+      });
+    };
+
+    const existingCustomerId = this.selectedCustomerId();
+    if (needsCustomerPayload && !existingCustomerId && this.customerName.trim() && this.customerDni.trim()) {
+      this.saving.set(true);
+      this.api.post<any>('customers', {
+        full_name: this.customerName.trim(),
+        dni: this.customerDocumentType === 'RUC' ? null : this.customerDni.trim(),
+        ruc: this.customerDocumentType === 'RUC' ? this.customerDni.trim() : null,
+        phone: this.customerPhone.trim() || null,
+        email: this.customerEmail.trim() || null,
+        address: this.customerAddress.trim() || null,
+        document_type: this.customerDocumentType,
+        province_id: null,
+        district_id: null,
+      }).subscribe({
+        next: (customer) => {
+          this.selectedCustomerId.set(customer?.id ?? null);
+          this.customerFound.set(!!customer?.id);
+          this.customerLocked.set(!!customer?.id);
+          submitOrder(customer?.id ?? null);
+        },
+        error: () => {
+          this.saving.set(false);
+          submitOrder(null);
+        },
+      });
+      return;
+    }
+
+    submitOrder(existingCustomerId);
   }
 
   printCurrentTicketTest(): void {
@@ -600,20 +958,130 @@ export class PosComponent implements OnInit {
     }
   }
 
+  private recalculateLine(line: PosLine): void {
+    const quantity = Math.max(1, Number(line.quantity || 1));
+    const unitPrice = Math.max(0, Number(line.unit_price || 0));
+    const discountValue = Math.max(0, Number(line.discount_value || 0));
+    const baseSubtotal = quantity * unitPrice;
+
+    let discountAmount = 0;
+    if (line.discount_type === 'percent') {
+      discountAmount = baseSubtotal * (Math.min(discountValue, 100) / 100);
+    } else {
+      discountAmount = Math.min(discountValue, baseSubtotal);
+    }
+
+    line.quantity = quantity;
+    line.unit_price = +unitPrice.toFixed(2);
+    line.discount_value = +discountValue.toFixed(2);
+    line.discount_amount = +discountAmount.toFixed(2);
+    line.subtotal = +Math.max(0, baseSubtotal - discountAmount).toFixed(2);
+  }
+
   private resetAfterSale(): void {
     this.lines.set([]);
     this.discountValue.set(0);
+    this.productSearchTerm.set('');
     this.lookupResetKey += 1;
 
     if (this.selectedDocumentType()?.requires_customer !== true) {
       this.includeCustomerData = false;
     }
 
+    this.resetCustomerState();
+  }
+
+  private resetCustomerState(): void {
+    this.customerLookupLoading.set(false);
+    this.customerFound.set(false);
+    this.customerLocked.set(false);
+    this.selectedCustomerId.set(null);
     this.customerName = '';
     this.customerDni = '';
     this.customerPhone = '';
+    this.customerEmail = '';
     this.customerAddress = '';
-    this.note = '';
+    this.customerDocumentType = 'DNI';
+    this.customerSearchTerm = '';
+    this.customerSearchResults.set([]);
+    this.customerSearchAttempted.set(false);
+  }
+
+  private applyCustomer(customer: Customer): void {
+    this.selectedCustomerId.set(customer.id);
+    this.customerName = customer.full_name ?? customer.razon_social ?? '';
+    this.customerDni = customer.ruc ?? customer.dni ?? '';
+    this.customerPhone = customer.phone ?? '';
+    this.customerEmail = customer.email ?? '';
+    this.customerAddress = customer.address ?? '';
+    this.customerDocumentType = customer.ruc ? 'RUC' : 'DNI';
+    this.customerSearchTerm = [this.customerName, this.customerDni].filter(Boolean).join(' · ');
+    this.customerFound.set(true);
+    this.customerLocked.set(true);
+  }
+
+  private persistCustomer(selectAfterSave: boolean): void {
+    const name = this.customerName.trim();
+    const document = this.customerDni.trim();
+
+    if (!name || !document) {
+      this.error.set('Completa al menos el documento y el nombre del cliente.');
+      return;
+    }
+
+    this.saving.set(true);
+    this.api.post<any>('customers', {
+      full_name: name,
+      dni: this.customerDocumentType === 'RUC' ? null : document,
+      ruc: this.customerDocumentType === 'RUC' ? document : null,
+      phone: this.customerPhone.trim() || null,
+      email: this.customerEmail.trim() || null,
+      address: this.customerAddress.trim() || null,
+      document_type: this.customerDocumentType,
+      province_id: null,
+      district_id: null,
+    }).subscribe({
+      next: (customer) => {
+        this.saving.set(false);
+        this.toast.success('Cliente guardado correctamente.');
+        if (selectAfterSave) {
+          this.applyCustomer(customer);
+          this.activeRightPanel.set('products');
+        } else {
+          this.activeRightPanel.set('customer');
+        }
+        this.customerSearchResults.set([]);
+        this.customerSearchAttempted.set(false);
+      },
+      error: (errorResponse) => {
+        this.saving.set(false);
+        this.error.set(this.extractApiErrorMessage(errorResponse?.error) ?? 'No se pudo guardar el cliente.');
+      },
+    });
+  }
+
+  private extractApiErrorMessage(error: any): string | null {
+    if (!error) {
+      return null;
+    }
+
+    if (typeof error?.message === 'string' && error.message.trim()) {
+      return error.message.trim();
+    }
+
+    const validationErrors = error?.errors;
+    if (validationErrors && typeof validationErrors === 'object') {
+      const messages = Object.values(validationErrors)
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+
+      if (messages.length) {
+        return messages.join(' ');
+      }
+    }
+
+    return null;
   }
 
   private renderPrintDocument(printWindow: Window, data: PosPrintPayload): void {
@@ -626,7 +1094,7 @@ export class PosComponent implements OnInit {
   }
 
   private renderTicket(printWindow: Window, data: PosPrintPayload, widthMm: number): void {
-    const now = new Date();
+    const now = formatPeruDateTimeLabel();
     const ticketWidth = widthMm <= 58 ? 58 : 80;
 
     const linesHtml = data.lines
@@ -670,7 +1138,7 @@ export class PosComponent implements OnInit {
           <div class="muted">${this.escapeHtml(data.printFormat.label)} · ${ticketWidth}mm</div>
           <div class="meta">Documento: ${this.escapeHtml(data.documentType)}</div>
           <div class="meta">Numero: ${this.escapeHtml(data.orderNumber)}</div>
-          <div class="meta">Fecha: ${now.toLocaleString()}</div>
+          <div class="meta">Fecha: ${this.escapeHtml(now)}</div>
           <div class="meta">Tienda: ${this.escapeHtml(data.storeName)}</div>
           <div class="meta">Pago: ${this.escapeHtml(data.paymentMethod)}</div>
           ${data.customerName ? `<div class="meta">Cliente: ${this.escapeHtml(data.customerName)}</div>` : ''}
@@ -708,7 +1176,7 @@ export class PosComponent implements OnInit {
   }
 
   private renderA4Document(printWindow: Window, data: PosPrintPayload): void {
-    const now = new Date();
+    const now = formatPeruDateTimeLabel();
 
     const rowsHtml = data.lines
       .map((line, index) => {
@@ -770,7 +1238,7 @@ export class PosComponent implements OnInit {
           </div>
 
           <div class="meta-grid">
-            <div class="meta-item"><strong>Fecha</strong>${now.toLocaleString()}</div>
+            <div class="meta-item"><strong>Fecha</strong>${this.escapeHtml(now)}</div>
             <div class="meta-item"><strong>Metodo de pago</strong>${this.escapeHtml(data.paymentMethod)}</div>
             <div class="meta-item"><strong>Cliente</strong>${this.escapeHtml(data.customerName || 'Publico general')}</div>
             <div class="meta-item"><strong>Documento</strong>${this.escapeHtml(data.customerDoc || '-')}</div>

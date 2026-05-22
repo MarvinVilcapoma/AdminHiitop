@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { PageStateComponent } from '../../../core/components';
+import { formatPeruDate } from '../../../core/utils/peru-date.util';
 
 interface SaleItem {
   id: number;
@@ -81,8 +82,8 @@ export class SalesListComponent implements OnInit {
   private setDefaultDates(): void {
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    this.from = first.toISOString().split('T')[0];
-    this.to   = now.toISOString().split('T')[0];
+    this.from = formatPeruDate(first);
+    this.to   = formatPeruDate(now);
   }
 
   load(): void {

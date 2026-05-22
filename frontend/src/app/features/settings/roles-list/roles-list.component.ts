@@ -24,13 +24,14 @@ interface RoleRow {
 interface RoleDraft {
   id: number;
   name: string;
-  permissions: string[];
+  permissionIds: string[];
 }
 
 interface RoleDetailResponse {
   id: number;
   name: string;
   permissions?: PermissionRow[];
+  permission_ids?: number[];
 }
 
 interface ModuleOption {
@@ -239,7 +240,7 @@ export class RolesListComponent implements OnInit {
 
     this.api.post('roles', {
       name: this.newName.trim(),
-      permissionIds,
+      permission_ids: permissionIds,
     }).subscribe({
       next: () => {
         this.saving.set(false);
@@ -264,7 +265,7 @@ export class RolesListComponent implements OnInit {
     this.api.get<any>(`roles/${role.id}`).subscribe({
       next: (full) => {
         const perms = (full?.permissions ?? []).map((p: PermissionRow) => p.name);
-        this.editRole.set({ id: full.id, name: full.name, permissions: perms });
+        this.editRole.set({ id: full.id, name: full.name, permissionIds: perms });
       },
       error: () => {
         this.editError.set('No se pudo cargar el detalle del rol.');
@@ -277,11 +278,11 @@ export class RolesListComponent implements OnInit {
     const current = this.editRole();
     if (!current) return;
 
-    const nextPermissions = current.permissions.includes(permission)
-      ? current.permissions.filter(p => p !== permission)
-      : [...current.permissions, permission];
+    const nextPermissions = current.permissionIds.includes(permission)
+      ? current.permissionIds.filter(p => p !== permission)
+      : [...current.permissionIds, permission];
 
-    this.editRole.set({ ...current, permissions: nextPermissions });
+    this.editRole.set({ ...current, permissionIds: nextPermissions });
   }
 
   saveEdit(): void {
@@ -295,15 +296,15 @@ export class RolesListComponent implements OnInit {
       return;
     }
 
-    if (draft.permissions.length === 0) {
+    if (draft.permissionIds.length === 0) {
       this.editError.set('Selecciona al menos un módulo para el rol.');
       return;
     }
 
     this.saving.set(true);
-    const permissionIds = this.toPermissionIds(draft.permissions);
+    const permissionIds = this.toPermissionIds(draft.permissionIds);
 
-    if (permissionIds.length !== draft.permissions.length) {
+    if (permissionIds.length !== draft.permissionIds.length) {
       this.editError.set('No se pudieron resolver todos los permisos seleccionados.');
       this.saving.set(false);
       return;
@@ -311,7 +312,7 @@ export class RolesListComponent implements OnInit {
 
     this.api.put(`roles/${draft.id}`, {
       name: draft.name.trim(),
-      permissionIds,
+      permission_ids: permissionIds,
     }).subscribe({
       next: () => {
         this.saving.set(false);
@@ -360,6 +361,6 @@ export class RolesListComponent implements OnInit {
   }
 
   hasEditModule(permission: string): boolean {
-    return this.editRole()?.permissions.includes(permission) ?? false;
+    return this.editRole()?.permissionIds.includes(permission) ?? false;
   }
 }

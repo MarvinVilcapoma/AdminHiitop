@@ -175,7 +175,7 @@
             @for (s of g.variants; track s.id) {
               <tr class="variant-row" [class.table-warning]="s.quantity > 0 && s.quantity <= 5" [class.table-danger]="s.quantity === 0">
                 <td class="ps-4 text-muted small variant-indent"><i class="bi bi-arrow-return-right me-1 opacity-40"></i>detalle</td>
-                <td></td>
+                <td><code class="text-muted small">{{ s.product.sku || '-' }}</code></td>
                 <td>
                   @if (s.color) {
                     <span class="d-inline-flex align-items-center gap-1">
@@ -197,7 +197,6 @@
                     <button class="btn btn-xs btn-success" title="Carga" (click)="openMovement('entry', s); $event.stopPropagation()"><i class="bi bi-arrow-down-circle"></i></button>
                     <button class="btn btn-xs btn-warning" title="Descarga" (click)="openMovement('exit', s); $event.stopPropagation()"><i class="bi bi-arrow-up-circle"></i></button>
                     <button class="btn btn-xs btn-primary" title="Transferir a otro almacen" (click)="openMovement('transfer', s); $event.stopPropagation()"><i class="bi bi-arrow-left-right"></i></button>
-                    <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="deleteStock(s); $event.stopPropagation()"><i class="bi bi-trash"></i></button>
                   </div>
                 </td>
               </tr>
@@ -247,22 +246,3 @@
   />
 }
 
-@if (delConfirm()) {
-  <div class="modal fade show d-block modal-overlay" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-      <div class="modal-content">
-        <div class="modal-body text-center pt-4 pb-2">
-          <div class="icon-circle-danger mb-3"><i class="bi bi-boxes text-danger fs-4"></i></div>
-          <h6 class="fw-600 mb-1">Eliminar registro de stock?</h6>
-          <p class="text-muted small mb-0">{{ delConfirm()!.message }}</p>
-        </div>
-        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
-          <button class="btn btn-outline-secondary" (click)="delConfirm.set(null)">Cancelar</button>
-          <button class="btn btn-danger" (click)="delConfirm()!.action(); delConfirm.set(null)">
-            <i class="bi bi-trash me-1"></i>Eliminar
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-}

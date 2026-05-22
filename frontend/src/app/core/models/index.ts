@@ -127,7 +127,19 @@ export interface Warehouse {
   address?: string;
   city?: string;
   is_active?: boolean;
+  is_pos?: boolean;
   warehouse_type?: WarehouseType;
+  // Virtual Shopify warehouse fields (populated client-side)
+  source?: 'mysql' | 'shopify';
+  shopify_location_id?: number;
+}
+
+export interface ShopifyLocation {
+  id: number;
+  name: string;
+  active: boolean;
+  address?: string | null;
+  city?: string | null;
 }
 
 export interface Stock {
@@ -160,6 +172,13 @@ export interface ProductLookupItem {
   unit_price?: number;
   unit_cost?: number;
   variant_label?: string;
+  // Shopify-source fields (null for MySQL items)
+  source?: 'mysql' | 'shopify';
+  shopify_variant_id?: number | null;
+  shopify_product_id?: number | null;
+  shopify_location_id?: number | null;
+  shopify_inventory_item_id?: number | null;
+  image_url?: string | null;
 }
 
 // ── Orders ───────────────────────────────────────────────────────────────────
@@ -167,14 +186,18 @@ export interface ProductLookupItem {
 export interface OrderItem {
   id?: number;
   product_id?: number | null;
+  color_id?: number | null;
   collection_id?: number | null;
   product_description?: string;
-  size?: string;
+  product_key?: string | null;
+  tracking_number?: string | null;
+  size?: string | null;
   quantity: number;
   unit_price: number;
   subtotal: number;
   sort_order?: number;
   product?: Product;
+  color?: Color;
 }
 
 export interface Order {
@@ -196,6 +219,8 @@ export interface Order {
   phone?: string;
   customer_email?: string;
   address?: string;
+  pickup_key?: string;
+  tracking_number?: string;
   province_id?: number;
   province?: Province;
   district_id?: number;
@@ -245,6 +270,86 @@ export interface Order {
   items?: OrderItem[];
   invoices?: { id: number; status: string; doc_type: string; full_number: string }[];
   created_at?: string;
+}
+
+export interface OrderUpsertRequest {
+  order_date: string;
+  order_status_id: number | null;
+  shipping_agency_id?: number | null;
+  purchase_type_id?: number | null;
+  warehouse_id?: number | null;
+  observations?: string | null;
+  phone?: string | null;
+  customer_id?: number | null;
+  customer_name?: string | null;
+  dni?: string | null;
+  province_id?: number | null;
+  district_id?: number | null;
+  address?: string | null;
+  pickup_key?: string | null;
+  tracking_number?: string | null;
+  delivery_cost?: number;
+  discount_type?: 'percent' | 'fixed' | null;
+  discount_value?: number | null;
+  discount_amount?: number;
+  total: number;
+  document_type_id?: number | null;
+  customer_email?: string | null;
+  guide_transfer_reason_code?: string | null;
+  guide_transfer_reason_description?: string | null;
+  guide_transfer_mode?: string | null;
+  guide_transfer_date?: string | null;
+  guide_total_weight?: number | null;
+  guide_weight_unit?: string | null;
+  guide_package_count?: number | null;
+  guide_origin_ubigeo?: string | null;
+  guide_origin_address?: string | null;
+  guide_destination_ubigeo?: string | null;
+  guide_destination_address?: string | null;
+  guide_recipient_doc_type?: string | null;
+  guide_recipient_doc_number?: string | null;
+  guide_recipient_name?: string | null;
+  guide_carrier_doc_type?: string | null;
+  guide_carrier_doc_number?: string | null;
+  guide_carrier_name?: string | null;
+  guide_vehicle_plate?: string | null;
+  guide_driver_doc_type?: string | null;
+  guide_driver_doc_number?: string | null;
+  guide_driver_name?: string | null;
+  guide_driver_license?: string | null;
+  guide_transport_certificate?: string | null;
+  items: OrderItem[];
+}
+
+export interface PosOrderCreateRequest {
+  order_date: string;
+  warehouse_id: number;
+  payment_method_id: number;
+  document_type_id: number;
+  document_print_format_id?: number | null;
+  order_status_id?: number | null;
+  observations?: string | null;
+  discount_type?: 'percent' | 'fixed' | null;
+  discount_value?: number | null;
+  discount_amount?: number;
+  total: number;
+  customer_id?: number | null;
+  customer_name?: string | null;
+  customer_document?: string | null;
+  customer_document_type?: string | null;
+  customer_email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  print_after_save?: boolean;
+  items: OrderItem[];
+}
+
+export interface PosOrderCreateResponse {
+  id: number;
+  order_number?: string;
+  document_number?: string;
+  pdf_url?: string | null;
+  print_payload?: unknown;
 }
 
 // ── Promotions ───────────────────────────────────────────────────────────────
@@ -416,4 +521,68 @@ export interface Page<T> {
   last_page: number;
   per_page: number;
   total: number;
+}
+
+// ── Shopify ───────────────────────────────────────────────────────────────────
+
+export interface ShopifyOrderItem {
+  id: number;
+  title: string;
+  variant_title?: string | null;
+  quantity: number;
+  price: number;
+  sku?: string | null;
+  fulfillment_status?: string | null;
+}
+
+export interface ShopifyDiscountCode {
+  code: string;
+  amount: number;
+  type: string;  // percentage | fixed_amount | shipping
+}
+
+export interface ShopifyShippingLine {
+  title: string;
+  price: number;
+  discounted_price: number;
+  is_free: boolean;
+}
+
+export interface ShopifyOrder {
+  id: number;
+  order_number: string;
+  created_at: string;
+  updated_at: string;
+  financial_status?: string | null;
+  fulfillment_status?: string | null;
+  total_price: number;
+  subtotal_price?: number;
+  total_discounts?: number;
+  has_free_shipping?: boolean;
+  is_local_pickup?: boolean;
+  currency: string;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  customer_document?: string | null;
+  shipping_address?: string | null;
+  province?: string | null;
+  city?: string | null;
+  tracking_number?: string | null;
+  tracking_company?: string | null;
+  tracking_url?: string | null;
+  note?: string | null;
+  tags?: string | null;
+  cancel_reason?: string | null;
+  is_cancelled: boolean;
+  discount_codes?: ShopifyDiscountCode[];
+  shipping_lines?: ShopifyShippingLine[];
+  items: ShopifyOrderItem[];
+}
+
+export interface ShopifyOrderListResponse {
+  orders: ShopifyOrder[];
+  count: number;
+  next_page_info?: string | null;
+  prev_page_info?: string | null;
 }

@@ -58,10 +58,16 @@ public sealed class StocksController : BaseApiController
     }
 
     [HttpGet("lookup")]
-    public async Task<IActionResult> Lookup([FromQuery] string? search = null)
+    public async Task<IActionResult> Lookup(
+        [FromQuery] string? search = null,
+        [FromQuery(Name = "warehouse_id")]   int? warehouseId   = null,
+        [FromQuery(Name = "color_id")]       int? colorId       = null,
+        [FromQuery(Name = "available_only")] int? availableOnly = null,
+        [FromQuery] int limit = 30)
     {
-        IReadOnlyList<StockLookupResponse> response = await _stockService.GetLookupAsync(search);
-        return Ok(response);
+        IReadOnlyList<StockLookupResponse> data = await _stockService.GetLookupAsync(
+            search, warehouseId, colorId, availableOnly == 1, Math.Clamp(limit, 1, 200));
+        return Ok(new { data });
     }
 
     [HttpGet("{id:int}")]

@@ -35,9 +35,9 @@
                 <label class="form-label fw-500 small">Almacén <span class="text-danger">*</span></label>
                 <select class="form-select form-select-sm"
                   [(ngModel)]="movWarehouseId" (ngModelChange)="onMovWarehouseChange()">
-                  <option [value]="0">-- Seleccionar almacén --</option>
+                  <option [ngValue]="0">-- Seleccionar almacén --</option>
                   @for (w of warehouses; track w.id) {
-                    <option [value]="w.id">{{ w.name }}</option>
+                    <option [ngValue]="w.id">{{ w.name }}</option>
                   }
                 </select>
               </div>
@@ -104,7 +104,7 @@
               @if (movProductId) {
 
                 <!-- Color -->
-                @if (movColorsFiltered().length > 0 || movColorId) {
+                @if (movHasColorOptions()) {
                   <div class="col-md-6">
                     <label class="form-label fw-500 small">Color</label>
                     <div class="searchable-select">
@@ -179,10 +179,17 @@
                 </div>
               </div>
             } @else if (movProductId) {
-              <div class="text-warning small mb-3">
-                <i class="bi bi-exclamation-triangle me-1"></i>
-                No se encontró un registro de stock para esa combinación en este almacén.
-              </div>
+              @if (isNewEntry) {
+                <div class="alert alert-info py-2 small mb-3">
+                  <i class="bi bi-plus-circle me-1"></i>
+                  <strong>Nuevo registro.</strong> No hay stock de este producto en este almacén — se creará una nueva entrada.
+                </div>
+              } @else {
+                <div class="text-warning small mb-3">
+                  <i class="bi bi-exclamation-triangle me-1"></i>
+                  No se encontró un registro de stock para esa combinación.
+                </div>
+              }
             }
 
           } <!-- /else loading -->
@@ -215,9 +222,9 @@
           <div class="mb-3">
             <label class="form-label fw-500">Almacén destino <span class="text-danger">*</span></label>
             <select class="form-select" [(ngModel)]="movDestWarehouseId">
-              <option [value]="0">-- Seleccionar almacén destino --</option>
+              <option [ngValue]="0">-- Seleccionar almacén destino --</option>
               @for (w of destWarehouses(); track w.id) {
-                <option [value]="w.id">
+                <option [ngValue]="w.id">
                   <i class="bi" [class]="w.type === 'store' ? 'bi-shop' : 'bi-building'"></i>
                   {{ w.name }}
                 </option>

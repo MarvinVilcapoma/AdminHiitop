@@ -1,0 +1,153 @@
+<div class="page-header">
+  <h1><i class="bi bi-people me-2 text-success"></i>Clientes Shopify</h1>
+</div>
+
+<!-- Stats -->
+@if (!loading() && customers().length > 0) {
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Clientes cargados</div>
+        <div class="stat-value">{{ customers().length }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Total pedidos (lote)</div>
+        <div class="stat-value text-primary">{{ totalOrders() }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Facturado (lote)</div>
+        <div class="stat-value text-success">S/ {{ totalRevenue() | number:'1.2-2' }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="stat-label">Ticket promedio</div>
+        <div class="stat-value text-info">
+          S/ {{ (totalOrders() > 0 ? totalRevenue() / totalOrders() : 0) | number:'1.2-2' }}
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Toolbar -->
+<div class="mb-3 d-flex gap-2 align-items-center flex-wrap">
+  <div class="input-group" style="max-width:360px">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="text" class="form-control" placeholder="Buscar por nombre, email, teléfono…"
+           [(ngModel)]="search" (ngModelChange)="onSearchInput()">
+    @if (search) {
+      <button class="btn btn-outline-secondary" type="button" (click)="search=''; load()">
+        <i class="bi bi-x"></i>
+      </button>
+    }
+  </div>
+  <select class="form-select form-select-sm" style="max-width:120px"
+          [(ngModel)]="perPage" (ngModelChange)="load()">
+    <option [ngValue]="20">20</option>
+    <option [ngValue]="50">50</option>
+    <option [ngValue]="100">100</option>
+    <option [ngValue]="250">250</option>
+  </select>
+  @if (!loading()) {
+    <span class="text-muted small">{{ count() }} clientes en esta página</span>
+  }
+</div>
+
+<!-- Loading -->
+@if (loading()) {
+  <div class="text-center py-5 text-muted">
+    <span class="spinner-border me-2"></span>Cargando clientes de Shopify…
+  </div>
+}
+
+<!-- Customers table -->
+@if (!loading()) {
+  @if (!customers().length) {
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-people fs-2 d-block mb-2 opacity-50"></i>
+      No se encontraron clientes con los filtros actuales.
+    </div>
+  } @else {
+    <div class="table-wrap">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Cliente</th>
+              <th>Email</th>
+              <th>Teléfono</th>
+              <th>Ciudad / Provincia</th>
+              <th class="text-center">Pedidos</th>
+              <th class="text-end">Total gastado</th>
+              <th>Último pedido</th>
+              <th>Tags</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of customers(); track c.id) {
+              <tr>
+                <td>
+                  <div class="fw-semibold small">{{ c.name || '—' }}</div>
+                  <div class="text-muted" style="font-size:.7rem">ID: {{ c.id }}</div>
+                </td>
+                <td class="small">
+                  @if (c.email) {
+                    <a [href]="'mailto:' + c.email" class="text-decoration-none">{{ c.email }}</a>
+                  } @else { — }
+                </td>
+                <td class="small text-muted">{{ c.phone || '—' }}</td>
+                <td class="small text-muted">
+                  {{ locationStr(c) }}
+                </td>
+                <td class="text-center">
+                  <span class="badge"
+                        [class.bg-success]="c.orders_count >= 5"
+                        [class.bg-warning]="c.orders_count >= 2 && c.orders_count < 5"
+                        [class.bg-secondary]="c.orders_count < 2">
+                    {{ c.orders_count }}
+                  </span>
+                </td>
+                <td class="text-end fw-semibold small">
+                  <span [class.text-success]="c.total_spent > 500"
+                        [class.text-muted]="c.total_spent === 0">
+                    S/ {{ c.total_spent | number:'1.2-2' }}
+                  </span>
+                </td>
+                <td class="small text-muted">{{ c.last_order_name || '—' }}</td>
+                <td class="small">
+                  @if (c.tags) {
+                    @for (tag of c.tags.split(','); track tag) {
+                      <span class="badge bg-light text-dark border me-1">{{ tag.trim() }}</span>
+                    }
+                  } @else { — }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+        <span class="text-muted small">{{ customers().length }} clientes cargados</span>
+        <div class="d-flex gap-2">
+          @if (prevPage()) {
+            <button class="btn btn-sm btn-outline-secondary" (click)="load(prevPage())">
+              <i class="bi bi-chevron-left me-1"></i>Anterior
+            </button>
+          }
+          @if (nextPage()) {
+            <button class="btn btn-sm btn-outline-secondary" (click)="load(nextPage())">
+              Siguiente<i class="bi bi-chevron-right ms-1"></i>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  }
+}

@@ -13,39 +13,86 @@
   </div>
 }
 
-<!-- Summary cards -->
-@if (summary(); as s) {
+<!-- Summary cards — local orders -->
+@if (filterSource !== 'shopify') {
+  @if (summary(); as s) {
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-sm-4">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon bg-primary bg-opacity-10"><i class="bi bi-bag-check text-primary"></i></div>
+          <div>
+            <div class="stat-label">Total pedidos</div>
+            <div class="stat-value">{{ s.total_orders | number }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-4">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon icon-orange"><i class="bi bi-clock-history"></i></div>
+          <div>
+            <div class="stat-label">Pendientes de envío</div>
+            <div class="stat-value text-warning">{{ s.pending_shipping | number }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-4">
+        <div class="stat-card d-flex align-items-center gap-3">
+          <div class="stat-icon icon-yellow"><i class="bi bi-currency-dollar"></i></div>
+          <div>
+            <div class="stat-label">Ingresos totales</div>
+            <div class="stat-value">S/ {{ s.total_revenue | number:'1.2-2' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+<!-- Summary cards — Shopify channel -->
+@if (filterSource === 'shopify') {
   <div class="row g-3 mb-4">
     <div class="col-6 col-sm-4">
       <div class="stat-card d-flex align-items-center gap-3">
-        <div class="stat-icon bg-primary bg-opacity-10">
-          <i class="bi bi-bag-check text-primary"></i>
-        </div>
+        <div class="stat-icon bg-success bg-opacity-10"><i class="bi bi-shop text-success"></i></div>
         <div>
-          <div class="stat-label">Total pedidos</div>
-          <div class="stat-value">{{ s.total_orders | number }}</div>
+          <div class="stat-label">Total pedidos Shopify</div>
+          <div class="stat-value">
+            @if (shopifyMetricsLoading()) {
+              <span class="spinner-border spinner-border-sm"></span>
+            } @else {
+              {{ (shopifySummary()?.total_orders ?? 0) | number }}
+            }
+          </div>
         </div>
       </div>
     </div>
     <div class="col-6 col-sm-4">
       <div class="stat-card d-flex align-items-center gap-3">
-        <div class="stat-icon icon-orange">
-          <i class="bi bi-clock-history"></i>
-        </div>
+        <div class="stat-icon icon-orange"><i class="bi bi-truck"></i></div>
         <div>
-          <div class="stat-label">Pendientes de envío</div>
-          <div class="stat-value text-warning">{{ s.pending_shipping | number }}</div>
+          <div class="stat-label">Sin enviar</div>
+          <div class="stat-value text-warning">
+            @if (shopifyMetricsLoading()) {
+              <span class="spinner-border spinner-border-sm"></span>
+            } @else {
+              {{ (shopifySummary()?.pending_orders ?? 0) | number }}
+            }
+          </div>
         </div>
       </div>
     </div>
     <div class="col-12 col-sm-4">
       <div class="stat-card d-flex align-items-center gap-3">
-        <div class="stat-icon icon-yellow">
-          <i class="bi bi-currency-dollar"></i>
-        </div>
+        <div class="stat-icon icon-yellow"><i class="bi bi-currency-dollar"></i></div>
         <div>
-          <div class="stat-label">Ingresos totales</div>
-          <div class="stat-value">S/ {{ s.total_revenue | number:'1.2-2' }}</div>
+          <div class="stat-label">Ingresos Shopify</div>
+          <div class="stat-value">
+            @if (shopifyMetricsLoading()) {
+              <span class="spinner-border spinner-border-sm"></span>
+            } @else {
+              PEN {{ (shopifySummary()?.total_revenue ?? 0) | number:'1.2-2' }}
+            }
+          </div>
         </div>
       </div>
     </div>
@@ -64,34 +111,48 @@
                [(ngModel)]="search" (input)="onSearchInput()">
       </div>
     </div>
-    <div class="col-6 col-md-2">
+    <div class="col-6 col-md-2" [class.opacity-50]="filterSource === 'shopify'">
       <label class="form-label small text-muted mb-1">Estado</label>
       <app-searchable-select
         [(ngModel)]="filterStatusId"
         (ngModelChange)="onFilterChange()"
         [options]="orderStatuses()"
         placeholder="Todos"
-        searchPlaceholder="Buscar estado...">
+        searchPlaceholder="Buscar estado..."
+        [disabled]="filterSource === 'shopify'">
       </app-searchable-select>
     </div>
-    <div class="col-6 col-md-2">
+    <div class="col-6 col-md-2" [class.opacity-50]="filterSource === 'shopify'">
       <label class="form-label small text-muted mb-1">Colección</label>
       <app-searchable-select
         [(ngModel)]="filterCollectionId"
         (ngModelChange)="onFilterChange()"
         [options]="collections()"
         placeholder="Todas"
-        searchPlaceholder="Buscar colección...">
+        searchPlaceholder="Buscar colección..."
+        [disabled]="filterSource === 'shopify'">
       </app-searchable-select>
     </div>
-    <div class="col-6 col-md-2">
+    <div class="col-6 col-md-2" [class.opacity-50]="filterSource === 'shopify'">
       <label class="form-label small text-muted mb-1">Tipo producto</label>
       <app-searchable-select
         [(ngModel)]="filterTypeId"
         (ngModelChange)="onFilterChange()"
         [options]="productTypes()"
         placeholder="Todos"
-        searchPlaceholder="Buscar tipo...">
+        searchPlaceholder="Buscar tipo..."
+        [disabled]="filterSource === 'shopify'">
+      </app-searchable-select>
+    </div>
+    <div class="col-6 col-md-2" [class.opacity-50]="filterSource === 'shopify'">
+      <label class="form-label small text-muted mb-1">Usuario</label>
+      <app-searchable-select
+        [(ngModel)]="filterUserId"
+        (ngModelChange)="onFilterChange()"
+        [options]="users()"
+        placeholder="Todos"
+        searchPlaceholder="Buscar usuario..."
+        [disabled]="filterSource === 'shopify'">
       </app-searchable-select>
     </div>
     <div class="col-6 col-md-2">
@@ -99,6 +160,9 @@
       <select class="form-select form-select-sm" [(ngModel)]="filterSource" (change)="onFilterChange()">
         <option value="">Todos</option>
         <option value="pos">Solo POS</option>
+        <option value="shopify">
+          <i class="bi bi-shop"></i> Shopify
+        </option>
       </select>
     </div>
     <div class="col-6 col-md-2">
@@ -119,13 +183,333 @@
   </div>
 </div>
 
+<!-- Monthly stats -->
+@if (filterSource !== 'shopify' && monthlyStats().length) {
+  <div class="form-section mb-3">
+    <h6 class="form-section-title mb-2">
+      <i class="bi bi-bar-chart me-2 text-primary"></i>Pedidos por mes — {{ statsYear() }}
+      <div class="btn-group btn-group-sm ms-3">
+        <button class="btn btn-outline-secondary py-0" (click)="statsYear.set(statsYear() - 1)">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button class="btn btn-outline-secondary py-0" [disabled]="statsYear() >= currentYear"
+                (click)="statsYear.set(statsYear() + 1)">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    </h6>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            @for (s of monthlyStats(); track s.month) {
+              <th class="text-center small">{{ s.label }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            @for (s of monthlyStats(); track s.month) {
+              <td class="text-center small fw-semibold">{{ s.orders }}</td>
+            }
+          </tr>
+          <tr>
+            @for (s of monthlyStats(); track s.month) {
+              <td class="text-center small text-success">S/ {{ s.revenue | number:'1.0-0' }}</td>
+            }
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+}
+
+@if (filterSource === 'shopify' && shopifyMonthlyStats().length) {
+  <div class="form-section mb-3">
+    <h6 class="form-section-title mb-2">
+      <i class="bi bi-bar-chart me-2 text-success"></i>Pedidos Shopify por mes — {{ statsYear() }}
+      <div class="btn-group btn-group-sm ms-3">
+        <button class="btn btn-outline-secondary py-0" (click)="statsYear.set(statsYear() - 1); loadShopifyYearMetrics()">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button class="btn btn-outline-secondary py-0" [disabled]="statsYear() >= currentYear"
+                (click)="statsYear.set(statsYear() + 1); loadShopifyYearMetrics()">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    </h6>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            @for (s of shopifyMonthlyStats(); track s.month) {
+              <th class="text-center small">{{ s.label }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            @for (s of shopifyMonthlyStats(); track s.month) {
+              <td class="text-center small fw-semibold">{{ s.orders }}</td>
+            }
+          </tr>
+          <tr>
+            @for (s of shopifyMonthlyStats(); track s.month) {
+              <td class="text-center small text-success">PEN {{ s.revenue | number:'1.0-0' }}</td>
+            }
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+}
+
+<!-- ═══ Shopify orders table ═══ -->
+@if (filterSource === 'shopify') {
+  <div class="table-wrap">
+
+    <!-- Status tabs — like Shopify admin -->
+    <div class="border-bottom">
+      <!-- Payment status tabs -->
+      <div class="d-flex align-items-center gap-0 px-3 pt-2">
+        <span class="small text-muted me-2 fw-semibold" style="min-width:80px">Pago:</span>
+        @for (tab of SHOPIFY_PAYMENT_TABS; track tab.value) {
+          <button class="btn btn-sm me-1 px-3 py-1 rounded-pill"
+                  [class.btn-success]="shopifyPaymentTab() === tab.value"
+                  [class.btn-outline-secondary]="shopifyPaymentTab() !== tab.value"
+                  (click)="onShopifyStatusTab('payment', tab.value)">
+            {{ tab.label }}
+          </button>
+        }
+      </div>
+      <!-- Fulfillment status tabs -->
+      <div class="d-flex align-items-center gap-0 px-3 pt-1 pb-2">
+        <span class="small text-muted me-2 fw-semibold" style="min-width:80px">Envío:</span>
+        @for (tab of SHOPIFY_FULFILLMENT_TABS; track tab.value) {
+          <button class="btn btn-sm me-1 px-3 py-1 rounded-pill"
+                  [class.btn-primary]="shopifyFulfillmentTab() === tab.value"
+                  [class.btn-outline-secondary]="shopifyFulfillmentTab() !== tab.value"
+                  (click)="onShopifyStatusTab('fulfillment', tab.value)">
+            {{ tab.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Toolbar: count + limit selector + search -->
+    <div class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom bg-light">
+      <span class="badge bg-success px-3 py-2">
+        <i class="bi bi-shop me-1"></i>Shopify
+      </span>
+      @if (shopifyHistoryMode()) {
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-2">
+          <i class="bi bi-archive me-1"></i>
+          {{ shopifyHistoryLimit() === 0 ? 'Historial completo' : 'Historial' }} · {{ shopifyHistoryLoaded() }} pedidos
+        </span>
+      } @else if (!shopifyLoading()) {
+        <span class="text-muted small">{{ shopifyCount() }} pedidos</span>
+      }
+
+      <!-- History limit selector -->
+      <select class="form-select form-select-sm" style="max-width:165px"
+              [ngModel]="shopifyHistoryLimit()" [ngModelOptions]="{standalone:true}"
+              (ngModelChange)="onShopifyLimitChange(+$event)">
+        @for (opt of SHOPIFY_LIMIT_OPTIONS; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+
+      <!-- Search — always searches ALL history via GraphQL -->
+      <div class="input-group input-group-sm ms-auto" style="max-width:300px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" class="form-control form-control-sm"
+          placeholder="Buscar en todo el historial…"
+          [(ngModel)]="shopifySearch" (input)="onShopifySearchInput()">
+        @if (shopifySearch) {
+          <button class="btn btn-outline-secondary" type="button"
+                  (click)="shopifySearch=''; onShopifySearchInput()">
+            <i class="bi bi-x"></i>
+          </button>
+        }
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" (click)="loadShopifyOrders()" [disabled]="shopifyLoading()">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+
+    @if (shopifyLoading()) {
+      <div class="text-center py-5 text-muted">
+        <span class="spinner-border me-2"></span>
+        @if (shopifySearch.trim()) {
+          Buscando <strong>"{{ shopifySearch }}"</strong> en Shopify…
+        } @else if (shopifyHistoryLimit() === 0) {
+          Cargando historial completo…
+        } @else if (shopifyHistoryMode()) {
+          Cargando últimos {{ shopifyHistoryLimit() }} pedidos…
+        } @else {
+          Cargando pedidos de Shopify…
+        }
+      </div>
+    } @else if ((shopifyHistoryMode() || shopifySearchActive()) && !shopifyFilteredOrders().length) {
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-search fs-2 d-block mb-2 opacity-50"></i>
+        @if (shopifySearch.trim()) {
+          Sin resultados para "<strong>{{ shopifySearch }}</strong>" en todo el historial.
+        } @else {
+          Sin pedidos con los filtros actuales.
+        }
+      </div>
+    } @else if (!shopifyHistoryMode() && !shopifySearchActive() && !shopifyOrders().length) {
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-shop fs-2 d-block mb-2 opacity-50"></i>
+        Sin pedidos en Shopify con los filtros actuales.
+      </div>
+    } @else {
+      @if (shopifySearchActive()) {
+        <div class="d-flex align-items-center gap-2 px-3 py-1 border-bottom bg-success-subtle">
+          <i class="bi bi-search text-success"></i>
+          <span class="text-success small fw-semibold">
+            {{ shopifyFilteredOrders().length }} resultado(s) en todo el historial para "{{ shopifySearch }}"
+          </span>
+        </div>
+      } @else if (shopifyHistoryMode()) {
+        <div class="text-muted small px-3 py-1 border-bottom bg-light-subtle">
+          {{ shopifyFilteredOrders().length }} pedidos cargados de {{ shopifyHistoryLoaded() }}
+        </div>
+      }
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Nº Shopify</th>
+              <th>Fecha</th>
+              <th>Pago</th>
+              <th>Envío</th>
+              <th>DNI/RUC</th>
+              <th>Cliente</th>
+              <th>Provincia</th>
+              <th>Tracking</th>
+              <th class="text-center">Ítems</th>
+              <th class="text-end">Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of (shopifyHistoryMode() || shopifySearchActive() ? shopifyFilteredOrders() : shopifyOrders()); track row.id) {
+              <tr [class.table-danger]="row.is_cancelled" [class.opacity-75]="row.is_cancelled">
+                <td class="fw-semibold">
+                  <a [href]="'https://admin.shopify.com/store/hiitop-3136/orders/' + row.id"
+                     target="_blank" class="text-decoration-none">
+                    {{ row.order_number }}
+                    <i class="bi bi-box-arrow-up-right ms-1 opacity-50" style="font-size:.7rem"></i>
+                  </a>
+                </td>
+                <td class="text-muted small">{{ row.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  <span class="badge" [class]="shopifyFinancialBadge(row.financial_status)">
+                    {{ shopifyFinancialLabel(row.financial_status) }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" [class]="shopifyFulfillmentBadge(row.fulfillment_status)">
+                    {{ shopifyFulfillmentLabel(row.fulfillment_status) }}
+                  </span>
+                </td>
+                <td class="small fw-semibold text-primary">{{ row.customer_document || '—' }}</td>
+                <td>
+                  <div class="fw-semibold small">{{ row.customer_name || '—' }}</div>
+                  @if (row.customer_email) {
+                    <div class="text-muted" style="font-size:.75rem">{{ row.customer_email }}</div>
+                  }
+                  @if (row.customer_phone) {
+                    <div class="text-muted" style="font-size:.72rem">{{ row.customer_phone }}</div>
+                  }
+                </td>
+                <td class="small text-muted">{{ row.province || '—' }}</td>
+                <td class="small">
+                  @if (row.tracking_number) {
+                    <span class="text-primary fw-semibold">{{ row.tracking_number }}</span>
+                    @if (row.tracking_company) {
+                      <div class="text-muted" style="font-size:.7rem">{{ row.tracking_company }}</div>
+                    }
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                </td>
+                <td class="text-center small text-muted">
+                  <span class="badge bg-light text-dark border">{{ row.items.length }}</span>
+                </td>
+                <td class="text-end fw-semibold">
+                  {{ row.currency }} {{ row.total_price | number:'1.2-2' }}
+                </td>
+                <td class="text-end">
+                  <div class="d-flex gap-1 justify-content-end align-items-center">
+                    <a class="btn btn-xs btn-outline-secondary"
+                       [routerLink]="['/dashboard/orders/shopify', row.id]"
+                       title="Ver detalle">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    @if (!row.is_cancelled) {
+                      @if (row.fulfillment_status !== 'fulfilled') {
+                        <button class="btn btn-xs btn-outline-success"
+                          title="Marcar como enviado en Shopify"
+                          [disabled]="shopifyActionId() === row.id"
+                          (click)="fulfillShopifyOrder(row)">
+                          @if (shopifyActionId() === row.id) {
+                            <span class="spinner-border spinner-border-sm"></span>
+                          } @else {
+                            <i class="bi bi-truck"></i>
+                          }
+                        </button>
+                      }
+                      <button class="btn btn-xs btn-outline-danger"
+                        title="Cancelar en Shopify"
+                        [disabled]="shopifyActionId() === row.id"
+                        (click)="cancelShopifyOrder(row)">
+                        <i class="bi bi-x-circle"></i>
+                      </button>
+                    } @else {
+                      <span class="badge bg-danger">Cancelado</span>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Shopify cursor pagination (normal mode, no active search) -->
+      @if (!shopifyHistoryMode() && !shopifySearchActive()) {
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+          <span class="text-muted small">{{ shopifyOrders().length }} pedidos en esta página</span>
+          <div class="d-flex gap-2">
+            @if (shopifyPrevPageInfo()) {
+              <button class="btn btn-sm btn-outline-secondary" (click)="loadShopifyOrders(shopifyPrevPageInfo())">
+                <i class="bi bi-chevron-left me-1"></i>Anterior
+              </button>
+            }
+            @if (shopifyNextPageInfo()) {
+              <button class="btn btn-sm btn-outline-secondary" (click)="loadShopifyOrders(shopifyNextPageInfo())">
+                Siguiente<i class="bi bi-chevron-right ms-1"></i>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    }
+  </div>
+}
+
 <!-- Table -->
+@if (filterSource !== 'shopify') {
 <div class="table-wrap">
   <app-page-state [loading]="loading()">
     <div class="table-responsive">
       <table class="table">
         <thead>
           <tr>
+            <th>Nº de Pedido</th>
             <th>Fecha</th>
             <th>Estado</th>
             <th>Agencia</th>
@@ -133,6 +517,8 @@
             <th>Cliente</th>
             <th>Provincia</th>
             <th>Distrito</th>
+            <th>Recojo / Tracking</th>
+            <th class="text-center">Ítems</th>
             <th>Registrado por</th>
             <th class="text-end">Total</th>
             <th></th>
@@ -141,6 +527,7 @@
         <tbody>
           @for (row of orders(); track row.id) {
             <tr>
+              <td>{{ row.order_number }}</td>
               <td class="text-muted">{{ row.order_date | date:'dd/MM/yyyy HH:mm' }}</td>
               <td>
                 @if (editingStatusOrderId() === row.id) {
@@ -178,11 +565,41 @@
               <td class="fw-500">{{ row.customer_name ?? '—' }}</td>
               <td class="text-muted small">{{ row.province?.name ?? '—' }}</td>
               <td class="text-muted small">{{ row.district?.name ?? '—' }}</td>
+              <td>
+                <div class="tracking-cell">
+                  @if (row.pickup_key) {
+                    <div class="tracking-line">
+                      <span class="tracking-label">Clave:</span>
+                      <span class="tracking-value">{{ row.pickup_key }}</span>
+                    </div>
+                  }
+                  @if (row.tracking_number) {
+                    <div class="tracking-line">
+                      <span class="tracking-label">Tracking:</span>
+                      <span class="tracking-value">{{ row.tracking_number }}</span>
+                    </div>
+                  }
+                  @if (!row.pickup_key && !row.tracking_number) {
+                    <span class="text-muted small">—</span>
+                  }
+                </div>
+              </td>
               <td class="text-muted small">
+                @if (isPosOrder(row)) {
+                  <span class="badge bg-success bg-opacity-10 text-success me-1">
+                    <i class="bi bi-shop me-1"></i>POS
+                  </span>
+                }
                 @if (row.user) {
                   <span class="badge bg-secondary bg-opacity-10 text-secondary">
                     <i class="bi bi-person me-1"></i>{{ row.user.name }}
                   </span>
+                }
+                @else { — }
+              </td>
+              <td class="text-center small text-muted">
+                @if ((row.items?.length ?? 0) > 0) {
+                  <span class="badge bg-light text-dark border">{{ row.items?.length ?? 0 }}</span>
                 } @else { — }
               </td>
               <td class="text-end fw-500">S/ {{ row.total | number:'1.2-2' }}</td>
@@ -208,9 +625,15 @@
                     <i class="bi bi-receipt-cutoff"></i>
                   </span>
                   }
+                  <a [routerLink]="['/dashboard/orders', row.id, 'detail']" class="btn btn-xs btn-outline-secondary" title="Ver detalle">
+                    <i class="bi bi-eye"></i>
+                  </a>
                   <a [routerLink]="['/dashboard/orders', row.id]" class="btn btn-xs btn-outline-primary" title="Editar">
                     <i class="bi bi-pencil"></i>
                   </a>
+                  <button class="btn btn-xs btn-outline-info" title="Editar clave y tracking" (click)="openTrackingModal(row)">
+                    <i class="bi bi-box-seam"></i>
+                  </button>
                   @if (canDelete(row)) {
                     <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="requestDelete(row)">
                       <i class="bi bi-trash"></i>
@@ -220,8 +643,13 @@
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="10" class="text-center text-muted py-5">
+            <tr><td colspan="12" class="text-center text-muted py-5">
               <i class="bi bi-bag fs-1 d-block mb-2 opacity-25"></i>No hay pedidos registrados.
+              <div class="mt-3">
+                <a routerLink="/dashboard/orders/new" class="btn btn-sm btn-primary">
+                  <i class="bi bi-plus-lg me-1"></i>Crear pedido
+                </a>
+              </div>
             </td></tr>
           }
         </tbody>
@@ -250,6 +678,41 @@
     }
   </app-page-state>
 </div>
+} <!-- end @if filterSource !== 'shopify' -->
+
+<!-- ═══ Fulfill modal (Shopify) ═══ -->
+@if (fulfillModalOrder(); as order) {
+  <div class="modal-backdrop-custom" (click)="closeFulfillModal()"></div>
+  <div class="confirm-modal" style="max-width:420px">
+    <div class="confirm-modal-icon text-success"><i class="bi bi-truck-front-fill"></i></div>
+    <h5 class="mb-1">Marcar como enviado</h5>
+    <p class="text-muted small mb-3">Orden <strong>{{ order.order_number }}</strong> · {{ order.customer_name }}</p>
+    <div class="mb-3 text-start">
+      <label class="form-label small fw-semibold">Courier / transportista <span class="text-muted fw-normal">(opcional)</span></label>
+      <input list="couriers-list-orders" type="text" class="form-control form-control-sm" [(ngModel)]="fulfillCourier"
+             placeholder="Selecciona o escribe el courier…" maxlength="100" />
+      <datalist id="couriers-list-orders">
+        <option value="Shalom"></option><option value="Olva Courier"></option>
+        <option value="MRW"></option><option value="DHL"></option>
+        <option value="FedEx"></option><option value="Urbano Express"></option>
+        <option value="Rappi Cargo"></option><option value="Cruz del Sur"></option>
+        <option value="Civa"></option><option value="Palomino"></option>
+      </datalist>
+    </div>
+    <div class="mb-3 text-start">
+      <label class="form-label small fw-semibold">Nro. Tracking <span class="text-muted fw-normal">(opcional)</span></label>
+      <input type="text" class="form-control form-control-sm" [(ngModel)]="fulfillTracking"
+             placeholder="Ej: ABC123456789" maxlength="120" />
+    </div>
+    <div class="d-flex gap-2 justify-content-center">
+      <button class="btn btn-sm btn-secondary" (click)="closeFulfillModal()" [disabled]="!!shopifyActionId()">Cancelar</button>
+      <button class="btn btn-sm btn-success" (click)="confirmFulfill()" [disabled]="!!shopifyActionId()">
+        @if (shopifyActionId()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        <i class="bi bi-truck me-1"></i>Confirmar envío
+      </button>
+    </div>
+  </div>
+}
 
 <!-- Delete confirmation modal -->
 @if (confirmDeleteOrder(); as order) {
@@ -272,6 +735,37 @@
 }
 
 <!-- ═══ Emit Invoice Modal ═══ -->
+@if (trackingOrder(); as order) {
+  <div class="modal-backdrop-custom" (click)="closeTrackingModal()"></div>
+  <div class="tracking-modal">
+    <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+      <div>
+        <h5 class="mb-1">Clave de recojo y tracking</h5>
+        <p class="text-muted small mb-0">Pedido {{ order.order_number || ('#' + order.id) }}</p>
+      </div>
+      <button type="button" class="btn-close" aria-label="Cerrar" (click)="closeTrackingModal()" [disabled]="trackingSaving()"></button>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Clave de recojo</label>
+      <input type="text" class="form-control" [(ngModel)]="trackingForm.pickup_key" maxlength="120" placeholder="Opcional">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Nro. Tracking</label>
+      <input type="text" class="form-control" [(ngModel)]="trackingForm.tracking_number" maxlength="120" placeholder="Opcional">
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-sm btn-secondary" (click)="closeTrackingModal()" [disabled]="trackingSaving()">Cancelar</button>
+      <button class="btn btn-sm btn-info text-white" (click)="saveTracking()" [disabled]="trackingSaving()">
+        @if (trackingSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        Guardar
+      </button>
+    </div>
+  </div>
+}
+
 @if (emitOrder(); as order) {
   <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
     <div class="modal-dialog modal-dialog-centered modal-lg">

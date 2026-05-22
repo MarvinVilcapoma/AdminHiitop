@@ -1,7 +1,11 @@
 using AdminHiitop.Api.Application.DTOs.Pos;
+using AdminHiitop.Api.Application.DTOs.Orders;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Catalog.Entities;
+using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
+using AdminHiitop.Api.Shared.Exceptions;
+using AdminHiitop.Api.Shared.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace AdminHiitop.Api.Application.Services.Pos;
@@ -9,10 +13,12 @@ namespace AdminHiitop.Api.Application.Services.Pos;
 public sealed class PosService : IPosService
 {
     private readonly AdminHiitopDbContext _context;
+    private readonly IOrderService _orderService;
 
-    public PosService(AdminHiitopDbContext context)
+    public PosService(AdminHiitopDbContext context, IOrderService orderService)
     {
         _context = context;
+        _orderService = orderService;
     }
 
     public async Task<PosInitialDataResponse> GetInitialDataAsync()
@@ -102,6 +108,141 @@ public sealed class PosService : IPosService
             }).ToList(),
             Settings = settings
         };
+    }
+
+    public async Task<Order> CreateOrderAsync(PosOrderCreateRequest request, int? userId = null)
+    {
+        if (request.WarehouseId <= 0)
+        {
+            throw new AppException("El almacén POS es obligatorio.", 400);
+        }
+
+        if (request.PaymentMethodId <= 0)
+        {
+            throw new AppException("El método de pago es obligatorio.", 400);
+        }
+
+        if (request.DocumentTypeId <= 0)
+        {
+            throw new AppException("El tipo de documento es obligatorio.", 400);
+        }
+
+        Warehouse warehouse = await _context.Warehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == request.WarehouseId && item.IsActive)
+            ?? throw new AppException("El almacén seleccionado no existe o está inactivo.", 404);
+
+        if (!warehouse.IsPos)
+        {
+            throw new AppException("El almacén seleccionado no está habilitado como punto de venta.", 422);
+        }
+
+        bool paymentMethodExists = await _context.PaymentMethods
+            .AsNoTracking()
+            .AnyAsync(item => item.Id == request.PaymentMethodId && item.IsActive);
+
+        if (!paymentMethodExists)
+        {
+            throw new AppException("El método de pago seleccionado no existe o está inactivo.", 404);
+        }
+
+        bool documentTypeExists = await _context.DocumentTypes
+            .AsNoTracking()
+            .AnyAsync(item => item.Id == request.DocumentTypeId && item.IsActive);
+
+        if (!documentTypeExists)
+        {
+            throw new AppException("El tipo de documento seleccionado no existe o está inactivo.", 404);
+        }
+
+        int resolvedStatusId = request.OrderStatusId.GetValueOrDefault();
+        if (resolvedStatusId <= 0)
+        {
+            resolvedStatusId = await ResolveDefaultPosStatusIdAsync();
+        }
+
+        string paymentMethodName = await _context.PaymentMethods
+            .AsNoTracking()
+            .Where(item => item.Id == request.PaymentMethodId)
+            .Select(item => item.Name)
+            .FirstAsync();
+
+        string? mergedObservations = string.Join(" | ", new[]
+        {
+            $"POS · Metodo de pago: {paymentMethodName}",
+            request.Observations?.Trim()
+        }.Where(item => !string.IsNullOrWhiteSpace(item)));
+
+        OrderUpsertRequest orderRequest = new()
+        {
+            OrderDate = request.OrderDate == default ? PeruClock.Now : request.OrderDate,
+            OrderStatusId = resolvedStatusId,
+            WarehouseId = request.WarehouseId,
+            Observations = mergedObservations,
+            Phone = request.Phone,
+            CustomerId = request.CustomerId,
+            CustomerName = request.CustomerName,
+            Dni = request.CustomerDocument,
+            Address = request.Address,
+            PickupKey = null,
+            TrackingNumber = null,
+            DeliveryCost = 0,
+            Total = request.Total,
+            DocumentTypeId = request.DocumentTypeId,
+            DocumentPrintFormatId = request.DocumentPrintFormatId,
+            CustomerEmail = request.CustomerEmail,
+            NeedsReceipt = false,
+            UserId = userId,
+            Items = request.Items.Select(item => new OrderItemUpsertRequest
+            {
+                ProductId = item.ProductId,
+                ColorId = item.ColorId,
+                CollectionId = item.CollectionId,
+                ProductDescription = item.ProductDescription,
+                ProductKey = item.ProductKey,
+                TrackingNumber = item.TrackingNumber,
+                Size = item.Size,
+                Quantity = item.Quantity,
+                UnitPrice = item.UnitPrice,
+                Subtotal = item.Subtotal,
+            }).ToList()
+        };
+
+        return await _orderService.CreateAsync(orderRequest);
+    }
+
+    private async Task<int> ResolveDefaultPosStatusIdAsync()
+    {
+        string[] preferredSlugs = ["delivered", "entregado", "pagado", "pending"];
+
+        foreach (string slug in preferredSlugs)
+        {
+            int? statusId = await _context.OrderStatuses
+                .AsNoTracking()
+                .Where(item => item.Slug == slug && item.IsActive)
+                .Select(item => (int?)item.Id)
+                .FirstOrDefaultAsync();
+
+            if (statusId.HasValue)
+            {
+                return statusId.Value;
+            }
+        }
+
+        int? fallbackStatusId = await _context.OrderStatuses
+            .AsNoTracking()
+            .Where(item => item.IsActive)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Name)
+            .Select(item => (int?)item.Id)
+            .FirstOrDefaultAsync();
+
+        if (!fallbackStatusId.HasValue)
+        {
+            throw new AppException("No hay estados de pedido configurados para registrar ventas POS.", 500);
+        }
+
+        return fallbackStatusId.Value;
     }
 
     private static IReadOnlyList<PosPrintFormatResponse> ResolvePrintFormats(

@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { Promotion, Page } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-promotions-list',
@@ -15,6 +16,7 @@ import { PageStateComponent } from '../../../core/components';
 })
 export class PromotionsListComponent implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
 
   promotions  = signal<Promotion[]>([]);
   loading     = signal(false);
@@ -85,22 +87,31 @@ export class PromotionsListComponent implements OnInit {
     const t = this.delTarget();
     if (!t) return;
     this.deleting.set(true);
+    const shouldGoPrevPage = this.promotions().length <= 1 && this.currentPage > 1;
     this.api.delete(`promotions/${t.id}`).subscribe({
       next: () => {
-        this.promotions.update(list => list.filter(p => p.id !== t.id));
-        this.total.update(n => Math.max(0, n - 1));
+        if (shouldGoPrevPage) {
+          this.currentPage -= 1;
+        }
         this.delTarget.set(null);
         this.deleting.set(false);
+        this.toast.success('Promocion eliminada correctamente.');
+        this.load();
       },
-      error: () => this.deleting.set(false),
+      error: (e) => {
+        this.deleting.set(false);
+        this.toast.error(e?.error?.message ?? 'No se pudo eliminar la promocion.');
+      },
     });
   }
 
   toggleActive(p: Promotion): void {
     this.api.put(`promotions/${p.id}`, { is_active: !p.is_active }).subscribe({
-      next: (updated: any) => this.promotions.update(list =>
-        list.map(x => x.id === p.id ? { ...x, is_active: updated.is_active } : x)
-      ),
+      next: () => {
+        this.toast.success(`Promocion ${p.is_active ? 'desactivada' : 'activada'} correctamente.`);
+        this.load();
+      },
+      error: (e) => this.toast.error(e?.error?.message ?? 'No se pudo actualizar la promocion.'),
     });
   }
 }

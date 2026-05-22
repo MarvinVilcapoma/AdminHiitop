@@ -53,6 +53,7 @@ public sealed class ProductService : IProductService
             Description = request.Description,
             BasePrice = request.BasePrice,
             UnitCost = request.UnitCost,
+            ProductColors = request.ColorIds.Select(colorId => new ProductColor { ColorId = colorId }).ToList(),
             IsActive = request.IsActive
         };
 
@@ -78,6 +79,7 @@ public sealed class ProductService : IProductService
         product.BasePrice = request.BasePrice;
         product.UnitCost = request.UnitCost;
         product.IsActive = request.IsActive;
+        product.ProductColors = request.ColorIds.Select(colorId => new ProductColor { ColorId = colorId }).ToList();
 
         await _productRepository.SaveChangesAsync();
         return await GetByIdAsync(product.Id);

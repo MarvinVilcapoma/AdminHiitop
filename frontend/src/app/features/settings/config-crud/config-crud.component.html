@@ -58,8 +58,17 @@
         }
       }
 
-      <!-- Warehouse geo selects -->
+      <!-- Warehouse geo selects + type -->
       @if (isWarehouseEndpoint()) {
+        <div class="col-12 col-sm-4">
+          <label class="form-label" for="create-warehouse_type_id">Tipo de almacén</label>
+          <select id="create-warehouse_type_id" class="form-select form-select-sm" [(ngModel)]="newRow['warehouse_type_id']">
+            <option value="">— Sin tipo —</option>
+            @for (t of warehouseTypes(); track t.id) {
+              <option [value]="t.id">{{ t.name }}</option>
+            }
+          </select>
+        </div>
         <div class="col-12 col-sm-4">
           <label class="form-label" for="create-province_id">Departamento</label>
           <select id="create-province_id" class="form-select form-select-sm" [(ngModel)]="newRow['province_id']"
@@ -334,8 +343,17 @@
                 </div>
               }
             }
-            <!-- Warehouse geo selects in edit modal -->
+            <!-- Warehouse geo selects + type in edit modal -->
             @if (isWarehouseEndpoint()) {
+              <div class="col-12 col-sm-6">
+                <label class="form-label" for="edit-warehouse_type_id">Tipo de almacén</label>
+                <select id="edit-warehouse_type_id" class="form-select" [(ngModel)]="editRow()!['warehouse_type_id']">
+                  <option [ngValue]="null">— Sin tipo —</option>
+                  @for (t of warehouseTypes(); track t.id) {
+                    <option [value]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+              </div>
               <div class="col-12 col-sm-6">
                 <label class="form-label" for="edit-province_id">Departamento</label>
                 <select id="edit-province_id" class="form-select" [(ngModel)]="editRow()!['province_id']"

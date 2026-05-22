@@ -1,10 +1,3 @@
-@if (error()) {
-  <div class="alert alert-danger py-2 mb-3">{{ error() }}</div>
-}
-@if (info()) {
-  <div class="alert alert-info py-2 mb-3">{{ info() }}</div>
-}
-
 <section class="pos-shell">
   @if (loading()) {
     <div class="pos-loading">
@@ -12,319 +5,458 @@
       <span>Cargando POS...</span>
     </div>
   } @else {
-    <header class="pos-topbar">
-      <div class="pos-topbar__left">
-        <label for="pos-warehouse" class="pos-topbar__label">Ventas</label>
-        <select
-          id="pos-warehouse"
-          class="pos-topbar__select"
-          [(ngModel)]="selectedWarehouseId"
-          (ngModelChange)="onWarehouseChange()"
-        >
-          @for (warehouse of warehouses(); track warehouse.id) {
-            <option [ngValue]="warehouse.id">{{ warehouse.name }}</option>
+    <header class="pos-header">
+      <div class="pos-header__left">
+        <div class="pos-header__channel">
+          <label for="pos-warehouse">Sucursal</label>
+          @if (isShopifyMode) {
+            <!-- Shopify mode: show locations as sucursales -->
+            <select id="pos-warehouse" class="pos-header__select"
+                    [ngModel]="shopifyLocationId()" [ngModelOptions]="{standalone:true}"
+                    (ngModelChange)="shopifyLocationId.set($event); lookupRefreshKey = lookupRefreshKey + 1">
+              <option [ngValue]="null">— Ubicación —</option>
+              @for (loc of shopifyLocations(); track loc.id) {
+                <option [ngValue]="loc.id">{{ loc.name }}</option>
+              }
+            </select>
+          } @else {
+            <!-- Local mode: show DB warehouses -->
+            <select id="pos-warehouse" class="pos-header__select"
+                    [(ngModel)]="selectedWarehouseId"
+                    (ngModelChange)="onWarehouseChange()">
+              @for (warehouse of warehouses(); track warehouse.id) {
+                <option [ngValue]="warehouse.id">{{ warehouse.name }}</option>
+              }
+            </select>
           }
-        </select>
+        </div>
       </div>
 
-      <div class="pos-topbar__center">
-        <span class="pos-brand">HIITOP POS</span>
+      <div class="pos-header__brand">
+        <span>HIITOP POS</span>
         <small>{{ selectedDocumentTypeName() }} · {{ selectedPrintFormatName() }}</small>
       </div>
 
-      <div class="pos-topbar__right">
-        <a [routerLink]="['/dashboard/orders']" [queryParams]="{ source: 'pos' }" class="pos-icon-btn" title="Ventas POS">
-          <i class="bi bi-graph-up-arrow"></i>
-        </a>
-        <a [routerLink]="['/dashboard/invoices']" class="pos-icon-btn" title="Comprobantes">
-          <i class="bi bi-receipt"></i>
-        </a>
-        <a [routerLink]="['/dashboard/customers']" class="pos-icon-btn" title="Clientes">
-          <i class="bi bi-people"></i>
-        </a>
+      <div class="pos-header__right">
+        @if (shopifyLocations().length) {
+          <!-- Stock source toggle (only show when not in full Shopify mode) -->
+          @if (!appConfig.shopifyMode()) {
+            <div class="pos-header__channel" style="gap:.5rem">
+              <label style="font-size:.7rem;color:#aaa">Stock</label>
+              <div class="btn-group btn-group-sm">
+                <input type="radio" class="btn-check" id="pos_src_mysql" name="posStockSrc"
+                       [checked]="stockSource() === 'mysql'" (change)="setStockSource('mysql')">
+                <label class="btn btn-outline-secondary btn-sm py-0" for="pos_src_mysql" style="font-size:.72rem">
+                  <i class="bi bi-archive"></i> Local
+                </label>
+                <input type="radio" class="btn-check" id="pos_src_shopify" name="posStockSrc"
+                       [checked]="stockSource() === 'shopify'" (change)="setStockSource('shopify')">
+                <label class="btn btn-outline-success btn-sm py-0" for="pos_src_shopify" style="font-size:.72rem">
+                  <i class="bi bi-shop"></i> Shopify
+                </label>
+              </div>
+            </div>
+          } @else {
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1" style="font-size:.72rem">
+              <i class="bi bi-shop me-1"></i>Shopify
+            </span>
+          }
+        }
       </div>
     </header>
 
-    <div class="pos-grid">
-      <section class="pos-search-stage">
-        <div class="pos-search-card">
-          <app-product-lookup
-            mode="panel"
-            panelTitle="Productos disponibles"
-            [warehouseId]="selectedWarehouseId"
-            [colorId]="selectedColorId"
-            [availableOnly]="true"
-            [limit]="40"
-            [resetKey]="lookupResetKey"
-            [refreshKey]="lookupRefreshKey"
-            placeholder="Ingresa aqui el producto o servicio"
-            hint="Busca por nombre, SKU, color o talla. Solo se muestran variantes con stock del almacen activo."
-            emptyText="No se encontraron variantes con stock disponible."
-            (selected)="addVariantToCart($event)"
-            (errorChange)="handleLookupError($event)"
-            (queryChange)="handleLookupQueryChange($event)"
-          />
+    <div class="pos-layout">
+      <section class="pos-sale">
+        <!-- Simple search — results appear ONLY in the right panel, no dropdown here -->
+        <div class="pos-sale__search">
+          <div class="input-group">
+            <span class="input-group-text bg-white border-end-0">
+              <i class="bi bi-search text-muted"></i>
+            </span>
+            <input type="text" class="form-control border-start-0 ps-0"
+                   [placeholder]="isShopifyMode ? 'Busca productos en Shopify...' : 'Ingresa aquí el producto o servicio'"
+                   [ngModel]="productSearchTerm()"
+                   [ngModelOptions]="{standalone:true}"
+                   (ngModelChange)="handleLookupQueryChange($event)"
+                   autocomplete="off">
+            @if (productSearchTerm()) {
+              <button class="btn btn-outline-secondary border-start-0" type="button"
+                      (click)="clearSearch()">
+                <i class="bi bi-x"></i>
+              </button>
+            }
+          </div>
         </div>
-      </section>
 
-      <section class="pos-workspace">
-        <div class="pos-config-card">
-          <div class="pos-toolbar">
-            <div class="pos-toolbar__item">
-              <label for="pos-document-type">Documento</label>
-              <select
-                id="pos-document-type"
-                class="form-select form-select-sm"
-                [(ngModel)]="selectedDocumentTypeId"
-                (ngModelChange)="onDocumentTypeChange()"
-              >
+        <div class="pos-sale__body">
+          <div class="pos-sale__toolbar">
+            <div>
+              <h2>Venta</h2>
+              <p>{{ lines().length }} líneas · {{ lineCount() }} ítems</p>
+            </div>
+
+            <div class="pos-sale__actions">
+              <button class="btn btn-outline-secondary btn-sm" type="button" (click)="showProductsPanel()">Productos</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" (click)="clearCart()" [disabled]="!hasCartLines()">Vaciar</button>
+            </div>
+          </div>
+
+          @if (!hasCartLines()) {
+            <div class="pos-empty-state">
+              <i class="bi bi-bag-plus"></i>
+              <p>Busca y agrega productos para iniciar la venta</p>
+            </div>
+          } @else {
+            <div class="pos-sale__list">
+              @for (line of lines(); track line.stock_id; let index = $index) {
+                <article class="sale-row">
+                  <div class="sale-row__qty">
+                    <button type="button" class="sale-row__step" (click)="decrementLine(index)" aria-label="Disminuir">
+                      <i class="bi bi-dash"></i>
+                    </button>
+                    <input
+                      type="number"
+                      class="sale-row__input"
+                      [(ngModel)]="line.quantity"
+                      [ngModelOptions]="{ standalone: true }"
+                      min="1"
+                      [max]="line.available_qty"
+                      (ngModelChange)="onLineChange(index)"
+                    />
+                    <button type="button" class="sale-row__step" (click)="incrementLine(index)" aria-label="Aumentar">
+                      <i class="bi bi-plus"></i>
+                    </button>
+                  </div>
+
+                  <div class="sale-row__product">
+                    <strong>{{ line.product_name }}</strong>
+                    @if (line.variant_label) {
+                      <span>{{ line.variant_label }}</span>
+                    }
+                  </div>
+
+                  <div class="sale-row__price">
+                    <label>Precio</label>
+                    <div class="sale-row__money">
+                      <span>S/</span>
+                      <input
+                        type="number"
+                        class="sale-row__field"
+                        [(ngModel)]="line.unit_price"
+                        [ngModelOptions]="{ standalone: true }"
+                        min="0"
+                        step="0.01"
+                        (ngModelChange)="onLineChange(index)"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="sale-row__discount">
+                    <label>Descuento</label>
+                    <div class="sale-row__discount-editor">
+                      <input
+                        type="number"
+                        class="sale-row__field"
+                        [(ngModel)]="line.discount_value"
+                        [ngModelOptions]="{ standalone: true }"
+                        min="0"
+                        step="0.01"
+                        (ngModelChange)="onLineChange(index)"
+                      />
+                      <select
+                        class="sale-row__discount-type"
+                        [(ngModel)]="line.discount_type"
+                        [ngModelOptions]="{ standalone: true }"
+                        (ngModelChange)="onLineChange(index)"
+                      >
+                        <option value="percent">%</option>
+                        <option value="amount">S/</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="sale-row__subtotal">
+                    <label>Subtotal</label>
+                    <strong>S/ {{ line.subtotal | number:'1.2-2' }}</strong>
+                  </div>
+
+                  <button type="button" class="sale-row__remove" (click)="removeLine(index)" aria-label="Eliminar">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </article>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="pos-sale__footer">
+          <div class="pos-sale__meta">
+            <span>{{ lines().length }} líneas / {{ lineCount() }} ítems</span>
+            <div class="pos-sale__customer-search">
+              <input
+                type="text"
+                class="pos-sale__customer-input"
+                [(ngModel)]="customerSearchTerm"
+                data-search-trigger
+                data-search-trigger-enter
+                placeholder="Cliente: nombre, DNI, correo..."
+                (focus)="showCustomerPanel()"
+                (keydown.enter)="searchCustomerFromFooter()"
+              />
+              <button type="button" class="pos-sale__customer-action" (click)="searchCustomerFromFooter()" aria-label="Buscar cliente">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="pos-sale__checkout">
+            <div class="pos-sale__document">
+              <select class="form-select form-select-sm" [(ngModel)]="selectedDocumentTypeId" (ngModelChange)="onDocumentTypeChange()">
                 @for (document of documentTypes(); track document.id) {
                   <option [ngValue]="document.id">{{ document.name }}</option>
                 }
               </select>
-            </div>
-
-            <div class="pos-toolbar__item">
-              <label for="pos-payment">Pago</label>
-              <select id="pos-payment" class="form-select form-select-sm" [(ngModel)]="selectedPaymentMethodId">
-                <option [ngValue]="null">Seleccionar</option>
+              <select class="form-select form-select-sm" [(ngModel)]="selectedPaymentMethodId">
+                <option [ngValue]="null">Pago</option>
                 @for (method of paymentMethods(); track method.id) {
                   <option [ngValue]="method.id">{{ method.name }}</option>
                 }
               </select>
-            </div>
-
-            <div class="pos-toolbar__item">
-              <label for="pos-color-filter">Color</label>
-              <select
-                id="pos-color-filter"
-                class="form-select form-select-sm"
-                [(ngModel)]="selectedColorId"
-                (ngModelChange)="onColorFilterChange()"
-              >
-                <option [ngValue]="null">Todos</option>
-                @for (color of colors(); track color.id) {
-                  <option [ngValue]="color.id">{{ color.name }}</option>
-                }
-              </select>
-            </div>
-
-            <div class="pos-toolbar__item">
-              <label for="pos-print-format">Formato</label>
-              <select id="pos-print-format" class="form-select form-select-sm" [(ngModel)]="selectedPrintFormatId">
+              <select class="form-select form-select-sm" [(ngModel)]="selectedPrintFormatId">
                 @for (format of getPrintFormatsForSelectedDocument(); track format.id) {
                   <option [ngValue]="format.id">{{ format.label }}</option>
                 }
               </select>
             </div>
-          </div>
 
-          <div class="pos-toolbar-meta">
-            <span class="badge text-bg-light border">Almacen: {{ selectedWarehouseName() }}</span>
-            <span class="badge text-bg-light border">Formato: {{ selectedPrintFormatName() }}</span>
-          </div>
-        </div>
-
-        <div class="pos-cart-card">
-          <div class="pos-cart-card__header">
-            <div>
-              <strong>Venta activa</strong>
-              <small>Nr. lineas: {{ lines().length }} / Tot. items: {{ lineCount() }}</small>
-            </div>
-
-            <div class="pos-cart-card__actions">
-              <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearSearch()">
-                Limpiar busqueda
-              </button>
-              <button class="btn btn-sm btn-outline-danger" type="button" (click)="clearCart()" [disabled]="!hasCartLines()">
-                Vaciar
-              </button>
-            </div>
-          </div>
-
-          <div class="pos-cart-card__body">
-            @if (!hasCartLines()) {
-              <div class="pos-empty-state">
-                <i class="bi bi-bag-plus"></i>
-                <p>Empieza buscando un producto para agregarlo a la venta.</p>
+            <div class="pos-sale__summary">
+              <div class="pos-sale__total">
+                <span>Total</span>
+                <strong>S/ {{ finalTotal() | number:'1.2-2' }}</strong>
               </div>
-            } @else {
-              <div class="cart-list">
-                @for (line of lines(); track line.stock_id; let index = $index) {
-                  <div class="cart-item">
-                    <div class="cart-item__head">
-                      <div class="cart-item__title">
-                        <strong>{{ line.product_name }}</strong>
-                        @if (line.variant_label) {
-                          <span>{{ line.variant_label }}</span>
-                        }
-                      </div>
 
-                      <button type="button" class="cart-item__remove" (click)="removeLine(index)" title="Quitar">
-                        <i class="bi bi-x-lg"></i>
-                      </button>
-                    </div>
-
-                    <div class="cart-item__grid">
-                      <div class="cart-cell">
-                        <label>Disp.</label>
-                        <span>{{ line.available_qty }}</span>
-                      </div>
-
-                      <div class="cart-cell">
-                        <label>Cant.</label>
-                        <input
-                          type="number"
-                          class="form-control form-control-sm"
-                          [(ngModel)]="line.quantity"
-                          [ngModelOptions]="{ standalone: true }"
-                          min="1"
-                          [max]="line.available_qty"
-                          (ngModelChange)="onLineChange(index)"
-                        />
-                      </div>
-
-                      <div class="cart-cell">
-                        <label>P. unit.</label>
-                        <div class="input-group input-group-sm">
-                          <span class="input-group-text">S/</span>
-                          <input
-                            type="number"
-                            class="form-control text-end"
-                            [(ngModel)]="line.unit_price"
-                            [ngModelOptions]="{ standalone: true }"
-                            min="0"
-                            step="0.01"
-                            (ngModelChange)="onLineChange(index)"
-                          />
-                        </div>
-                      </div>
-
-                      <div class="cart-cell cart-cell--subtotal">
-                        <label>Subtotal</label>
-                        <strong>S/ {{ line.subtotal | number:'1.2-2' }}</strong>
-                      </div>
-                    </div>
-                  </div>
-                }
+              <div class="pos-sale__buttons">
+                <button class="btn btn-outline-secondary" type="button" (click)="cancelSale()">Cancelar</button>
+                <button class="btn btn-primary pos-pay-btn" type="button" (click)="saveSale()" [disabled]="saving() || loading()">
+                  @if (saving()) {
+                    <span class="spinner-border spinner-border-sm me-1"></span>Registrando...
+                  } @else {
+                    Pagar
+                  }
+                </button>
               </div>
-            }
+            </div>
           </div>
         </div>
       </section>
 
-      <aside class="pos-sidebar">
-        <div class="pos-side-card">
-          <div class="form-check form-switch mb-3">
-            <input
-              id="pos-customer-switch"
-              class="form-check-input"
-              type="checkbox"
-              [(ngModel)]="includeCustomerData"
-            />
-            <label for="pos-customer-switch" class="form-check-label fw-semibold">Anadir datos del cliente</label>
-          </div>
-
-          @if (requiresCustomerData()) {
-            <div class="pos-customer-grid">
-              <input id="pos-customer" class="form-control form-control-sm" [(ngModel)]="customerName" placeholder="Cliente o razon social" />
-              <input id="pos-dni" class="form-control form-control-sm" [(ngModel)]="customerDni" placeholder="DNI / RUC / correo" />
-              <input id="pos-phone" class="form-control form-control-sm" [(ngModel)]="customerPhone" placeholder="Telefono" />
-              <input id="pos-address" class="form-control form-control-sm" [(ngModel)]="customerAddress" placeholder="Direccion" />
+      <aside class="pos-side">
+        <div class="pos-side__panel">
+          @if (activeRightPanel() === 'products') {
+            <div class="pos-side__head">
+              <div>
+                <h3>Productos / Servicios</h3>
+                <p>Los resultados se actualizan mientras escribes a la izquierda.</p>
+              </div>
             </div>
-          } @else {
-            <div class="pos-customer-placeholder">Cliente: nombre, DNI, correo...</div>
+
+            <div class="pos-side__content pos-side__content--products">
+              <app-product-lookup
+                mode="panel"
+                [warehouseId]="isShopifyMode ? null : selectedWarehouseId"
+                [colorId]="isShopifyMode ? null : selectedColorId"
+                [availableOnly]="true"
+                [limit]="isShopifyMode ? 50 : 40"
+                [shopifyMode]="isShopifyMode"
+                [shopifyLocationId]="shopifyLocationId()"
+                [resetKey]="lookupResetKey"
+                [refreshKey]="lookupRefreshKey"
+                [queryValue]="productSearchTerm()"
+                [showSearchBar]="false"
+                [showPanelHeader]="false"
+                [hint]="isShopifyMode ? 'Variantes Shopify con stock disponible.' : 'Productos disponibles del almacén activo.'"
+                emptyText="No se encontraron productos."
+                (selected)="addVariantToCart($event)"
+                (errorChange)="handleLookupError($event)"
+                (queryChange)="handleLookupQueryChange($event)"
+              />
+            </div>
           }
 
-          <textarea id="pos-note" class="form-control form-control-sm mt-2" rows="2" [(ngModel)]="note" placeholder="Observaciones..."></textarea>
-
-          <!-- Descuento -->
-          <div class="pos-discount mt-2">
-            <div class="pos-discount__label">Descuento</div>
-            <div class="input-group input-group-sm">
-              <select class="form-select form-select-sm pos-discount__type"
-                [ngModel]="discountType()" (ngModelChange)="discountType.set($event)">
-                <option value="percent">%</option>
-                <option value="fixed">S/</option>
-              </select>
-              <input type="number" class="form-control text-end"
-                [ngModel]="discountValue()"
-                (ngModelChange)="discountValue.set(+$event)"
-                min="0" step="0.01" placeholder="0" />
-            </div>
-          </div>
-
-          <div class="pos-summary">
-            <div class="pos-summary__row">
-              <span>Metodo</span>
-              <strong>{{ selectedPaymentMethodName() }}</strong>
-            </div>
-            <div class="pos-summary__row">
-              <span>Formato</span>
-              <strong>{{ selectedPrintFormatName() }}</strong>
-            </div>
-            @if (discountAmount() > 0) {
-              <div class="pos-summary__row">
-                <span>Subtotal</span>
-                <span>S/ {{ total() | number:'1.2-2' }}</span>
+          @if (activeRightPanel() === 'customer') {
+            <div class="pos-side__head">
+              <div>
+                <h3>Cliente</h3>
+                <p>Busca por nombre, DNI, RUC, correo o teléfono</p>
               </div>
-              <div class="pos-summary__row pos-summary__row--discount">
-                <span>Descuento</span>
-                <strong class="text-danger">-S/ {{ discountAmount() | number:'1.2-2' }}</strong>
-              </div>
-            }
-            <div class="pos-summary__row pos-summary__row--total">
-              <span>Total</span>
-              <strong>S/ {{ finalTotal() | number:'1.2-2' }}</strong>
             </div>
-          </div>
 
-          <div class="pos-side-actions">
-            <button class="btn btn-outline-secondary" type="button" (click)="cancelSale()">Cancelar</button>
-            <button class="btn btn-outline-dark" type="button" (click)="saveDraft()">Guardar borrador</button>
-            <button class="btn btn-primary pos-pay-btn" type="button" (click)="saveSale()" [disabled]="saving() || loading()">
-              @if (saving()) {
-                <span class="spinner-border spinner-border-sm me-1"></span>Registrando...
+            <div class="pos-side__content">
+              <div class="pos-customer-search">
+                <div class="input-group input-group-sm">
+                  <input
+                    type="text"
+                    class="form-control"
+                    [(ngModel)]="customerSearchTerm"
+                    data-search-trigger
+                    data-search-trigger-enter
+                    placeholder="Buscar por nombre, DNI, RUC, correo o teléfono"
+                    (keydown.enter)="searchCustomers()"
+                  />
+                  @if (customerSearchLoading()) {
+                    <span class="input-group-text">
+                      <span class="spinner-border spinner-border-sm"></span>
+                    </span>
+                  } @else {
+                    <button class="btn btn-outline-secondary" type="button" (click)="searchCustomers()">
+                      <i class="bi bi-search"></i>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              @if (customerSearchAttempted() && customerSearchResults().length > 0) {
+                <div class="pos-customer-results">
+                  @for (customer of customerSearchResults(); track customer.id) {
+                    <button type="button" class="pos-customer-result" (click)="selectCustomer(customer)">
+                      <strong>{{ customer.full_name || customer.razon_social }}</strong>
+                      <span>{{ customer.ruc || customer.dni || 'Sin documento' }}</span>
+                      <small>{{ customer.email || customer.phone || 'Sin datos adicionales' }}</small>
+                    </button>
+                  }
+                </div>
+              } @else if (!customerSearchAttempted()) {
+                <div class="pos-side__empty pos-side__empty--idle">
+                  <i class="bi bi-person-plus"></i>
+                  <p>Busca un cliente cuando lo necesites o crea uno nuevo directamente.</p>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" (click)="showCustomerForm(false)">Crear nuevo cliente</button>
+                </div>
               } @else {
-                PAGAR <i class="bi bi-check-lg ms-1"></i>
+                <div class="pos-side__empty">
+                  <i class="bi bi-search"></i>
+                  <p>No se encontró el cliente</p>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" (click)="showCustomerForm()">Crear nuevo cliente</button>
+                </div>
               }
-            </button>
-          </div>
-
-          <div class="pos-side-footer">
-            <label class="form-check">
-              <input id="printAfterSave" class="form-check-input" type="checkbox" [(ngModel)]="printAfterSave" />
-              <span class="form-check-label">Imprimir al registrar</span>
-            </label>
-
-            <div class="pos-side-links">
-              <button class="btn btn-link btn-sm px-0" type="button" (click)="printCurrentTicketTest()" [disabled]="!hasCartLines()">
-                Probar impresion local
-              </button>
-              <button class="btn btn-link btn-sm px-0" type="button" (click)="testBluetoothPrinter()" [disabled]="btTesting() || loading() || saving()">
-                Probar Bluetooth
-              </button>
             </div>
-          </div>
+          }
+
+          @if (activeRightPanel() === 'customerForm') {
+            <div class="pos-side__head">
+              <div>
+                <h3>Nuevo cliente</h3>
+                <p>Registra y selecciona al cliente sin salir de la venta</p>
+              </div>
+            </div>
+
+            <div class="pos-side__content">
+              <div class="pos-customer-form">
+                <div class="pos-form-grid">
+                  <div class="pos-form-field">
+                    <label>Tipo de documento</label>
+                    <select class="form-select form-select-sm" [(ngModel)]="customerDocumentType">
+                      <option value="DNI">DNI</option>
+                      <option value="RUC">RUC</option>
+                      <option value="CE">CE</option>
+                      <option value="PASAPORTE">Pasaporte</option>
+                      <option value="OTRO">Otro</option>
+                    </select>
+                  </div>
+
+                  <div class="pos-form-field">
+                    <label>Número de documento</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="customerDni" placeholder="Número de documento" />
+                  </div>
+                </div>
+
+                <div class="pos-form-field">
+                  <label>Nombre o razón social</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="customerName" placeholder="Nombre o razón social" />
+                </div>
+
+                <div class="pos-form-grid">
+                  <div class="pos-form-field">
+                    <label>Correo</label>
+                    <input class="form-control form-control-sm" type="email" [(ngModel)]="customerEmail" placeholder="correo@ejemplo.com" />
+                  </div>
+
+                  <div class="pos-form-field">
+                    <label>Teléfono</label>
+                    <input class="form-control form-control-sm" [(ngModel)]="customerPhone" placeholder="Teléfono" />
+                  </div>
+                </div>
+
+                <div class="pos-form-field">
+                  <label>Dirección</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="customerAddress" placeholder="Dirección" />
+                </div>
+
+                <div class="pos-customer-form__actions">
+                  <button class="btn btn-outline-secondary" type="button" (click)="cancelCustomerForm()">Volver</button>
+                  <button class="btn btn-outline-secondary" type="button" (click)="saveCustomerOnly()" [disabled]="saving()">Guardar cliente</button>
+                  <button class="btn btn-primary" type="button" (click)="saveCustomerAndUse()" [disabled]="saving()">Guardar y seleccionar</button>
+                </div>
+              </div>
+            </div>
+          }
+
+          @if (activeRightPanel() === 'document') {
+            <div class="pos-side__head">
+              <div>
+                <h3>Documento</h3>
+                <p>Solo los datos mínimos del comprobante</p>
+              </div>
+            </div>
+
+            <div class="pos-side__content">
+              <div class="pos-customer-form">
+                <div class="pos-form-field">
+                  <label>Tipo de comprobante</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="selectedDocumentTypeId" (ngModelChange)="onDocumentTypeChange()">
+                    @for (document of documentTypes(); track document.id) {
+                      <option [ngValue]="document.id">{{ document.name }}</option>
+                    }
+                  </select>
+                </div>
+
+                <div class="pos-form-field">
+                  <label>Método de pago</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="selectedPaymentMethodId">
+                    <option [ngValue]="null">Pago</option>
+                    @for (method of paymentMethods(); track method.id) {
+                      <option [ngValue]="method.id">{{ method.name }}</option>
+                    }
+                  </select>
+                </div>
+
+                <div class="pos-form-field">
+                  <label>Formato</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="selectedPrintFormatId">
+                    @for (format of getPrintFormatsForSelectedDocument(); track format.id) {
+                      <option [ngValue]="format.id">{{ format.label }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="pos-side__nav">
+          <button type="button" class="pos-side__nav-item" [class.is-active]="activeRightPanel() === 'products'" (click)="showProductsPanel()">
+            <i class="bi bi-grid"></i>
+            <span>Productos</span>
+          </button>
+          <button type="button" class="pos-side__nav-item" [class.is-active]="activeRightPanel() === 'customer' || activeRightPanel() === 'customerForm'" (click)="showCustomerPanel()">
+            <i class="bi bi-person"></i>
+            <span>Cliente</span>
+          </button>
+          <button type="button" class="pos-side__nav-item" [class.is-active]="activeRightPanel() === 'document'" (click)="showDocumentPanel()">
+            <i class="bi bi-receipt"></i>
+            <span>Documento</span>
+          </button>
         </div>
       </aside>
     </div>
   }
 </section>
-
-@if (hasCartLines()) {
-  <div class="mobile-checkout-bar d-xl-none">
-    <div class="mobile-checkout-total">
-      <small>Total</small>
-      <strong>S/ {{ finalTotal() | number:'1.2-2' }}</strong>
-    </div>
-    <button class="btn btn-primary" (click)="saveSale()" [disabled]="saving() || loading()">
-      @if (saving()) {
-        <span class="spinner-border spinner-border-sm me-1"></span>
-      } @else {
-        <i class="bi bi-check2-circle me-1"></i>
-      }
-      Cobrar
-    </button>
-  </div>
-}

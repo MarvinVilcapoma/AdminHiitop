@@ -53,3 +53,39 @@
     margin-bottom: .75rem;
   }
 }
+
+.tracking-cell {
+  min-width: 180px;
+  max-width: 240px;
+}
+
+.tracking-line {
+  display: flex;
+  gap: .35rem;
+  align-items: baseline;
+  font-size: .75rem;
+  line-height: 1.35;
+}
+
+.tracking-label {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.tracking-value {
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.tracking-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1050;
+  width: min(460px, calc(100vw - 2rem));
+  background: #fff;
+  border-radius: .9rem;
+  padding: 1.5rem;
+  box-shadow: 0 1rem 3rem rgba(0,0,0,.2);
+}

@@ -3,7 +3,8 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
-import { Collection, Invoice, InvoiceSeries, Order, OrderStatus, Page, PaymentMethod, ProductType } from '../../../core/models';
+import { ToastService } from '../../../core/services/toast.service';
+import { Collection, Invoice, InvoiceSeries, Order, OrderStatus, Page, PaymentMethod, ProductType, ShopifyOrder, ShopifyOrderListResponse } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
 import { SearchableSelectComponent } from '../../../core/components/searchable-select/searchable-select.component';
 
@@ -18,6 +19,11 @@ interface EmitForm {
   customer_doc_number: string;
   customer_name:       string;
   auto_send:           boolean;
+}
+
+interface TrackingForm {
+  pickup_key: string;
+  tracking_number: string;
 }
 
 @Component({
@@ -37,6 +43,7 @@ interface EmitForm {
 export class OrdersListComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly toast = inject(ToastService);
 
   orders = signal<Order[]>([]);
   summary = signal<OrderSummary | null>(null);
@@ -53,6 +60,7 @@ export class OrdersListComponent implements OnInit {
   filterStatusId:     number | null = null;
   filterCollectionId: number | null = null;
   filterTypeId:       number | null = null;
+  filterUserId:       number | null = null;
   filterSource = '';
   filterFromDate = '';
   filterToDate = '';
@@ -63,12 +71,19 @@ export class OrdersListComponent implements OnInit {
   productTypes = signal<ProductType[]>([]);
   invoiceSeries = signal<InvoiceSeries[]>([]);
   paymentMethods = signal<PaymentMethod[]>([]);
+  users = signal<{ id: number; name: string }[]>([]);
 
   // Inline status editing
   editingStatusOrderId = signal<number | null>(null);
 
   // Delete confirm
   confirmDeleteOrder = signal<Order | null>(null);
+  trackingOrder = signal<Order | null>(null);
+  trackingSaving = signal(false);
+  trackingForm: TrackingForm = {
+    pickup_key: '',
+    tracking_number: '',
+  };
 
   // Emit invoice modal
   emitOrder   = signal<Order | null>(null);
@@ -85,6 +100,142 @@ export class OrdersListComponent implements OnInit {
     customer_name:       '',
     auto_send:           true,
   };
+
+  // ── Monthly stats ──────────────────────────────────────────────────────────
+  readonly currentYear = new Date().getFullYear();
+  statsYear       = signal(new Date().getFullYear());
+  monthlyStats    = signal<{ month: number; label: string; orders: number; revenue: number }[]>([]);
+  shopifyMonthlyStats = signal<{ month: number; label: string; orders: number; revenue: number }[]>([]);
+
+  readonly MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  loadMonthlyStats(): void {
+    this.api.get<any[]>(`orders/monthly-stats?year=${this.statsYear()}`).subscribe({
+      next: rows => this.monthlyStats.set(rows ?? []),
+      error: () => {},
+    });
+  }
+
+  loadShopifyYearMetrics(): void {
+    const y = this.statsYear();
+    const start = `${y}-01-01`;
+    const end   = `${y}-12-31`;
+    // Max month to show: for current year only show up to current month
+    const maxMonth = y === this.currentYear ? new Date().getMonth() + 1 : 12;
+
+    this.api.get<any>('shopify/metrics', { start_date: start, end_date: end }).subscribe({
+      next: m => {
+        const byMonth = new Map<number, { orders: number; revenue: number }>();
+        for (const d of m.daily_stats ?? []) {
+          const date  = new Date(d.date);
+          // Only count if the day actually falls in year y (avoids timezone cross-year issues)
+          if (date.getFullYear() !== y) continue;
+          const month = date.getMonth() + 1;
+          if (month > maxMonth) continue;
+          const cur = byMonth.get(month) ?? { orders: 0, revenue: 0 };
+          byMonth.set(month, { orders: cur.orders + d.orders, revenue: cur.revenue + d.revenue });
+        }
+        const rows = Array.from({ length: maxMonth }, (_, i) => {
+          const month = i + 1;
+          const data  = byMonth.get(month) ?? { orders: 0, revenue: 0 };
+          return { month, label: this.MONTH_LABELS[i], ...data };
+        }).filter(r => r.orders > 0);
+        this.shopifyMonthlyStats.set(rows);
+      },
+      error: () => {},
+    });
+  }
+
+  // Shopify summary (populated when filterSource === 'shopify')
+  shopifySummary   = signal<{ total_orders: number; pending_orders: number; total_revenue: number } | null>(null);
+  shopifyMetricsLoading = signal(false);
+
+  loadShopifyMetrics(): void {
+    this.shopifyMetricsLoading.set(true);
+    const year  = new Date().getFullYear();
+    const today = new Date().toISOString().split('T')[0];
+    // Default to current year when no date filter is applied
+    const params: Record<string, string> = {
+      start_date: this.filterFromDate || `${year}-01-01`,
+      end_date:   this.filterToDate   || today,
+    };
+    this.api.get<any>('shopify/metrics', params).subscribe({
+      next: m => {
+        this.shopifySummary.set({
+          total_orders:   m.total_orders   ?? 0,
+          pending_orders: m.pending_orders  ?? 0,
+          total_revenue:  m.total_revenue   ?? 0,
+        });
+        this.shopifyMetricsLoading.set(false);
+      },
+      error: () => this.shopifyMetricsLoading.set(false),
+    });
+  }
+
+  // ── Shopify state ──────────────────────────────────────────────────────────
+  shopifyOrders       = signal<ShopifyOrder[]>([]);
+  shopifyLoading      = signal(false);
+  shopifyNextPageInfo = signal<string | null>(null);
+  shopifyPrevPageInfo = signal<string | null>(null);
+  shopifyCount        = signal(0);
+  shopifyActionId     = signal<number | null>(null);
+  shopifySearch       = '';
+  private shopifySearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Status tabs — like Shopify admin
+  shopifyPaymentTab      = signal<string>('');  // '' | 'pending' | 'paid' | 'refunded'
+  shopifyFulfillmentTab  = signal<string>('');  // '' | 'unfulfilled' | 'fulfilled' | 'partial'
+
+  readonly SHOPIFY_PAYMENT_TABS = [
+    { label: 'Todos',         value: '' },
+    { label: 'Sin pagar',     value: 'pending' },
+    { label: 'Pagados',       value: 'paid' },
+    { label: 'Reembolsados',  value: 'refunded' },
+  ];
+  readonly SHOPIFY_FULFILLMENT_TABS = [
+    { label: 'Todos',         value: '' },
+    { label: 'Sin enviar',    value: 'unfulfilled' },
+    { label: 'Enviados',      value: 'fulfilled' },
+    { label: 'Parcial',       value: 'partial' },
+  ];
+
+  // History mode (load all orders at once, search client-side)
+  readonly SHOPIFY_LIMIT_OPTIONS = [
+    { label: 'Últimos 50',       value: 50 },
+    { label: 'Últimos 100',      value: 100 },
+    { label: 'Últimos 250',      value: 250 },
+    { label: 'Últimos 500',      value: 500 },
+    { label: 'Últimos 1 000',    value: 1000 },
+    { label: 'Últimos 2 000',    value: 2000 },
+    { label: 'Todo el historial', value: 0 },  // 0 = unlimited (all Shopify pages)
+  ];
+  shopifyHistoryLimit  = signal(50);
+  shopifyHistoryMode   = computed(() => this.shopifyHistoryLimit() > 50 || this.shopifyHistoryLimit() === 0);
+  shopifyAllOrders     = signal<ShopifyOrder[]>([]);
+  shopifyHistoryLoaded = signal(0);  // how many were loaded
+  shopifySearchSignal  = signal(''); // mirrors shopifySearch for computed
+
+  shopifySearchActive = computed(() => this.shopifySearchSignal().trim().length > 0);
+
+  shopifyFilteredOrders = computed(() => {
+    const all = this.shopifyAllOrders();
+    // When searching, results come pre-filtered from the server (via searchAllShopifyHistory).
+    // Client-side filter only applies in history-browse mode (loaded all, no search term active).
+    const q = this.shopifySearchSignal().trim().toLowerCase();
+    if (!q || this.shopifySearchActive()) return all;  // server already filtered
+    return all.filter(o =>
+      (o.order_number      || '').toLowerCase().includes(q) ||
+      (o.customer_name     || '').toLowerCase().includes(q) ||
+      (o.customer_email    || '').toLowerCase().includes(q) ||
+      (o.customer_document || '').toLowerCase().includes(q) ||
+      (o.customer_phone    || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Fulfill modal
+  fulfillModalOrder    = signal<ShopifyOrder | null>(null);
+  fulfillTracking      = '';
+  fulfillCourier       = '';
 
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -107,13 +258,14 @@ export class OrdersListComponent implements OnInit {
 
   ngOnInit(): void {
     const source = this.route.snapshot.queryParamMap.get('source');
-    this.filterSource = source === 'pos' ? 'pos' : '';
+    this.filterSource = ['pos', 'shopify'].includes(source ?? '') ? source! : '';
 
     const searchParam = this.route.snapshot.queryParamMap.get('search');
     if (searchParam) this.search = searchParam;
 
     this.loadOrders();
     this.loadLookups();
+    this.loadMonthlyStats();
   }
 
   loadLookups(): void {
@@ -122,19 +274,26 @@ export class OrdersListComponent implements OnInit {
     this.api.get<any>('product-types?per_page=100').subscribe((r: any) => this.productTypes.set(r.data ?? r));
     this.api.get<any>('invoices/series').subscribe((r: any) => this.invoiceSeries.set(r ?? []));
     this.api.get<any>('payment-methods?per_page=100').subscribe((r: any) => this.paymentMethods.set((r.data ?? r).filter((m: any) => m.is_active !== false)));
+    this.api.get<any>('users?per_page=200').subscribe((r: any) => this.users.set((r.data ?? r).map((u: any) => ({ id: u.id, name: u.name }))));
   }
 
   loadOrders(): void {
+    if (this.filterSource === 'shopify') {
+      this.loadShopifyOrders();
+      return;
+    }
+
     this.loading.set(true);
     const params: Record<string, string | number | boolean> = {
       per_page: this.pageSize,
       page: this.currentPage,
-      with_summary: true,
+      with_summary: 1,
     };
     if (this.search.trim()) params['search'] = this.search.trim();
     if (this.filterStatusId) params['order_status_id'] = this.filterStatusId;
     if (this.filterCollectionId) params['collection_id'] = this.filterCollectionId;
     if (this.filterTypeId) params['product_type_id'] = this.filterTypeId;
+    if (this.filterUserId) params['user_id'] = this.filterUserId;
     if (this.filterSource) params['source'] = this.filterSource;
     if (this.filterFromDate) params['from_date'] = this.filterFromDate;
     if (this.filterToDate) params['to_date'] = this.filterToDate;
@@ -148,6 +307,227 @@ export class OrdersListComponent implements OnInit {
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  onShopifyStatusTab(type: 'payment' | 'fulfillment', value: string): void {
+    if (type === 'payment')     this.shopifyPaymentTab.set(value);
+    else                        this.shopifyFulfillmentTab.set(value);
+    this.shopifySearch = '';
+    this.shopifySearchSignal.set('');
+    this.shopifyAllOrders.set([]);
+    this.loadShopifyOrders();
+  }
+
+  onShopifySearchInput(): void {
+    this.shopifySearchSignal.set(this.shopifySearch);
+    if (this.shopifySearchTimer) clearTimeout(this.shopifySearchTimer);
+
+    const q = this.shopifySearch.trim();
+
+    if (!q) {
+      this.shopifyAllOrders.set([]);
+      this.shopifySearchTimer = setTimeout(() => this.loadShopifyOrders(), 300);
+      return;
+    }
+
+    // Has a search term → always search ALL Shopify history via GraphQL (fast)
+    this.shopifySearchTimer = setTimeout(() => this.searchAllShopifyHistory(q), 500);
+  }
+
+  searchAllShopifyHistory(q: string): void {
+    this.shopifyLoading.set(true);
+    this.shopifyAllOrders.set([]);
+    this.shopifyNextPageInfo.set(null);
+    this.shopifyPrevPageInfo.set(null);
+
+    const params: Record<string, string | number> = {
+      max_orders: 0,
+      search: q,
+    };
+    if (this.filterFromDate)              params['created_at_min']     = this.filterFromDate;
+    if (this.filterToDate)                params['created_at_max']     = this.filterToDate;
+    if (this.shopifyPaymentTab())         params['financial_status']   = this.shopifyPaymentTab();
+    if (this.shopifyFulfillmentTab())     params['fulfillment_status'] = this.shopifyFulfillmentTab();
+
+    this.api.get<ShopifyOrderListResponse>('shopify/orders/history', params).subscribe({
+      next: res => {
+        const orders = res.orders ?? [];
+        this.shopifyAllOrders.set(orders);
+        this.shopifyHistoryLoaded.set(orders.length);
+        this.shopifyCount.set(orders.length);
+        this.shopifyLoading.set(false);
+      },
+      error: () => this.shopifyLoading.set(false),
+    });
+  }
+
+  onShopifyLimitChange(value: number): void {
+    this.shopifyHistoryLimit.set(value);
+    this.shopifySearch = '';
+    this.shopifySearchSignal.set('');
+    this.shopifyAllOrders.set([]);
+    this.loadShopifyOrders();
+  }
+
+  loadShopifyOrders(pageInfo?: string | null): void {
+    this.loadShopifyMetrics();
+    if (!pageInfo) this.loadShopifyYearMetrics();
+
+    if (this.shopifyHistoryMode()) {
+      this.loadShopifyHistory();
+      return;
+    }
+
+    this.shopifyLoading.set(true);
+    const params: Record<string, string | number> = { limit: this.pageSize };
+    if (pageInfo)                       params['page_info']          = pageInfo;
+    if (this.filterFromDate)            params['created_at_min']     = this.filterFromDate;
+    if (this.filterToDate)              params['created_at_max']     = this.filterToDate;
+    if (this.shopifySearch.trim())      params['search']             = this.shopifySearch.trim();
+    if (this.shopifyPaymentTab())       params['financial_status']   = this.shopifyPaymentTab();
+    if (this.shopifyFulfillmentTab())   params['fulfillment_status'] = this.shopifyFulfillmentTab();
+
+    this.api.get<ShopifyOrderListResponse>('shopify/orders', params).subscribe({
+      next: (res) => {
+        this.shopifyOrders.set(res.orders ?? []);
+        this.shopifyCount.set(res.count ?? 0);
+        this.shopifyNextPageInfo.set(res.next_page_info ?? null);
+        this.shopifyPrevPageInfo.set(res.prev_page_info ?? null);
+        this.shopifyLoading.set(false);
+      },
+      error: () => this.shopifyLoading.set(false),
+    });
+  }
+
+  loadShopifyHistory(): void {
+    this.shopifyLoading.set(true);
+    this.shopifyAllOrders.set([]);
+    this.shopifyNextPageInfo.set(null);
+    this.shopifyPrevPageInfo.set(null);
+
+    const limit = this.shopifyHistoryLimit();
+    const params: Record<string, string | number> = {
+      max_orders: limit <= 0 ? 0 : limit,
+    };
+    if (this.filterFromDate)            params['created_at_min']     = this.filterFromDate;
+    if (this.filterToDate)              params['created_at_max']     = this.filterToDate;
+    if (this.shopifyPaymentTab())       params['financial_status']   = this.shopifyPaymentTab();
+    if (this.shopifyFulfillmentTab())   params['fulfillment_status'] = this.shopifyFulfillmentTab();
+
+    this.api.get<ShopifyOrderListResponse>('shopify/orders/history', params).subscribe({
+      next: (res) => {
+        const orders = res.orders ?? [];
+        this.shopifyAllOrders.set(orders);
+        this.shopifyHistoryLoaded.set(orders.length);
+        this.shopifyCount.set(orders.length);
+        this.shopifyLoading.set(false);
+      },
+      error: () => this.shopifyLoading.set(false),
+    });
+  }
+
+  // ── Shopify actions ────────────────────────────────────────────────────────
+
+  openFulfillModal(order: ShopifyOrder): void {
+    this.fulfillTracking = order.tracking_number ?? '';
+    this.fulfillCourier  = order.tracking_company ?? '';
+    this.fulfillModalOrder.set(order);
+  }
+
+  closeFulfillModal(): void {
+    if (this.shopifyActionId()) return;
+    this.fulfillModalOrder.set(null);
+  }
+
+  confirmFulfill(): void {
+    const order = this.fulfillModalOrder();
+    if (!order) return;
+    this.shopifyActionId.set(order.id);
+    const body: Record<string, string> = {};
+    if (this.fulfillTracking.trim()) body['tracking_number']  = this.fulfillTracking.trim();
+    if (this.fulfillCourier.trim())  body['tracking_company'] = this.fulfillCourier.trim();
+    this.api.post<any>(`shopify/orders/${order.id}/fulfill`, body).subscribe({
+      next: (res) => {
+        this.shopifyActionId.set(null);
+        this.fulfillModalOrder.set(null);
+        if (res?.success) {
+          this.toast.success(res.message ?? 'Orden marcada como enviada en Shopify.');
+          this.loadShopifyOrders();
+        } else {
+          this.toast.warning(res?.message ?? 'No se pudo completar el fulfillment.');
+        }
+      },
+      error: (e) => {
+        this.shopifyActionId.set(null);
+        this.toast.error(e?.error?.message ?? 'Error al fulfillment de la orden Shopify.');
+      },
+    });
+  }
+
+  fulfillShopifyOrder(order: ShopifyOrder): void {
+    this.openFulfillModal(order);
+  }
+
+  cancelShopifyOrder(order: ShopifyOrder): void {
+    if (!confirm(`¿Cancelar la orden ${order.order_number} en Shopify?`)) return;
+    this.shopifyActionId.set(order.id);
+    this.api.post<any>(`shopify/orders/${order.id}/cancel`, {}).subscribe({
+      next: (res) => {
+        this.shopifyActionId.set(null);
+        if (res?.success) {
+          this.toast.success(res.message ?? 'Orden cancelada en Shopify.');
+          this.loadShopifyOrders();
+        } else {
+          this.toast.warning(res?.message ?? 'No se pudo cancelar la orden.');
+        }
+      },
+      error: (e) => {
+        this.shopifyActionId.set(null);
+        this.toast.error(e?.error?.message ?? 'Error al cancelar la orden Shopify.');
+      },
+    });
+  }
+
+  shopifyFinancialBadge(status: string | null | undefined): string {
+    switch (status) {
+      case 'paid':                return 'bg-success';
+      case 'pending':             return 'bg-warning text-dark';
+      case 'partially_paid':      return 'bg-warning text-dark';
+      case 'refunded':            return 'bg-secondary';
+      case 'partially_refunded':  return 'bg-secondary';
+      case 'voided':              return 'bg-danger';
+      default:                    return 'bg-light text-dark border';
+    }
+  }
+
+  shopifyFulfillmentBadge(status: string | null | undefined): string {
+    switch (status) {
+      case 'fulfilled':  return 'bg-success';
+      case 'partial':    return 'bg-warning text-dark';
+      case 'restocked':  return 'bg-secondary';
+      default:           return 'bg-light text-dark border'; // null = unfulfilled
+    }
+  }
+
+  shopifyFulfillmentLabel(status: string | null | undefined): string {
+    switch (status) {
+      case 'fulfilled': return 'Enviado';
+      case 'partial':   return 'Parcial';
+      case 'restocked': return 'Devuelto';
+      default:          return 'Sin enviar';
+    }
+  }
+
+  shopifyFinancialLabel(status: string | null | undefined): string {
+    switch (status) {
+      case 'paid':               return 'Pagado';
+      case 'pending':            return 'Pendiente';
+      case 'partially_paid':     return 'Parcialmente pagado';
+      case 'refunded':           return 'Reembolsado';
+      case 'partially_refunded': return 'Reembolso parcial';
+      case 'voided':             return 'Anulado';
+      default:                   return status ?? '—';
+    }
   }
 
   onSearchInput(): void {
@@ -168,6 +548,7 @@ export class OrdersListComponent implements OnInit {
     this.filterStatusId = null;
     this.filterCollectionId = null;
     this.filterTypeId = null;
+    this.filterUserId = null;
     this.filterSource = '';
     this.filterFromDate = '';
     this.filterToDate = '';
@@ -176,7 +557,7 @@ export class OrdersListComponent implements OnInit {
   }
 
   get hasFilters(): boolean {
-    return !!(this.search || this.filterStatusId || this.filterCollectionId || this.filterTypeId || this.filterSource || this.filterFromDate || this.filterToDate);
+    return !!(this.search || this.filterStatusId || this.filterCollectionId || this.filterTypeId || this.filterUserId || this.filterSource || this.filterFromDate || this.filterToDate);
   }
 
   goToPage(page: number): void {
@@ -202,7 +583,7 @@ export class OrdersListComponent implements OnInit {
       return;
     }
     this.saving.set(true);
-    this.api.put(`orders/${order.id}`, { order_status_id: statusId }).subscribe({
+    this.api.put(`orders/${order.id}/change-status/${statusId}`, { order_status_id: statusId }).subscribe({
       next: (updated: any) => {
         const newStatus = this.orderStatuses().find(s => s.id === statusId);
         this.orders.update(list =>
@@ -252,6 +633,10 @@ export class OrdersListComponent implements OnInit {
     return ['pagado', 'cancelado', 'cancelled'].includes(slug);
   }
 
+  isPosOrder(order: Order): boolean {
+    return order.warehouse?.is_pos === true;
+  }
+
   emitGuide(order: Order): void {
     this.guideNotice.set(null);
     this.guideBusyId.set(order.id);
@@ -283,6 +668,51 @@ export class OrdersListComponent implements OnInit {
 
   requestDelete(order: Order): void {
     this.confirmDeleteOrder.set(order);
+  }
+
+  openTrackingModal(order: Order): void {
+    this.trackingOrder.set(order);
+    this.trackingForm = {
+      pickup_key: order.pickup_key ?? '',
+      tracking_number: order.tracking_number ?? '',
+    };
+  }
+
+  closeTrackingModal(): void {
+    if (this.trackingSaving()) return;
+    this.trackingOrder.set(null);
+  }
+
+  saveTracking(): void {
+    const order = this.trackingOrder();
+    if (!order) return;
+
+    this.trackingSaving.set(true);
+    const payload = {
+      pickup_key: this.trackingForm.pickup_key.trim() || null,
+      tracking_number: this.trackingForm.tracking_number.trim() || null,
+    };
+
+    this.api.put<Order>(`orders/${order.id}/tracking`, payload).subscribe({
+      next: (updated) => {
+        this.orders.update(list =>
+          list.map(item => item.id === order.id
+            ? {
+                ...item,
+                pickup_key: updated?.pickup_key ?? payload.pickup_key ?? undefined,
+                tracking_number: updated?.tracking_number ?? payload.tracking_number ?? undefined,
+              }
+            : item)
+        );
+        this.trackingSaving.set(false);
+        this.trackingOrder.set(null);
+        this.toast.success('Datos de recojo y tracking guardados.');
+      },
+      error: (e) => {
+        this.trackingSaving.set(false);
+        this.toast.error(e?.error?.message ?? 'No se pudieron guardar los datos de envio.');
+      },
+    });
   }
 
   cancelDelete(): void {

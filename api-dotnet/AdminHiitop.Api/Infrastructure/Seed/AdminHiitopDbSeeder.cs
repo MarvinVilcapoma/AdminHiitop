@@ -16,26 +16,28 @@ public sealed class AdminHiitopDbSeeder
         _context = context;
     }
 
-    public async Task SeedAsync(CancellationToken cancellationToken = default)
+    public async Task SeedAsync()
     {
-        await ApplySchemaPatchesAsync(cancellationToken);
-        await SeedOrderStatusesAsync(cancellationToken);
-        await SeedShippingAgenciesAsync(cancellationToken);
-        await SeedDocumentTypesAsync(cancellationToken);
-        await SeedDocumentPrintFormatsAsync(cancellationToken);
-        await SeedDocumentTypePrintFormatsAsync(cancellationToken);
-        await SeedPurchaseTypesAsync(cancellationToken);
-        await SeedUnitMeasuresAsync(cancellationToken);
-        await SeedColorsAsync(cancellationToken);
-        await SeedWarehouseTypesAsync(cancellationToken);
-        await SeedWarehousesAsync(cancellationToken);
-        await SeedPaymentMethodsAsync(cancellationToken);
-        await SeedInvoiceSeriesAsync(cancellationToken);
-        await SeedSettingsAsync(cancellationToken);
-        await SeedPermissionsAsync(cancellationToken);
-        await SeedRolesAsync(cancellationToken);
-        await SeedRolePermissionsAsync(cancellationToken);
-        await SeedAdminUserAsync(cancellationToken);
+        await ApplySchemaPatchesAsync();
+        await SeedOrderStatusesAsync();
+        await SeedShippingAgenciesAsync();
+        await SeedDocumentTypesAsync();
+        await SeedDocumentPrintFormatsAsync();
+        await SeedDocumentTypePrintFormatsAsync();
+        await SeedPurchaseTypesAsync();
+        await SeedUnitMeasuresAsync();
+        await SeedColorsAsync();
+        await SeedWarehouseTypesAsync();
+        await SeedWarehousesAsync();
+        await SeedPaymentMethodsAsync();
+        await SeedInvoiceSeriesAsync();
+        await SeedSettingsAsync();
+        await SeedPermissionsAsync();
+        await SeedRolesAsync();
+        await SeedRolePermissionsAsync();
+        await SeedAdminUserAsync();
+        await SeedProvincesAsync();
+        await SeedDistrictsAsync();
     }
 
     /// <summary>
@@ -43,11 +45,11 @@ public sealed class AdminHiitopDbSeeder
     /// when the database was created via EnsureCreatedAsync (no migrations history).
     /// Each patch must be idempotent.
     /// </summary>
-    private async Task ApplySchemaPatchesAsync(CancellationToken cancellationToken)
+    private async Task ApplySchemaPatchesAsync()
     {
         var connection = _context.Database.GetDbConnection();
         if (connection.State != System.Data.ConnectionState.Open)
-            await connection.OpenAsync(cancellationToken);
+            await connection.OpenAsync();
 
         // Patch: add province_id and district_id to warehouses (2026-06-03)
         await using var cmd = connection.CreateCommand();
@@ -58,84 +60,88 @@ public sealed class AdminHiitopDbSeeder
               AND TABLE_NAME = 'warehouses'
               AND COLUMN_NAME = 'province_id'
             """;
-        var exists = Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken));
+        var exists = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
         if (exists == 0)
         {
             cmd.CommandText = "ALTER TABLE `warehouses` ADD COLUMN `province_id` INT NULL, ADD COLUMN `district_id` INT NULL";
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await cmd.ExecuteNonQueryAsync();
 
             cmd.CommandText = "ALTER TABLE `warehouses` ADD INDEX `IX_warehouses_province_id` (`province_id`), ADD INDEX `IX_warehouses_district_id` (`district_id`)";
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await cmd.ExecuteNonQueryAsync();
 
             cmd.CommandText = "ALTER TABLE `warehouses` ADD CONSTRAINT `FK_warehouses_provinces_province_id` FOREIGN KEY (`province_id`) REFERENCES `provinces` (`id`) ON DELETE SET NULL";
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await cmd.ExecuteNonQueryAsync();
 
             cmd.CommandText = "ALTER TABLE `warehouses` ADD CONSTRAINT `FK_warehouses_districts_district_id` FOREIGN KEY (`district_id`) REFERENCES `districts` (`id`) ON DELETE SET NULL";
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await cmd.ExecuteNonQueryAsync();
         }
+
+        // Patch: normalize order_status slug "pending" -> "pendiente" (2026-05-19)
+        cmd.CommandText = "UPDATE `order_statuses` SET `slug` = 'pendiente' WHERE `slug` = 'pending'";
+        await cmd.ExecuteNonQueryAsync();
     }
 
-    private async Task SeedOrderStatusesAsync(CancellationToken cancellationToken)
+    private async Task SeedOrderStatusesAsync()
     {
         foreach (OrderStatus item in HiitopSeedData.OrderStatuses)
         {
-            OrderStatus? existing = await _context.OrderStatuses.FirstOrDefaultAsync(x => x.Slug == item.Slug, cancellationToken);
+            OrderStatus? existing = await _context.OrderStatuses.FirstOrDefaultAsync(x => x.Slug == item.Slug);
             if (existing is null)
             {
                 _context.OrderStatuses.Add(item);
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedShippingAgenciesAsync(CancellationToken cancellationToken)
+    private async Task SeedShippingAgenciesAsync()
     {
         foreach ((string code, string name) in HiitopSeedData.ShippingAgencies)
         {
-            bool exists = await _context.ShippingAgencies.AnyAsync(x => x.Code == code, cancellationToken);
+            bool exists = await _context.ShippingAgencies.AnyAsync(x => x.Code == code);
             if (!exists)
             {
                 _context.ShippingAgencies.Add(new ShippingAgency { Code = code, Name = name });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedDocumentTypesAsync(CancellationToken cancellationToken)
+    private async Task SeedDocumentTypesAsync()
     {
         foreach (DocumentType item in HiitopSeedData.DocumentTypes)
         {
-            bool exists = await _context.DocumentTypes.AnyAsync(x => x.Code == item.Code, cancellationToken);
+            bool exists = await _context.DocumentTypes.AnyAsync(x => x.Code == item.Code);
             if (!exists)
             {
                 _context.DocumentTypes.Add(item);
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedDocumentPrintFormatsAsync(CancellationToken cancellationToken)
+    private async Task SeedDocumentPrintFormatsAsync()
     {
         foreach (DocumentPrintFormat item in HiitopSeedData.DocumentPrintFormats)
         {
-            bool exists = await _context.DocumentPrintFormats.AnyAsync(x => x.Code == item.Code, cancellationToken);
+            bool exists = await _context.DocumentPrintFormats.AnyAsync(x => x.Code == item.Code);
             if (!exists)
             {
                 _context.DocumentPrintFormats.Add(item);
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedDocumentTypePrintFormatsAsync(CancellationToken cancellationToken)
+    private async Task SeedDocumentTypePrintFormatsAsync()
     {
-        List<DocumentType> documentTypes = await _context.DocumentTypes.ToListAsync(cancellationToken);
-        List<DocumentPrintFormat> printFormats = await _context.DocumentPrintFormats.ToListAsync(cancellationToken);
+        List<DocumentType> documentTypes = await _context.DocumentTypes.ToListAsync();
+        List<DocumentPrintFormat> printFormats = await _context.DocumentPrintFormats.ToListAsync();
 
         if (documentTypes.Count == 0 || printFormats.Count == 0)
         {
@@ -178,8 +184,7 @@ public sealed class AdminHiitopDbSeeder
             foreach ((DocumentPrintFormat format, bool isDefault) in desiredFormats)
             {
                 DocumentTypePrintFormat? existing = await _context.DocumentTypePrintFormats.FirstOrDefaultAsync(
-                    item => item.DocumentTypeId == documentType.Id && item.DocumentPrintFormatId == format.Id,
-                    cancellationToken);
+                    item => item.DocumentTypeId == documentType.Id && item.DocumentPrintFormatId == format.Id);
 
                 if (existing is null)
                 {
@@ -197,72 +202,72 @@ public sealed class AdminHiitopDbSeeder
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedPurchaseTypesAsync(CancellationToken cancellationToken)
+    private async Task SeedPurchaseTypesAsync()
     {
         foreach ((string name, string slug) in HiitopSeedData.PurchaseTypes)
         {
-            bool exists = await _context.PurchaseTypes.AnyAsync(x => x.Slug == slug, cancellationToken);
+            bool exists = await _context.PurchaseTypes.AnyAsync(x => x.Slug == slug);
             if (!exists)
             {
                 _context.PurchaseTypes.Add(new PurchaseType { Name = name, Slug = slug });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedUnitMeasuresAsync(CancellationToken cancellationToken)
+    private async Task SeedUnitMeasuresAsync()
     {
         foreach ((string name, string code, string sunatCode) in HiitopSeedData.UnitMeasures)
         {
-            bool exists = await _context.UnitMeasures.AnyAsync(x => x.Code == code, cancellationToken);
+            bool exists = await _context.UnitMeasures.AnyAsync(x => x.Code == code);
             if (!exists)
             {
                 _context.UnitMeasures.Add(new UnitMeasure { Name = name, Code = code, SunatCode = sunatCode });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedColorsAsync(CancellationToken cancellationToken)
+    private async Task SeedColorsAsync()
     {
         foreach ((string name, string hexCode, string slug) in HiitopSeedData.Colors)
         {
-            bool exists = await _context.Colors.AnyAsync(x => x.Slug == slug, cancellationToken);
+            bool exists = await _context.Colors.AnyAsync(x => x.Slug == slug);
             if (!exists)
             {
                 _context.Colors.Add(new Color { Name = name, HexCode = hexCode, Slug = slug });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedWarehouseTypesAsync(CancellationToken cancellationToken)
+    private async Task SeedWarehouseTypesAsync()
     {
         foreach ((string name, string code) in HiitopSeedData.WarehouseTypes)
         {
-            bool exists = await _context.WarehouseTypes.AnyAsync(x => x.Code == code, cancellationToken);
+            bool exists = await _context.WarehouseTypes.AnyAsync(x => x.Code == code);
             if (!exists)
             {
                 _context.WarehouseTypes.Add(new WarehouseType { Name = name, Code = code });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedWarehousesAsync(CancellationToken cancellationToken)
+    private async Task SeedWarehousesAsync()
     {
-        int? storeTypeId = await _context.WarehouseTypes.Where(x => x.Code == "STORE").Select(x => (int?)x.Id).FirstOrDefaultAsync(cancellationToken);
+        int? storeTypeId = await _context.WarehouseTypes.Where(x => x.Code == "STORE").Select(x => (int?)x.Id).FirstOrDefaultAsync();
 
         foreach ((string name, string code, string city, bool isPos) in HiitopSeedData.Warehouses)
         {
-            bool exists = await _context.Warehouses.AnyAsync(x => x.Code == code, cancellationToken);
+            bool exists = await _context.Warehouses.AnyAsync(x => x.Code == code);
             if (!exists)
             {
                 _context.Warehouses.Add(new Warehouse
@@ -277,82 +282,82 @@ public sealed class AdminHiitopDbSeeder
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedPaymentMethodsAsync(CancellationToken cancellationToken)
+    private async Task SeedPaymentMethodsAsync()
     {
         foreach ((string name, string code) in HiitopSeedData.PaymentMethods)
         {
-            bool exists = await _context.PaymentMethods.AnyAsync(x => x.Code == code, cancellationToken);
+            bool exists = await _context.PaymentMethods.AnyAsync(x => x.Code == code);
             if (!exists)
             {
                 _context.PaymentMethods.Add(new PaymentMethod { Name = name, Code = code });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedInvoiceSeriesAsync(CancellationToken cancellationToken)
+    private async Task SeedInvoiceSeriesAsync()
     {
         foreach ((string docType, string serie, int nextNumber) in HiitopSeedData.InvoiceSeries)
         {
-            bool exists = await _context.InvoiceSeries.AnyAsync(x => x.Serie == serie, cancellationToken);
+            bool exists = await _context.InvoiceSeries.AnyAsync(x => x.Serie == serie);
             if (!exists)
             {
                 _context.InvoiceSeries.Add(new InvoiceSeries { DocType = docType, Serie = serie, NextNumber = nextNumber });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedSettingsAsync(CancellationToken cancellationToken)
+    private async Task SeedSettingsAsync()
     {
         foreach ((string key, string value, string label, string type, string group) in HiitopSeedData.Settings)
         {
-            bool exists = await _context.Settings.AnyAsync(x => x.Key == key, cancellationToken);
+            bool exists = await _context.Settings.AnyAsync(x => x.Key == key);
             if (!exists)
             {
                 _context.Settings.Add(new Setting { Key = key, Value = value, Label = label, Type = type, Group = group });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedPermissionsAsync(CancellationToken cancellationToken)
+    private async Task SeedPermissionsAsync()
     {
         foreach (string name in HiitopSeedData.Permissions)
         {
-            bool exists = await _context.Permissions.AnyAsync(x => x.Name == name && x.GuardName == "api", cancellationToken);
+            bool exists = await _context.Permissions.AnyAsync(x => x.Name == name && x.GuardName == "api");
             if (!exists)
             {
                 _context.Permissions.Add(new Permission { Name = name, GuardName = "api" });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedRolesAsync(CancellationToken cancellationToken)
+    private async Task SeedRolesAsync()
     {
         foreach (string roleName in HiitopSeedData.Roles)
         {
-            bool exists = await _context.Roles.AnyAsync(x => x.Name == roleName && x.GuardName == "api", cancellationToken);
+            bool exists = await _context.Roles.AnyAsync(x => x.Name == roleName && x.GuardName == "api");
             if (!exists)
             {
                 _context.Roles.Add(new Role { Name = roleName, GuardName = "api" });
             }
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedAdminUserAsync(CancellationToken cancellationToken)
+    private async Task SeedAdminUserAsync()
     {
-        User? adminUser = await _context.Users.FirstOrDefaultAsync(x => x.Email == "admin@hiitop.com", cancellationToken);
+        User? adminUser = await _context.Users.FirstOrDefaultAsync(x => x.Email == "admin@hiitop.com");
         if (adminUser is null)
         {
             adminUser = new User
@@ -364,13 +369,13 @@ public sealed class AdminHiitopDbSeeder
             };
 
             _context.Users.Add(adminUser);
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.SaveChangesAsync();
         }
 
         int? adminRoleId = await _context.Roles
             .Where(x => x.Name == "admin" && x.GuardName == "api")
             .Select(x => (int?)x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync();
 
         if (!adminRoleId.HasValue)
         {
@@ -380,8 +385,7 @@ public sealed class AdminHiitopDbSeeder
         bool hasAdminRole = await _context.ModelHasRoles.AnyAsync(
             x => x.RoleId == adminRoleId.Value
                 && x.ModelId == adminUser.Id
-                && x.ModelType == ModelHasRole.UserModelType,
-            cancellationToken);
+                && x.ModelType == ModelHasRole.UserModelType);
 
         if (!hasAdminRole)
         {
@@ -393,14 +397,13 @@ public sealed class AdminHiitopDbSeeder
             });
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
     }
 
-    private async Task SeedRolePermissionsAsync(CancellationToken cancellationToken)
+    private async Task SeedRolePermissionsAsync()
     {
         Role? adminRole = await _context.Roles.FirstOrDefaultAsync(
-            x => x.Name == "admin" && x.GuardName == "api",
-            cancellationToken);
+            x => x.Name == "admin" && x.GuardName == "api");
 
         if (adminRole is null)
         {
@@ -410,12 +413,12 @@ public sealed class AdminHiitopDbSeeder
         int[] assignedPermissionIds = await _context.RoleHasPermissions
             .Where(x => x.RoleId == adminRole.Id)
             .Select(x => x.PermissionId)
-            .ToArrayAsync(cancellationToken);
+            .ToArrayAsync();
 
         List<int> missingPermissionIds = await _context.Permissions
             .Where(x => x.GuardName == "api" && !assignedPermissionIds.Contains(x.Id))
             .Select(x => x.Id)
-            .ToListAsync(cancellationToken);
+            .ToListAsync();
 
         if (missingPermissionIds.Count == 0)
         {
@@ -431,6 +434,43 @@ public sealed class AdminHiitopDbSeeder
             });
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedProvincesAsync()
+    {
+        HashSet<string> existing = (await _context.Provinces
+            .Select(p => p.Code)
+            .ToListAsync())
+            .ToHashSet();
+
+        foreach ((string code, string name) in UbigeoSeedData.Provinces)
+        {
+            if (!existing.Contains(code))
+                _context.Provinces.Add(new Province { Code = code, Name = name, IsActive = true });
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedDistrictsAsync()
+    {
+        HashSet<string> existingCodes = (await _context.Districts
+            .Select(d => d.Code)
+            .ToListAsync())
+            .ToHashSet();
+
+        Dictionary<string, int> provinceIdByCode = await _context.Provinces
+            .Where(p => p.Code != null)
+            .ToDictionaryAsync(p => p.Code, p => p.Id);
+
+        foreach ((string code, string provinceCode, string name) in UbigeoSeedData.Districts)
+        {
+            if (existingCodes.Contains(code)) continue;
+            if (!provinceIdByCode.TryGetValue(provinceCode, out int provinceId)) continue;
+            _context.Districts.Add(new District { Code = code, Name = name, ProvinceId = provinceId, IsActive = true });
+        }
+
+        await _context.SaveChangesAsync();
     }
 }

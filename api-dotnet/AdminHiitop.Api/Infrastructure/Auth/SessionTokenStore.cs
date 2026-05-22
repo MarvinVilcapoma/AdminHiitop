@@ -1,10 +1,17 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
 
 namespace AdminHiitop.Api.Infrastructure.Auth;
 
 public sealed class SessionTokenStore
 {
     private readonly ConcurrentDictionary<string, SessionTokenEntry> _tokens = new();
+    private readonly int _expirationDays;
+
+    public SessionTokenStore(IConfiguration configuration)
+    {
+        _expirationDays = configuration.GetValue<int>("Session:TokenExpirationDays", 1);
+    }
 
     public string Create(int userId)
     {
@@ -12,7 +19,7 @@ public sealed class SessionTokenStore
         _tokens[token] = new SessionTokenEntry
         {
             UserId = userId,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
+            ExpiresAt = DateTime.UtcNow.AddDays(_expirationDays)
         };
 
         return token;

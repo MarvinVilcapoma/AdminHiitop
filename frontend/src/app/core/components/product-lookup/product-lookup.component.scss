@@ -2,6 +2,11 @@
   display: block;
 }
 
+:host-context(app-pos) {
+  height: 100%;
+  min-height: 0;
+}
+
 .product-lookup {
   position: relative;
 }
@@ -12,35 +17,41 @@
 
 .product-lookup.is-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.95fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr);
+  gap: 0.65rem;
   align-items: start;
+}
+
+:host-context(app-pos) .product-lookup.is-panel {
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: 1fr;
 }
 
 .product-lookup__bar {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
   align-items: center;
-  gap: 0.75rem;
-  padding-bottom: 0.75rem;
+  gap: 0.55rem;
+  padding-bottom: 0.55rem;
   border-bottom: 1px dashed var(--pos-line, #e8ddd4);
 }
 
 .product-lookup.is-panel .product-lookup__bar {
-  min-height: 96px;
+  min-height: 64px;
 }
 
 .product-lookup__icon,
 .product-lookup__action {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   border: 1px solid var(--pos-line, #e8ddd4);
   background: #fff;
   color: #2f9fdb;
   display: grid;
   place-items: center;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .product-lookup__field {
@@ -53,7 +64,7 @@
   outline: none;
   background: transparent;
   color: var(--pos-ink, #2f3741);
-  font-size: 1rem;
+  font-size: .92rem;
   padding: 0;
 }
 
@@ -61,14 +72,18 @@
   display: block;
   margin-top: 0.22rem;
   color: var(--pos-muted, #768391);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
-.product-lookup__dropdown,
-.product-lookup__panel {
+.product-lookup__dropdown{
   background: #fff;
-  border: 1px solid var(--pos-line, #e8ddd4);
   border-radius: 14px;
+  border: none;
+}
+.product-lookup__panel {
+  background: transparent;
+  border-radius: 14px;
+  border: none;
 }
 
 .product-lookup__dropdown {
@@ -83,24 +98,75 @@
 
 .product-lookup__panel {
   overflow: hidden;
-  min-height: 340px;
+  min-height: 220px;
+}
+
+:host-context(app-pos) .product-lookup__panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .product-lookup__panel-head {
-  padding: 0.95rem 1rem 0.75rem;
+  padding: 0.72rem 0.85rem 0.6rem;
   border-bottom: 1px solid #f3ebe5;
   color: var(--pos-ink, #2f3741);
 }
 
 .product-lookup__panel-body {
-  max-height: 420px;
+  max-height: 260px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:host-context(app-pos) .product-lookup__panel-body {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
 }
 
 .product-lookup__state {
   color: var(--pos-muted, #768391);
   font-size: 0.84rem;
   padding: 0.8rem 0.9rem;
+}
+
+.div-product-lookup{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+.product-lookup__state--empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  text-align: center;
+  padding: 1.4rem 1rem;
+}
+
+.product-lookup__state--empty i {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #fff7f1;
+  border: 1px solid #f0ddd0;
+  color: #ef7d3b;
+  font-size: 1.15rem;
+}
+
+.product-lookup__state--empty strong {
+  color: var(--pos-ink, #2f3741);
+  font-size: 0.95rem;
+}
+
+.product-lookup__state--empty span {
+  max-width: 240px;
 }
 
 .product-lookup__item {
@@ -112,12 +178,26 @@
   justify-content: space-between;
   gap: 0.75rem;
   text-align: left;
-  padding: 0.72rem 0.85rem;
+  padding: 0.58rem 0.72rem;
   border-bottom: 1px solid #f4ece6;
 }
 
 .product-lookup__item:hover {
   background: #fff7f1;
+}
+
+.is-panel-item {
+  border-radius: 14px;
+  margin: 0.45rem;
+  width: calc(100% - 0.9rem);
+  border: 1px solid #f1e6da;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.is-panel-item:hover {
+  border-color: rgba(21, 154, 140, 0.24);
+  box-shadow: 0 10px 18px rgba(46, 35, 24, 0.06);
+  transform: translateY(-1px);
 }
 
 .product-lookup__item:last-child {
@@ -138,10 +218,10 @@
 }
 
 .is-panel-item {
-  padding: 0.9rem 1rem;
+  padding: 0.68rem 0.8rem;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 899.98px) {
   .product-lookup.is-panel {
     grid-template-columns: 1fr;
   }

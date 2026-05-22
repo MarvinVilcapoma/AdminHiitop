@@ -8,18 +8,17 @@ public static class PaginationHelper
     public static async Task<PagedResponse<T>> CreateAsync<T>(
         IQueryable<T> query,
         int page,
-        int perPage,
-        CancellationToken cancellationToken = default)
+        int perPage)
     {
         int safePage = page < 1 ? 1 : page;
         int safePerPage = perPage < 1 ? 15 : perPage;
-        int total = await query.CountAsync(cancellationToken);
+        int total = await query.CountAsync();
         int lastPage = total == 0 ? 1 : (int)Math.Ceiling(total / (double)safePerPage);
 
         List<T> items = await query
             .Skip((safePage - 1) * safePerPage)
             .Take(safePerPage)
-            .ToListAsync(cancellationToken);
+            .ToListAsync();
 
         return new PagedResponse<T>
         {

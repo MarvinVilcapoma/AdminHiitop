@@ -1,0 +1,349 @@
+<!-- Header -->
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/orders" [queryParams]="{source:'shopify'}" class="btn btn-sm btn-outline-secondary me-2" title="Volver">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi bi-shop me-2 text-success"></i>
+    @if (order(); as o) { Orden Shopify {{ o.order_number }}
+    } @else { Detalle de orden Shopify }
+  </h1>
+  @if (order(); as o) {
+    <a [href]="shopifyAdminUrl" target="_blank" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-box-arrow-up-right me-1"></i>Ver en Shopify Admin
+    </a>
+  }
+</div>
+
+<!-- Loading -->
+@if (loading()) {
+  <div class="text-center py-5 text-muted">
+    <span class="spinner-border me-2"></span>Cargando orden desde Shopify…
+  </div>
+}
+
+<!-- Not found -->
+@if (notFound()) {
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    Orden no encontrada en Shopify.
+    <a routerLink="/dashboard/orders" [queryParams]="{source:'shopify'}" class="alert-link ms-2">Volver a pedidos Shopify</a>
+  </div>
+}
+
+<!-- Detail -->
+@if (order(); as o) {
+
+  <!-- Status bar -->
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+    <span class="badge fs-6 px-3 py-2" [class]="financialClass(o.financial_status)">
+      <i class="bi bi-credit-card me-1"></i>{{ financialLabel(o.financial_status) }}
+    </span>
+    <span class="badge fs-6 px-3 py-2" [class]="fulfillmentClass(o.fulfillment_status)">
+      <i class="bi bi-truck me-1"></i>{{ fulfillmentLabel(o.fulfillment_status) }}
+    </span>
+    @if (o.is_cancelled) {
+      <span class="badge bg-danger fs-6 px-3 py-2"><i class="bi bi-x-circle me-1"></i>Cancelado</span>
+    }
+    @if (o.is_local_pickup) {
+      <span class="badge bg-info fs-6 px-3 py-2 text-white">
+        <i class="bi bi-shop me-1"></i>Recojo en Agencia
+      </span>
+    } @else if (o.has_free_shipping && (o.shipping_lines?.length ?? 0) > 0) {
+      <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-2">
+        <i class="bi bi-truck me-1"></i>Envío gratuito
+      </span>
+    } @else if ((o.shipping_lines?.length ?? 0) > 0) {
+      <span class="badge bg-light text-dark border fs-6 px-3 py-2">
+        <i class="bi bi-truck me-1"></i>Con envío
+      </span>
+    }
+    @if (o.tags) {
+      <span class="badge bg-light text-dark border fs-6 px-3 py-2">
+        <i class="bi bi-tags me-1"></i>{{ o.tags }}
+      </span>
+    }
+  </div>
+
+  <div class="row g-3">
+
+    <!-- LEFT column -->
+    <div class="col-lg-8">
+
+      <!-- Items -->
+      <div class="form-section mb-3">
+        <h6 class="form-section-title"><i class="bi bi-bag-check me-2 text-primary"></i>Productos</h6>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-end">Precio unit.</th>
+                <th class="text-end">Subtotal</th>
+                <th>Estado envío</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of o.items; track item.id) {
+                <tr>
+                  <td>
+                    <div class="fw-semibold small">{{ item.title }}</div>
+                    @if (item.variant_title) {
+                      <div class="text-muted" style="font-size:.75rem">{{ item.variant_title }}</div>
+                    }
+                    @if (item.sku) {
+                      <div class="text-muted" style="font-size:.72rem">SKU: {{ item.sku }}</div>
+                    }
+                  </td>
+                  <td class="text-center">{{ item.quantity }}</td>
+                  <td class="text-end">{{ o.currency }} {{ item.price | number:'1.2-2' }}</td>
+                  <td class="text-end fw-semibold">{{ o.currency }} {{ item.price * item.quantity | number:'1.2-2' }}</td>
+                  <td>
+                    <span class="badge"
+                      [class.bg-success]="item.fulfillment_status === 'fulfilled'"
+                      [class.bg-warning]="item.fulfillment_status === 'partial'"
+                      [class.text-dark]="item.fulfillment_status === 'partial'"
+                      [class.bg-light]="!item.fulfillment_status"
+                      [class.text-dark]="!item.fulfillment_status"
+                      [class.border]="!item.fulfillment_status">
+                      {{ itemFulfillmentLabel(item.fulfillment_status) }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="5" class="text-center text-muted py-3">Sin ítems registrados.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Totals -->
+        <div class="d-flex justify-content-end mt-3">
+          <table class="table table-sm w-auto text-end mb-0">
+            <tbody>
+              @if (o.subtotal_price !== undefined && o.subtotal_price !== o.total_price) {
+                <tr>
+                  <td class="text-muted pe-4">Subtotal</td>
+                  <td>{{ o.currency }} {{ o.subtotal_price | number:'1.2-2' }}</td>
+                </tr>
+              }
+              @if ((o.total_discounts ?? 0) > 0) {
+                <tr class="text-success">
+                  <td class="pe-4">
+                    Descuento
+                    @if (o.discount_codes?.length) {
+                      @for (dc of o.discount_codes; track dc.code) {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:.68rem">
+                          {{ dc.code }}
+                        </span>
+                      }
+                    }
+                  </td>
+                  <td>− {{ o.currency }} {{ o.total_discounts | number:'1.2-2' }}</td>
+                </tr>
+              }
+              @if (o.shipping_lines?.length) {
+                @for (sl of o.shipping_lines; track sl.title) {
+                  <tr>
+                    <td class="text-muted pe-4">
+                      {{ sl.title }}
+                      @if (sl.is_free) { <span class="badge bg-success ms-1" style="font-size:.68rem">Gratis</span> }
+                    </td>
+                    <td>
+                      @if (sl.is_free) { <span class="text-success">Gratis</span> }
+                      @else { {{ o.currency }} {{ sl.discounted_price | number:'1.2-2' }} }
+                    </td>
+                  </tr>
+                }
+              }
+              <tr class="table-active fw-bold">
+                <td class="pe-4">Total</td>
+                <td style="min-width:140px">{{ o.currency }} {{ o.total_price | number:'1.2-2' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tracking / fulfillment -->
+      @if (o.tracking_number || o.tracking_company || o.tracking_url) {
+        <div class="form-section mb-3">
+          <h6 class="form-section-title"><i class="bi bi-geo-alt me-2 text-primary"></i>Tracking de envío</h6>
+          <div class="row g-2">
+            @if (o.tracking_company) {
+              <div class="col-md-4">
+                <div class="text-muted small">Courier</div>
+                <div class="fw-semibold">{{ o.tracking_company }}</div>
+              </div>
+            }
+            @if (o.tracking_number) {
+              <div class="col-md-4">
+                <div class="text-muted small">Nro. Tracking</div>
+                <div class="fw-semibold text-primary">{{ o.tracking_number }}</div>
+              </div>
+            }
+            @if (o.tracking_url) {
+              <div class="col-md-4 d-flex align-items-end">
+                <a [href]="o.tracking_url" target="_blank" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Rastrear paquete
+                </a>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Note -->
+      @if (o.note) {
+        <div class="form-section mb-3">
+          <h6 class="form-section-title"><i class="bi bi-chat-left-text me-2 text-primary"></i>Nota del pedido</h6>
+          <p class="mb-0 text-muted small">{{ o.note }}</p>
+        </div>
+      }
+
+    </div>
+
+    <!-- RIGHT column -->
+    <div class="col-lg-4">
+
+      <!-- Order info -->
+      <div class="form-section mb-3">
+        <h6 class="form-section-title"><i class="bi bi-info-circle me-2 text-primary"></i>Información del pedido</h6>
+        <dl class="row g-1 mb-0 small">
+          <dt class="col-5 text-muted fw-normal">Nº pedido</dt>
+          <dd class="col-7 fw-semibold mb-0">{{ o.order_number }}</dd>
+
+          <dt class="col-5 text-muted fw-normal">Fecha</dt>
+          <dd class="col-7 mb-0">{{ o.created_at | date:'dd/MM/yyyy HH:mm' }}</dd>
+
+          <dt class="col-5 text-muted fw-normal">Actualizado</dt>
+          <dd class="col-7 mb-0">{{ o.updated_at | date:'dd/MM/yyyy HH:mm' }}</dd>
+
+          <dt class="col-5 text-muted fw-normal">Moneda</dt>
+          <dd class="col-7 mb-0">{{ o.currency }}</dd>
+
+          @if (o.cancel_reason) {
+            <dt class="col-5 text-muted fw-normal">Motivo cancel.</dt>
+            <dd class="col-7 mb-0 text-danger">{{ o.cancel_reason }}</dd>
+          }
+        </dl>
+      </div>
+
+      <!-- Customer -->
+      <div class="form-section mb-3">
+        <h6 class="form-section-title"><i class="bi bi-person me-2 text-primary"></i>Cliente</h6>
+        <dl class="row g-1 mb-0 small">
+          @if (o.customer_document) {
+            <dt class="col-5 text-muted fw-normal">DNI/RUC</dt>
+            <dd class="col-7 fw-bold text-primary mb-0">{{ o.customer_document }}</dd>
+          }
+          @if (o.customer_name) {
+            <dt class="col-5 text-muted fw-normal">Nombre</dt>
+            <dd class="col-7 fw-semibold mb-0">{{ o.customer_name }}</dd>
+          }
+          @if (o.customer_email) {
+            <dt class="col-5 text-muted fw-normal">Email</dt>
+            <dd class="col-7 mb-0">
+              <a [href]="'mailto:' + o.customer_email" class="text-decoration-none">{{ o.customer_email }}</a>
+            </dd>
+          }
+          @if (o.customer_phone) {
+            <dt class="col-5 text-muted fw-normal">Teléfono</dt>
+            <dd class="col-7 mb-0">{{ o.customer_phone }}</dd>
+          }
+        </dl>
+      </div>
+
+      <!-- Shipping address -->
+      @if (o.shipping_address || o.province || o.city) {
+        <div class="form-section mb-3">
+          <h6 class="form-section-title"><i class="bi bi-map me-2 text-primary"></i>Dirección de envío</h6>
+          <dl class="row g-1 mb-0 small">
+            @if (o.shipping_address) {
+              <dt class="col-5 text-muted fw-normal">Dirección</dt>
+              <dd class="col-7 mb-0">{{ o.shipping_address }}</dd>
+            }
+            @if (o.city) {
+              <dt class="col-5 text-muted fw-normal">Ciudad</dt>
+              <dd class="col-7 mb-0">{{ o.city }}</dd>
+            }
+            @if (o.province) {
+              <dt class="col-5 text-muted fw-normal">Departamento</dt>
+              <dd class="col-7 mb-0">{{ o.province }}</dd>
+            }
+          </dl>
+        </div>
+      }
+
+      <!-- Acciones rápidas -->
+      @if (!o.is_cancelled) {
+        <div class="form-section mb-3">
+          <h6 class="form-section-title"><i class="bi bi-lightning me-2 text-primary"></i>Acciones</h6>
+          <div class="d-grid gap-2">
+            @if (o.fulfillment_status !== 'fulfilled') {
+              <button class="btn btn-success" [disabled]="acting()" (click)="openFulfillForm()">
+                <i class="bi bi-truck me-1"></i>Marcar como enviado…
+              </button>
+            } @else {
+              <div class="alert alert-success py-2 mb-0 small text-center">
+                <i class="bi bi-check-circle-fill me-1"></i>Orden ya enviada completamente
+              </div>
+            }
+            <button class="btn btn-outline-danger" [disabled]="acting()" (click)="cancel()">
+              <i class="bi bi-x-circle me-1"></i>Cancelar en Shopify
+            </button>
+          </div>
+        </div>
+      }
+
+    </div>
+  </div>
+}
+
+<!-- ── Modal: Marcar como enviado ──────────────────────────────────────────── -->
+@if (showFulfillForm()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-truck me-2 text-success"></i>Marcar como enviado</h5>
+          <button type="button" class="btn-close" [disabled]="acting()" (click)="showFulfillForm.set(false)"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Courier <span class="text-muted fw-normal small">(opcional)</span></label>
+            <input list="couriers-list" type="text" class="form-control" [(ngModel)]="fulfillCourier"
+                   placeholder="Selecciona o escribe el courier…" maxlength="100" />
+            <datalist id="couriers-list">
+              <option value="Shalom">Shalom</option>
+              <option value="Olva Courier">Olva Courier</option>
+              <option value="MRW">MRW</option>
+              <option value="DHL">DHL</option>
+              <option value="FedEx">FedEx</option>
+              <option value="GLS">GLS</option>
+              <option value="Urbano Express">Urbano Express</option>
+              <option value="Rappi Cargo">Rappi Cargo</option>
+              <option value="InDriver Delivery">InDriver Delivery</option>
+              <option value="Cruz del Sur">Cruz del Sur</option>
+              <option value="Civa">Civa</option>
+              <option value="Palomino">Palomino</option>
+            </datalist>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold">Nro. Tracking <span class="text-muted fw-normal small">(opcional)</span></label>
+            <input type="text" class="form-control" [(ngModel)]="fulfillTracking"
+                   placeholder="ABC123456789" maxlength="120" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" [disabled]="acting()" (click)="showFulfillForm.set(false)">Cancelar</button>
+          <button class="btn btn-success" [disabled]="acting()" (click)="fulfill()">
+            @if (acting()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-truck me-1"></i>Confirmar envío
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

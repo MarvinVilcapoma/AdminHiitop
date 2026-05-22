@@ -37,16 +37,17 @@ export interface SelectOption {
 export class SearchableSelectComponent implements ControlValueAccessor, OnChanges {
 
   @Input() options: SelectOption[] = [];
-  @Input() placeholder = '— Selecciona —';
+  @Input() placeholder = 'Selecciona una opcion';
   @Input() searchPlaceholder = 'Buscar...';
   @Input() inputId = '';
+  @Input() compact = false;
 
   open   = signal(false);
   query  = '';
   filtered = signal<SelectOption[]>([]);
 
   value: number | string | null = null;
-  disabled = false;
+  @Input() disabled = false;
 
   private onChange: (v: number | string | null) => void = () => {};
   private onTouched: () => void = () => {};

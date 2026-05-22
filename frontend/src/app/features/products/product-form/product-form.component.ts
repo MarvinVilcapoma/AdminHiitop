@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { PageStateComponent } from '../../../core/components';
+import { SearchableSelectComponent, SelectOption } from '../../../core/components/searchable-select/searchable-select.component';
 import { ToastService } from '../../../core/services/toast.service';
 
 interface Catalog { id: number; name: string; }
@@ -11,7 +12,7 @@ interface Catalog { id: number; name: string; }
 @Component({
   selector: 'app-product-form',
   standalone: true,
-  imports: [RouterLink, FormsModule, DecimalPipe, PageStateComponent],
+  imports: [RouterLink, FormsModule, DecimalPipe, PageStateComponent, SearchableSelectComponent],
   templateUrl: './product-form.component.html',
   styleUrl: './product-form.component.scss',
 })
@@ -45,6 +46,14 @@ export class ProductFormComponent implements OnInit {
   /** IGV badge text */
   igvBadgeText = computed(() =>
     this.igvActive() ? `IGV ${this.igvRate()}%` : null
+  );
+
+  productTypeOptions = computed<SelectOption[]>(() =>
+    this.productTypes().map(type => ({ id: type.id, name: type.name }))
+  );
+
+  collectionOptions = computed<SelectOption[]>(() =>
+    this.collections().map(collection => ({ id: collection.id, name: collection.name }))
   );
 
   // ── Inline color creation ────────────────────────────────
@@ -131,18 +140,20 @@ export class ProductFormComponent implements OnInit {
     });
 
     if (this.isEdit()) {
-      this.api.get<any>(`products/${this.productId}?with=productType,collection,colors`).subscribe({
+      this.api.get<any>(`products/${this.productId}`).subscribe({
         next: p => {
           const product = p.data ?? p;
-          this.form.name            = product.name ?? '';
-          this.form.sku             = product.sku ?? '';
-          this.form.description     = product.description ?? '';
-          this.form.base_price      = product.base_price ?? 0;
-          this.form.unit_cost       = product.unit_cost ?? 0;
-          this.form.is_active       = product.is_active ?? true;
-          this.form.product_type_id = product.product_type_id ?? '';
-          this.form.collection_id   = product.collection_id ?? '';
-          this.selectedColors.set((product.colors ?? []).map((c: any) => c.id));
+          const rawColors = product.colors ?? product.Colors ?? product.product_colors ?? product.productColors ?? [];
+
+          this.form.name            = product.name ?? product.Name ?? '';
+          this.form.sku             = product.sku ?? product.Sku ?? '';
+          this.form.description     = product.description ?? product.Description ?? '';
+          this.form.base_price      = product.base_price ?? product.basePrice ?? product.BasePrice ?? 0;
+          this.form.unit_cost       = product.unit_cost ?? product.unitCost ?? product.UnitCost ?? 0;
+          this.form.is_active       = product.is_active ?? product.isActive ?? product.IsActive ?? true;
+          this.form.product_type_id = product.product_type_id ?? product.productTypeId ?? product.ProductTypeId ?? '';
+          this.form.collection_id   = product.collection_id ?? product.collectionId ?? product.CollectionId ?? '';
+          this.selectedColors.set((rawColors ?? []).map((c: any) => c.id ?? c.Id).filter(Boolean));
           this.loading.set(false);
         },
         error: () => this.loading.set(false),
@@ -163,16 +174,6 @@ export class ProductFormComponent implements OnInit {
     }
 
     return Number(value) === 1;
-  }
-
-  autoSku(): void {
-    if (this.isEdit()) return;
-    const prefix = this.form.name
-      .split(' ')
-      .map((w: string) => w.charAt(0).toUpperCase())
-      .join('')
-      .slice(0, 4);
-    if (prefix && !this.form.sku) { this.form.sku = `${prefix}-001`; }
   }
 
   toggleColor(id: number): void {

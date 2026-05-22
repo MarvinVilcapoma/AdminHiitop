@@ -82,6 +82,12 @@ export class ConfigCrudComponent implements OnInit {
     this.columns().forEach(c => {
       this.newRow[c.key] = c.type === 'boolean' ? false : '';
     });
+    if (this.isWarehouseEndpoint()) {
+      this.newRow['warehouse_type_id'] = '';
+      this.newRow['province_id'] = '';
+      this.newRow['district_id'] = '';
+      this.warehouseDistricts.set([]);
+    }
   }
 
   toggleForm(): void {
@@ -323,17 +329,25 @@ export class ConfigCrudComponent implements OnInit {
     return false;
   }
 
-  // ── Warehouse geo selects (only for warehouses endpoint) ─────────────────
+  // ── Warehouse geo selects + type (only for warehouses endpoint) ──────────
 
   isWarehouseEndpoint = computed(() => this.endpoint() === 'warehouses');
   provinces           = signal<Province[]>([]);
   warehouseDistricts  = signal<District[]>([]);
+  warehouseTypes      = signal<{ id: number; name: string; code: string }[]>([]);
 
   loadProvinces(): void {
-    if (!this.isWarehouseEndpoint() || this.provinces().length > 0) return;
-    this.api.get<any>('provinces?per_page=500').subscribe({
-      next: r => this.provinces.set(Array.isArray(r) ? r : (r?.data ?? [])),
-    });
+    if (!this.isWarehouseEndpoint()) return;
+    if (this.provinces().length === 0) {
+      this.api.get<any>('provinces?per_page=500').subscribe({
+        next: r => this.provinces.set(Array.isArray(r) ? r : (r?.data ?? [])),
+      });
+    }
+    if (this.warehouseTypes().length === 0) {
+      this.api.get<any>('warehouse-types?per_page=100').subscribe({
+        next: r => this.warehouseTypes.set(Array.isArray(r) ? r : (r?.data ?? [])),
+      });
+    }
   }
 
   onWarehouseProvinceChange(provinceId: string | number | null, row: Record<string, any>): void {

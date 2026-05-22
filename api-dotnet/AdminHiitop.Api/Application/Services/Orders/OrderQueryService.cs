@@ -25,7 +25,9 @@ public sealed class OrderQueryService : IOrderQueryService
         {
             query = query.Where(item =>
                 item.OrderNumber.Contains(normalizedSearch) ||
-                (item.CustomerName != null && item.CustomerName.Contains(normalizedSearch)) ||
+                (item.CustomerName   != null && item.CustomerName.Contains(normalizedSearch)) ||
+                (item.Dni            != null && item.Dni.Contains(normalizedSearch)) ||
+                (item.Phone          != null && item.Phone.Contains(normalizedSearch)) ||
                 (item.DocumentNumber != null && item.DocumentNumber.Contains(normalizedSearch)));
         }
 

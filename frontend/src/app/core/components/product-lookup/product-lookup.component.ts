@@ -23,16 +23,21 @@ export class ProductLookupComponent {
   colorId = input<number | null>(null);
   availableOnly = input(true);
   limit = input(30);
+  shopifyMode = input(false);
+  shopifyLocationId = input<number | null>(null);
   minLength = input(1);
   debounceMs = input(220);
   mode = input<'dropdown' | 'panel'>('dropdown');
   panelTitle = input('Resultados');
+  showPanelHeader = input(true);
   resetKey = input(0);
   refreshKey = input(0);
   placeholder = input('Busca un producto');
   hint = input('Busca por nombre, SKU, color o talla.');
   emptyText = input('No se encontraron coincidencias.');
   disabled = input(false);
+  queryValue = input('');
+  showSearchBar = input(true);
 
   selected = output<ProductLookupItem>();
   errorChange = output<string>();
@@ -49,26 +54,26 @@ export class ProductLookupComponent {
         debounceTime(this.debounceMs()),
         distinctUntilChanged(),
         switchMap((query) => {
-          const warehouseId = this.warehouseId();
-          const colorId = this.colorId();
-          const availableOnly = this.availableOnly();
-          const limit = this.limit();
-          const params: Record<string, string | number | boolean> = {
-            search: query,
-            available_only: availableOnly ? 1 : 0,
-            limit,
-          };
-
-          if (warehouseId !== null) {
-            params['warehouse_id'] = warehouseId;
-          }
-
-          if (colorId !== null) {
-            params['color_id'] = colorId;
-          }
-
           this.searching.set(true);
           this.errorChange.emit('');
+
+          if (this.shopifyMode()) {
+            const params: Record<string, string | number> = {
+              search: query,
+              limit: this.limit(),
+            };
+            return this.api.get<ProductLookupItem[]>('shopify/products/lookup', params);
+          }
+
+          const warehouseId = this.warehouseId();
+          const colorId = this.colorId();
+          const params: Record<string, string | number | boolean> = {
+            search: query,
+            available_only: this.availableOnly() ? 1 : 0,
+            limit: this.limit(),
+          };
+          if (warehouseId !== null) params['warehouse_id'] = warehouseId;
+          if (colorId !== null)     params['color_id']     = colorId;
 
           return this.api.get<{ data: ProductLookupItem[] }>('stocks/lookup', params);
         }),
@@ -76,7 +81,15 @@ export class ProductLookupComponent {
       )
       .subscribe({
         next: (response) => {
-          this.results.set(Array.isArray(response?.data) ? response.data : []);
+          // Shopify returns array directly; MySQL returns { data: [...] }
+          const raw: ProductLookupItem[] = Array.isArray(response)
+            ? response as ProductLookupItem[]
+            : (response as any)?.data ?? [];
+          // Only show items with stock when in Shopify mode
+          const items = this.shopifyMode()
+            ? raw.filter(i => (i.available_qty ?? 0) > 0)
+            : raw;
+          this.results.set(items);
           this.searching.set(false);
           this.opened.set(true);
         },
@@ -101,6 +114,26 @@ export class ProductLookupComponent {
         this.onInputChange();
       }
     });
+
+    effect(() => {
+      const externalQuery = this.queryValue();
+      if (externalQuery === this.query) {
+        return;
+      }
+
+      this.query = externalQuery;
+
+      if (this.mode() === 'panel') {
+        this.onInputChange();
+        return;
+      }
+
+      if (externalQuery.trim().length >= this.minLength()) {
+        this.onInputChange();
+      } else {
+        this.resetResults(false);
+      }
+    });
   }
 
   onInputChange(): void {
@@ -118,6 +151,10 @@ export class ProductLookupComponent {
     }
 
     this.search$.next(value);
+  }
+
+  onPasteSearch(): void {
+    setTimeout(() => this.onInputChange(), 0);
   }
 
   selectItem(item: ProductLookupItem): void {

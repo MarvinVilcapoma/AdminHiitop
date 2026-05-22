@@ -19,6 +19,8 @@ public sealed class Order : AuditableEntity
     public int? ProvinceId { get; set; }
     public int? DistrictId { get; set; }
     public string? Address { get; set; }
+    public string? PickupKey { get; set; }
+    public string? TrackingNumber { get; set; }
     public decimal DeliveryCost { get; set; }
     public decimal Total { get; set; }
     public int? DocumentTypeId { get; set; }

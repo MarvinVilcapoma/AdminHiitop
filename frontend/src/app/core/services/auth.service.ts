@@ -21,6 +21,21 @@ export interface LoginResponse {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private readonly dashboardRoutePriority: Array<{ path: string; permission?: string }> = [
+    { path: '/dashboard/home', permission: 'dashboard.view' },
+    { path: '/dashboard/pos', permission: 'pos.view' },
+    { path: '/dashboard/orders', permission: 'orders.view' },
+    { path: '/dashboard/guides', permission: 'guides.view' },
+    { path: '/dashboard/products', permission: 'products.view' },
+    { path: '/dashboard/stock', permission: 'stocks.view' },
+    { path: '/dashboard/customers', permission: 'customers.view' },
+    { path: '/dashboard/sales', permission: 'sales.view' },
+    { path: '/dashboard/invoices', permission: 'invoices.view' },
+    { path: '/dashboard/promotions', permission: 'promotions.view' },
+    { path: '/dashboard/users', permission: 'users.view' },
+    { path: '/dashboard/settings', permission: 'config.order-statuses' },
+  ];
+
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
 
@@ -34,6 +49,19 @@ export class AuthService {
 
   hasPermission(permission: string): boolean {
     return this.permissionsSignal().includes(permission);
+  }
+
+  canAccess(permission?: string): boolean {
+    if (!permission) {
+      return true;
+    }
+
+    return this.isAdmin() || this.hasPermission(permission);
+  }
+
+  getFirstAccessibleDashboardRoute(): string {
+    const match = this.dashboardRoutePriority.find((route) => this.canAccess(route.permission));
+    return match?.path ?? '/login';
   }
 
   isAdmin(): boolean {

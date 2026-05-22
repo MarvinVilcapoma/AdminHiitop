@@ -23,8 +23,9 @@ export class UserFormComponent implements OnInit {
   saving         = signal(false);
   isEdit         = signal(false);
   error          = signal('');
-  availableRoles = signal<{ name: string; description: string; }[]>([]);
-  selectedRole   = signal<string>('');
+  availableRoles = signal<{ id: number; name: string; description: string; }[]>([]);
+  selectedRoleId = signal<number | null>(null);
+  private selectedRoleName = '';
 
   form = { name: '', email: '', password: '', password_confirmation: '' };
 
@@ -37,8 +38,9 @@ export class UserFormComponent implements OnInit {
   ngOnInit(): void {
     this.api.get<{ id: number; name: string }[]>('users/roles-list').subscribe(roles => {
       this.availableRoles.set(
-        roles.map(r => ({ name: r.name, description: this.roleDescriptions[r.name] ?? r.name }))
+        roles.map(r => ({ id: r.id, name: r.name, description: this.roleDescriptions[r.name] ?? r.name }))
       );
+      this.syncSelectedRole();
     });
 
     const id = this.route.snapshot.paramMap.get('id');
@@ -49,7 +51,8 @@ export class UserFormComponent implements OnInit {
         next: (u: AppUser) => {
           this.form.name  = u.name  ?? '';
           this.form.email = u.email ?? '';
-          this.selectedRole.set((u.roles ?? [])[0]?.name ?? '');
+          this.selectedRoleName = (u.roles ?? [])[0]?.name ?? '';
+          this.syncSelectedRole();
           this.loading.set(false);
         },
         error: () => this.loading.set(false),
@@ -57,8 +60,17 @@ export class UserFormComponent implements OnInit {
     }
   }
 
-  selectRole(name: string): void {
-    this.selectedRole.set(name);
+  selectRole(id: number): void {
+    this.selectedRoleId.set(id);
+  }
+
+  private syncSelectedRole(): void {
+    if (!this.selectedRoleName) {
+      return;
+    }
+
+    const selectedRole = this.availableRoles().find(role => role.name === this.selectedRoleName);
+    this.selectedRoleId.set(selectedRole?.id ?? null);
   }
 
   roleBadge(role: string): string {
@@ -77,12 +89,12 @@ export class UserFormComponent implements OnInit {
     if (this.form.password && this.form.password !== this.form.password_confirmation) {
       this.error.set('Las contraseñas no coinciden.'); return;
     }
-    if (!this.selectedRole()) {
+    if (!this.selectedRoleId()) {
       this.error.set('Debes seleccionar un rol para el usuario.'); return;
     }
 
     this.saving.set(true);
-    const payload: any = { ...this.form, roles: [this.selectedRole()] };
+    const payload: any = { ...this.form, role_ids: [this.selectedRoleId()] };
     if (!payload.password) { delete payload.password; delete payload.password_confirmation; }
 
     const id = this.route.snapshot.paramMap.get('id');

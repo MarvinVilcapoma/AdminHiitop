@@ -33,7 +33,7 @@ public static class InventoryValidationHelper
 
         if (request.ProductId <= 0 || request.WarehouseId <= 0)
         {
-            throw new AppException("Producto y almac\u00e9n son obligatorios.");
+            throw new AppException("Producto y almacén son obligatorios.");
         }
 
         if (request.Quantity < 0 || request.Reserved < 0)
@@ -67,9 +67,9 @@ public static class InventoryValidationHelper
             throw new AppException("La solicitud de transferencia es obligatoria.");
         }
 
-        if (request.TargetWarehouseId <= 0)
+        if (request.DestinationWarehouseId <= 0)
         {
-            throw new AppException("El almac\u00e9n destino es obligatorio.");
+            throw new AppException("El almacén destino es obligatorio.");
         }
 
         if (request.Quantity <= 0)
@@ -89,7 +89,7 @@ public static class InventoryValidationHelper
         {
             if (item.StockId <= 0 || item.TargetWarehouseId <= 0 || item.Quantity <= 0)
             {
-                throw new AppException("La transferencia masiva contiene datos inv\u00e1lidos.");
+                throw new AppException("La transferencia masiva contiene datos inválidos.");
             }
         }
     }

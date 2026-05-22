@@ -298,3 +298,91 @@
 .section-gap {
   margin-bottom: 1.25rem;
 }
+
+.section-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: .85rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: .4rem .75rem;
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.status-pill--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pill--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pill--info {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.kpi-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.metric-strip {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem;
+
+  div {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    padding: .75rem .85rem;
+  }
+
+  span {
+    display: block;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #94a3b8;
+    margin-bottom: .2rem;
+    font-weight: 600;
+  }
+
+  strong {
+    color: #1e293b;
+    font-size: 1.1rem;
+  }
+}
+
+.module-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  min-height: 220px;
+  padding: 1.5rem 1rem;
+  text-align: center;
+
+  i {
+    font-size: 2rem;
+    color: #ef4444;
+  }
+
+  p {
+    margin: 0;
+    color: #991b1b;
+    font-size: .84rem;
+    max-width: 260px;
+    line-height: 1.45;
+  }
+}

@@ -11,6 +11,8 @@ public sealed class OrderItem : AuditableEntity
     public int? ColorId { get; set; }
     public int? CollectionId { get; set; }
     public string? ProductDescription { get; set; }
+    public string? ProductKey { get; set; }
+    public string? TrackingNumber { get; set; }
     public string? Size { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
