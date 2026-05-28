@@ -13,8 +13,22 @@ public sealed class ShippingAgencyService : IShippingAgencyService
 
     public ShippingAgencyService(AdminHiitopDbContext context) => _context = context;
 
-    public async Task<object> GetAsync(int perPage, int page)
-        => await PaginationHelper.CreateAsync(_context.ShippingAgencies.AsNoTracking().OrderBy(item => item.Name), page, perPage);
+    public async Task<object> GetAsync(int perPage, int page, string? search)
+    {
+        IQueryable<ShippingAgency> query = _context.ShippingAgencies
+            .AsNoTracking()
+            .OrderBy(item => item.Name);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string term = search.Trim();
+            query = query.Where(item =>
+                item.Name.Contains(term) ||
+                item.Code.Contains(term));
+        }
+
+        return await PaginationHelper.CreateAsync(query, page, perPage);
+    }
 
     public Task<ShippingAgency?> GetByIdAsync(int id)
         => _context.ShippingAgencies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);

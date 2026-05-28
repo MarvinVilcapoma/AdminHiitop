@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
@@ -14,6 +14,7 @@ import { PageStateComponent } from '../../../core/components';
 })
 export class CustomersListComponent implements OnInit {
   private readonly api = inject(ApiService);
+  embedded = input(false);
   rows = signal<Customer[]>([]);
   total = signal(0);
   loading = signal(true);

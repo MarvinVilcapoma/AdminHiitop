@@ -13,7 +13,7 @@
             <!-- Shopify mode: show locations as sucursales -->
             <select id="pos-warehouse" class="pos-header__select"
                     [ngModel]="shopifyLocationId()" [ngModelOptions]="{standalone:true}"
-                    (ngModelChange)="shopifyLocationId.set($event); lookupRefreshKey = lookupRefreshKey + 1">
+                    (ngModelChange)="shopifyLocationId.set(+$event); lookupResetKey = lookupResetKey + 1; lookupRefreshKey = lookupRefreshKey + 1">
               <option [ngValue]="null">— Ubicación —</option>
               @for (loc of shopifyLocations(); track loc.id) {
                 <option [ngValue]="loc.id">{{ loc.name }}</option>

@@ -1,5 +1,6 @@
 using AdminHiitop.Api.Application.DTOs.ElectronicBilling;
 using AdminHiitop.Api.Domain.Sales.Entities;
+using AdminHiitop.Api.Shared.Helpers;
 
 namespace AdminHiitop.Api.Application.Helpers;
 
@@ -129,14 +130,78 @@ public static class NubeFactMappingHelper
         return mappedItems;
     }
 
+    public static NubeFactGuideDocumentRequest MapGuide(Order order, string serie, int correlativo)
+    {
+        var items = order.Items?
+            .OrderBy(i => i.SortOrder).ThenBy(i => i.Id)
+            .Select(i => new NubeFactGuideItemRequest
+            {
+                UnidadDeMedida = "NIU",
+                Codigo         = i.ProductId?.ToString() ?? "ITEM",
+                Descripcion    = string.IsNullOrWhiteSpace(i.ProductDescription)
+                    ? i.Product?.Name ?? "PRODUCTO"
+                    : i.ProductDescription,
+                Cantidad = i.Quantity,
+            }).ToList() ?? [];
+
+        if (items.Count == 0)
+            items.Add(new NubeFactGuideItemRequest { Codigo = "ITEM", Descripcion = "BIENES TRASLADADOS", Cantidad = 1 });
+
+        string today = PeruClock.Now.ToString("dd-MM-yyyy");
+
+        return new NubeFactGuideDocumentRequest
+        {
+            TipoDeComprobante          = 31,
+            Serie                      = serie,
+            Numero                     = correlativo,
+            FechaDeEmision             = today,
+            FechaDeTraslado            = order.GuideTransferDate?.ToString("dd-MM-yyyy") ?? today,
+            MotivoDeTraslado           = order.GuideTransferReasonCode ?? "01",
+            ModalidadDeTraslado        = order.GuideTransferMode ?? "01",
+            PesoBrutoTotal             = order.GuideTotalWeight ?? 1m,
+            NumeroDeBultos             = order.GuidePackageCount ?? 1,
+            UnidadDePeso               = order.GuideWeightUnit ?? "KGM",
+            DestinatarioTipoDeDocumento      = MapGuideDocType(order.GuideRecipientDocType ?? order.GuideCarrierDocType),
+            DestinatarioNumeroDeDocumento    = order.GuideRecipientDocNumber ?? order.Dni ?? "00000000",
+            DestinatarioDenominacion         = order.GuideRecipientName ?? order.CustomerName ?? "SIN DESTINATARIO",
+            DestinatarioDireccion            = order.GuideDestinationAddress ?? order.Address,
+            CodigoDeUbigeoDePartida          = order.GuideOriginUbigeo,
+            DireccionDePartida               = order.GuideOriginAddress,
+            CodigoDeUbigeoDeLlegada          = order.GuideDestinationUbigeo,
+            DireccionDeLlegada               = order.GuideDestinationAddress,
+            TransportistaTipoDeDocumento     = string.IsNullOrWhiteSpace(order.GuideCarrierDocNumber) ? null : MapGuideDocType(order.GuideCarrierDocType),
+            TransportistaNumeroDeDocumento   = order.GuideCarrierDocNumber,
+            TransportistaDenominacion        = order.GuideCarrierName,
+            TransportistaPlacaNumero         = order.GuideVehiclePlate,
+            ConductorTipoDeDocumento         = string.IsNullOrWhiteSpace(order.GuideDriverDocNumber) ? null : MapGuideDocType(order.GuideDriverDocType),
+            ConductorNumeroDeDocumento       = order.GuideDriverDocNumber,
+            ConductorDenominacion            = order.GuideDriverName,
+            ConductorNumeroLicencia          = order.GuideDriverLicense,
+            Items = items,
+        };
+    }
+
+    private static int MapGuideDocType(string? docType)
+    {
+        return docType?.ToUpperInvariant() switch
+        {
+            "RUC" or "6"  => 6,
+            "CE"  or "4"  => 4,
+            "PAS" or "7"  => 7,
+            _ => 1, // DNI default
+        };
+    }
+
     private static int MapInvoiceType(string? docType)
     {
         return docType switch
         {
-            "01" => 1,
-            "03" => 2,
-            "07" => 3,
-            "08" => 4,
+            "01" => 1,   // Factura
+            "03" => 2,   // Boleta de venta
+            "07" => 3,   // Nota de crédito
+            "08" => 4,   // Nota de débito
+            "09" => 31,  // Guía de remisión remitente
+            "31" => 32,  // Guía de remisión transportista
             _ => 1
         };
     }

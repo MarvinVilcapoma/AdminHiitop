@@ -77,3 +77,19 @@ public sealed class DashboardSellerResponse
     public decimal TotalRevenue { get; init; }
     public decimal AvgTicket { get; init; }
 }
+
+public sealed class DashboardMonthBranchRow
+{
+    public string Branch { get; init; } = string.Empty;
+    public int Orders { get; init; }
+    public decimal Revenue { get; init; }
+}
+
+public sealed class DashboardSalesByMonthResponse
+{
+    public string Month { get; init; } = string.Empty;       // "2026-01"
+    public string MonthLabel { get; init; } = string.Empty;  // "Ene 2026"
+    public int Orders { get; init; }
+    public decimal Revenue { get; init; }
+    public List<DashboardMonthBranchRow> Branches { get; init; } = [];
+}

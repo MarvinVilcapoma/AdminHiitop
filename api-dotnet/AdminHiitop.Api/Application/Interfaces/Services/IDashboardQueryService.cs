@@ -15,4 +15,5 @@ public interface IDashboardQueryService
     Task<IReadOnlyList<DashboardBranchResponse>> GetByBranchAsync(DashboardSummaryFilterRequest request);
     Task<IReadOnlyList<DashboardPaymentMethodBreakdownResponse>> GetByPaymentMethodAsync(DashboardSummaryFilterRequest request);
     Task<IReadOnlyList<DashboardSellerResponse>> GetBySellerAsync(DashboardSummaryFilterRequest request);
+    Task<IReadOnlyList<DashboardSalesByMonthResponse>> GetSalesByMonthAsync(DashboardSummaryFilterRequest request);
 }

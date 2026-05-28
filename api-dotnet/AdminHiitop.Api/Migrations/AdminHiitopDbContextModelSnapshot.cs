@@ -1582,6 +1582,9 @@ namespace AdminHiitop.Api.Migrations
                     b.Property<decimal>("Subtotal")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
                     b.Property<string>("TrackingNumber")
                         .HasMaxLength(120)
                         .HasColumnType("varchar(120)");
@@ -2381,8 +2384,7 @@ namespace AdminHiitop.Api.Migrations
                     b.HasOne("AdminHiitop.Api.Domain.Inventory.Entities.Product", "Product")
                         .WithMany("OrderItems")
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Collection");
 

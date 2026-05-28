@@ -1,52 +1,49 @@
+<!-- Backdrop — closes any open dropdown when clicking outside -->
+@if (openDropdownKey()) {
+  <div class="position-fixed top-0 start-0 w-100 h-100 inventory-location-backdrop"
+       (click)="openDropdownKey.set(null)"></div>
+}
+
 <!-- Header — hidden when embedded in Products page -->
 @if (!embedded()) {
   <div class="page-header">
-    <h1><i class="bi bi-shop me-2 text-success"></i>Shopify</h1>
+    <h1><i class="bi bi-boxes me-2 text-success"></i>Inventario</h1>
     <div class="d-flex gap-2 align-items-center">
-      @if (activeTab() === 'inventory') {
-        @if (locations().length > 1) {
-          <select class="form-select form-select-sm" style="max-width:200px"
-                  [ngModel]="activeLocationId()" [ngModelOptions]="{standalone:true}"
-                  (ngModelChange)="onLocationChange(+$event)">
-            @for (loc of locations(); track loc.id) {
-              <option [ngValue]="loc.id">{{ loc.name }}</option>
-            }
-          </select>
-        } @else if (activeLocation()) {
-          <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
-            <i class="bi bi-geo-alt me-1"></i>{{ activeLocation()!.name }}
-          </span>
-        }
+      @if (locations().length > 0) {
+        <div class="position-relative inventory-location-wrap">
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 fw-semibold"
+                  style="min-width:160px;justify-content:space-between"
+                  (click)="openAc('location')">
+            <span class="d-flex align-items-center gap-1">
+              <i class="bi bi-geo-alt-fill text-success" style="font-size:.75rem"></i>
+              {{ activeLocation()?.name ?? 'Sucursal' }}
+            </span>
+            <i class="bi bi-chevron-down text-muted" style="font-size:.65rem"></i>
+          </button>
+          @if (openDropdownKey() === 'location') {
+            <div class="position-absolute bg-white border rounded shadow inventory-location-dropdown">
+              @for (loc of locations(); track loc.id) {
+                <div class="px-3 py-2 d-flex align-items-center gap-2 small"
+                     style="cursor:pointer"
+                     (click)="onLocationChange(loc.id); openDropdownKey.set(null)">
+                  @if (activeLocationId() === loc.id) {
+                    <i class="bi bi-check2 text-primary fw-bold"></i>
+                  } @else {
+                    <span style="width:16px"></span>
+                  }
+                  {{ loc.name }}
+                </div>
+              }
+            </div>
+          }
+        </div>
       }
+      <button class="btn btn-outline-secondary btn-sm" (click)="goToCustomers()">
+        <i class="bi bi-people me-1"></i>Clientes
+      </button>
     </div>
   </div>
 }
-
-<!-- Tab bar -->
-@if (!embedded()) {
-  <ul class="nav nav-tabs mb-4">
-    <li class="nav-item">
-      <button class="nav-link" [class.active]="activeTab() === 'inventory'"
-              (click)="activeTab.set('inventory')">
-        <i class="bi bi-boxes me-1"></i>Inventario
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" [class.active]="activeTab() === 'customers'"
-              (click)="activeTab.set('customers')">
-        <i class="bi bi-people me-1"></i>Clientes
-      </button>
-    </li>
-  </ul>
-}
-
-<!-- Customers tab -->
-@if (activeTab() === 'customers') {
-  <app-shopify-customers />
-}
-
-<!-- ── Inventory tab ──────────────────────────────────────────────────────── -->
-@if (activeTab() === 'inventory') {
 
 <!-- Stats cards (shown always) -->
 @if (!loading()) {
@@ -141,14 +138,14 @@
     </div>
   } @else {
     <span class="fw-semibold text-warning"><i class="bi bi-table me-1"></i>Modo Bulk Edit</span>
-    <span class="text-muted small">{{ bulkRows().length }} variantes · {{ bulkChanged().length }} cambios</span>
+    <span class="text-muted small">{{ bulkGroups().length }} productos · {{ bulkRows().length }} variantes · {{ bulkChangedCount() }} cambios</span>
     <div class="ms-auto d-flex gap-2">
       <button class="btn btn-sm btn-outline-secondary" [disabled]="bulkSaving()" (click)="exitBulkMode()">
         <i class="bi bi-x me-1"></i>Cancelar
       </button>
-      <button class="btn btn-sm btn-success" [disabled]="bulkSaving() || !bulkChanged().length" (click)="saveBulkEdit()">
+      <button class="btn btn-sm btn-success" [disabled]="bulkSaving() || !bulkChangedCount()" (click)="saveBulkEdit()">
         @if (bulkSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-        <i class="bi bi-check2 me-1"></i>Guardar {{ bulkChanged().length }} cambios
+        <i class="bi bi-check2 me-1"></i>Guardar {{ bulkChangedCount() }} cambios
       </button>
     </div>
   }
@@ -164,17 +161,16 @@
 <!-- Products table -->
 @if (!loading()) {
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0" style="min-width:800px">
       <thead class="table-light">
         <tr>
           <th style="width:52px"></th>
           <th>Producto</th>
-          <th>Tipo</th>
-          <th class="text-center">Variantes</th>
-          <th class="text-center">Stock total</th>
-          <th class="text-end">Precio desde</th>
-          <th class="text-center">Estado</th>
-          <th></th>
+          <th>Estado</th>
+          <th>Inventario</th>
+          <th>Tipo de producto</th>
+          <th>Vendor</th>
+          <th style="width:80px"></th>
         </tr>
       </thead>
       <tbody>
@@ -194,37 +190,38 @@
               }
             </td>
             <td>
-              <div class="fw-semibold small">{{ product.title }}</div>
+              <div class="fw-semibold small text-primary-emphasis">{{ product.title }}</div>
               @if (product.tags) {
-                <div class="text-muted" style="font-size:.71rem">{{ product.tags }}</div>
+                <div class="text-muted" style="font-size:.70rem">{{ product.tags }}</div>
               }
             </td>
-            <td class="text-muted small">{{ product.product_type || '—' }}</td>
-            <td class="text-center small">{{ product.variant_count }}</td>
-            <td class="text-center">
-              <span [class]="stockClass(product.total_stock)">{{ product.total_stock }}</span>
-            </td>
-            <td class="text-end small">S/ {{ product.min_price | number:'1.2-2' }}</td>
-            <td class="text-center">
+            <td>
               <span class="badge" [class]="statusBadge(product.status)">
                 {{ statusLabel(product.status) }}
               </span>
             </td>
+            <td class="small">
+              <span [class]="product.total_stock === 0 ? 'text-danger fw-semibold' : product.total_stock <= 5 ? 'text-warning fw-semibold' : 'text-success fw-semibold'">
+                {{ product.total_stock }}
+              </span>
+              <span class="text-muted"> en stock para {{ product.variant_count }} variante{{ product.variant_count !== 1 ? 's' : '' }}</span>
+            </td>
+            <td class="text-muted small">{{ product.product_type || '—' }}</td>
+            <td class="text-muted small">{{ product.vendor || '—' }}</td>
             <td class="text-end pe-2" (click)="$event.stopPropagation()">
               <button class="btn btn-sm btn-outline-primary me-1 py-0"
                       (click)="openEditProduct(product)" title="Editar producto">
                 <i class="bi bi-pencil"></i>
               </button>
               <i class="bi" [class.bi-chevron-down]="!product.expanded"
-                            [class.bi-chevron-up]="product.expanded"
-                            (click)="toggleProduct(product)"></i>
+                            [class.bi-chevron-up]="product.expanded"></i>
             </td>
           </tr>
 
           <!-- Variants expansion -->
           @if (product.expanded) {
             <tr>
-              <td colspan="8" class="p-0 border-0">
+              <td colspan="7" class="p-0 border-0">
                 <div class="bg-light border-bottom">
                   @if (product.loadingVariants) {
                     <div class="text-center py-3 text-muted small">
@@ -366,9 +363,13 @@
         } @empty {
           @if (!loading()) {
             <tr>
-              <td colspan="8" class="text-center text-muted py-5">
-                <i class="bi bi-box-seam fs-3 d-block mb-2 text-muted opacity-50"></i>
-                No se encontraron productos en Shopify.
+              <td colspan="7" class="text-center text-muted py-5">
+                <i class="bi bi-box-seam fs-3 d-block mb-2 opacity-50"></i>
+                @if (activeLocation()) {
+                  No hay productos en <strong>{{ activeLocation()!.name }}</strong>.
+                } @else {
+                  No se encontraron productos en Shopify.
+                }
               </td>
             </tr>
           }
@@ -401,94 +402,143 @@
 @if (bulkMode()) {
   @if (bulkLoading()) {
     <div class="text-center py-5 text-muted">
-      <span class="spinner-border me-2"></span>Cargando variantes…
+      <span class="spinner-border me-2"></span>Cargando productos…
     </div>
   } @else {
-    <div class="table-responsive" style="max-height:65vh;overflow-y:auto">
-      <table class="table table-sm align-middle table-hover mb-0">
-        <thead class="table-light sticky-top">
+    <div class="table-responsive" style="max-height:70vh;overflow-y:auto">
+      <table class="table table-sm align-middle mb-0" style="min-width:1000px">
+        <thead class="table-light sticky-top border-bottom">
           <tr>
-            <th>Producto</th>
-            <th>Variante</th>
-            <th style="min-width:110px">SKU</th>
+            <th style="min-width:220px">Producto</th>
+            <th style="min-width:120px">Estado</th>
+            <th style="min-width:150px">Tipo de producto</th>
+            <th style="min-width:130px">Vendor</th>
+            <th style="min-width:130px">SKU</th>
             <th style="min-width:130px">
-              Precio
-              <div class="text-muted fw-normal" style="font-size:.68rem">
-                <i class="bi bi-info-circle me-1"></i>Clic en el valor → aplica a todos
-              </div>
+              Precio base (PEN)
+              <div class="text-muted fw-normal" style="font-size:.65rem">Clic ⇅ → aplica a todos</div>
             </th>
-            <th style="min-width:130px">
-              Precio original
-              <div class="text-muted fw-normal" style="font-size:.68rem">
-                <i class="bi bi-info-circle me-1"></i>Clic en el valor → aplica a todos
-              </div>
-            </th>
-            <th class="text-center" style="min-width:110px">
-              Stock · {{ activeLocation()?.name || 'sucursal' }}
+            <th style="min-width:120px">Precio original</th>
+            <th class="text-center" style="min-width:100px">
+              Stock<br><span class="text-muted fw-normal" style="font-size:.7rem">{{ activeLocation()?.name || '—' }}</span>
             </th>
           </tr>
         </thead>
         <tbody>
-          @for (row of bulkRows(); track row.variantId) {
-            <tr [class.table-warning]="
-              (row.newQty     !== null && row.newQty     !== row.currentQty)  ||
-              (row.newPrice   !== null && row.newPrice   !== row.currentPrice) ||
-              (row.newCompare !== null && row.newCompare !== row.currentCompare) ||
-              (row.newSku     !== null && row.newSku     !== row.currentSku)">
-
-              <td class="small fw-semibold">{{ row.productTitle }}</td>
-              <td class="small text-muted">{{ row.variantTitle }}</td>
-
-              <!-- SKU -->
+          @for (group of bulkGroups(); track group.productId) {
+            <!-- Product header row -->
+            <tr class="table-secondary" [class.table-warning]="group.newStatus !== null || group.newProductType !== null || group.newVendor !== null">
+              <!-- Product title + collapse -->
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-link btn-sm p-0 text-muted"
+                          (click)="toggleBulkGroup(group)" style="min-width:18px">
+                    <i class="bi" [class.bi-chevron-down]="group.expanded" [class.bi-chevron-right]="!group.expanded"></i>
+                  </button>
+                  @if (group.imageUrl) {
+                    <img [src]="group.imageUrl" class="rounded" style="width:28px;height:28px;object-fit:cover">
+                  }
+                  <span class="fw-semibold small">{{ group.productTitle }}</span>
+                </div>
+              </td>
+              <!-- Status -->
+              <td>
+                <select class="form-select form-select-sm"
+                        [ngModel]="group.newStatus ?? group.currentStatus"
+                        [ngModelOptions]="{standalone:true}"
+                        (ngModelChange)="onBulkStatusChange(group, $event)">
+                  <option value="active">Activo</option>
+                  <option value="draft">Borrador</option>
+                  <option value="archived">Archivado</option>
+                </select>
+              </td>
+              <!-- Product type -->
               <td>
                 <input type="text" class="form-control form-control-sm"
-                       [ngModel]="row.newSku ?? row.currentSku"
+                       list="productTypeList"
+                       [ngModel]="group.newProductType ?? group.currentProductType"
                        [ngModelOptions]="{standalone:true}"
-                       (ngModelChange)="onBulkSkuChange(row, $event)">
+                       (ngModelChange)="onBulkTypeChange(group, $event)"
+                       placeholder="Ej: HOODIE">
               </td>
-
-              <!-- Price + apply-to-all -->
+              <!-- Vendor -->
               <td>
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text">S/</span>
-                  <input type="number" class="form-control text-end" min="0" step="0.01"
-                         [ngModel]="row.newPrice ?? row.currentPrice"
-                         [ngModelOptions]="{standalone:true}"
-                         (ngModelChange)="onBulkPriceChange(row, $event)">
-                  <button class="btn btn-outline-secondary btn-sm px-1" type="button"
-                          title="Aplicar este precio a TODOS los productos"
-                          (click)="applyPriceToAll(row)">
-                    <i class="bi bi-arrow-down-up" style="font-size:.7rem"></i>
-                  </button>
-                </div>
-              </td>
-
-              <!-- Compare-at + apply-to-all -->
-              <td>
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text">S/</span>
-                  <input type="number" class="form-control text-end" min="0" step="0.01"
-                         [ngModel]="row.newCompare ?? row.currentCompare ?? ''"
-                         [ngModelOptions]="{standalone:true}"
-                         placeholder="—"
-                         (ngModelChange)="onBulkCompareChange(row, $event)">
-                  <button class="btn btn-outline-secondary btn-sm px-1" type="button"
-                          title="Aplicar este precio original a TODOS los productos"
-                          (click)="applyCompareToAll(row)">
-                    <i class="bi bi-arrow-down-up" style="font-size:.7rem"></i>
-                  </button>
-                </div>
-              </td>
-
-              <!-- Stock -->
-              <td class="text-center">
-                <input type="number" class="form-control form-control-sm text-center"
-                       style="max-width:90px;margin:auto" min="0"
-                       [ngModel]="row.newQty ?? row.currentQty"
+                <input type="text" class="form-control form-control-sm"
+                       list="vendorList"
+                       [ngModel]="group.newVendor ?? group.currentVendor"
                        [ngModelOptions]="{standalone:true}"
-                       (ngModelChange)="onBulkQtyChange(row, $event)">
+                       (ngModelChange)="onBulkVendorChange(group, $event)"
+                       placeholder="Ej: Hiitop">
+              </td>
+              <td colspan="4" class="text-muted small">
+                {{ group.variants.length }} variante{{ group.variants.length !== 1 ? 's' : '' }}
               </td>
             </tr>
+
+            <!-- Variant rows -->
+            @if (group.expanded) {
+              @for (row of group.variants; track row.variantId) {
+                <tr [class.table-warning]="
+                  (row.newQty     !== null && row.newQty     !== row.currentQty)  ||
+                  (row.newPrice   !== null && row.newPrice   !== row.currentPrice) ||
+                  (row.newCompare !== null && row.newCompare !== row.currentCompare) ||
+                  (row.newSku     !== null && row.newSku     !== row.currentSku)">
+                  <!-- Variant label (indented) -->
+                  <td class="ps-4 small text-muted fst-italic">
+                    <i class="bi bi-arrow-return-right me-1 opacity-50"></i>
+                    {{ row.variantTitle || '—' }}
+                  </td>
+                  <!-- Status / Type / Vendor (variant inherits from product) -->
+                  <td class="text-muted small" style="opacity:.4">—</td>
+                  <td class="text-muted small" style="opacity:.4">—</td>
+                  <td class="text-muted small" style="opacity:.4">—</td>
+                  <!-- SKU -->
+                  <td>
+                    <input type="text" class="form-control form-control-sm"
+                           [ngModel]="row.newSku ?? row.currentSku"
+                           [ngModelOptions]="{standalone:true}"
+                           (ngModelChange)="onBulkSkuChange(row, $event)">
+                  </td>
+                  <!-- Price -->
+                  <td>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">S/</span>
+                      <input type="number" class="form-control text-end" min="0" step="0.01"
+                             [ngModel]="row.newPrice ?? row.currentPrice"
+                             [ngModelOptions]="{standalone:true}"
+                             (ngModelChange)="onBulkPriceChange(row, $event)">
+                      <button class="btn btn-outline-secondary btn-sm px-1" type="button"
+                              title="Aplicar a todos" (click)="applyPriceToAll(row)">
+                        <i class="bi bi-arrow-down-up" style="font-size:.65rem"></i>
+                      </button>
+                    </div>
+                  </td>
+                  <!-- Compare-at -->
+                  <td>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">S/</span>
+                      <input type="number" class="form-control text-end" min="0" step="0.01"
+                             placeholder="—"
+                             [ngModel]="row.newCompare ?? row.currentCompare ?? ''"
+                             [ngModelOptions]="{standalone:true}"
+                             (ngModelChange)="onBulkCompareChange(row, $event)">
+                      <button class="btn btn-outline-secondary btn-sm px-1" type="button"
+                              title="Aplicar a todos" (click)="applyCompareToAll(row)">
+                        <i class="bi bi-arrow-down-up" style="font-size:.65rem"></i>
+                      </button>
+                    </div>
+                  </td>
+                  <!-- Stock -->
+                  <td class="text-center">
+                    <input type="number" class="form-control form-control-sm text-center"
+                           style="max-width:85px;margin:auto" min="0"
+                           [ngModel]="row.newQty ?? row.currentQty"
+                           [ngModelOptions]="{standalone:true}"
+                           (ngModelChange)="onBulkQtyChange(row, $event)">
+                  </td>
+                </tr>
+              }
+            }
           }
         </tbody>
       </table>
@@ -496,9 +546,9 @@
 
     <div class="d-flex justify-content-between align-items-center mt-3">
       <span class="text-muted small">
-        {{ bulkRows().length }} variantes ·
-        @if (bulkChanged().length) {
-          <span class="text-warning fw-semibold">{{ bulkChanged().length }} cambios pendientes</span>
+        {{ bulkGroups().length }} productos · {{ bulkRows().length }} variantes ·
+        @if (bulkChangedCount()) {
+          <span class="text-warning fw-semibold">{{ bulkChangedCount() }} cambios pendientes</span>
         } @else {
           sin cambios
         }
@@ -685,24 +735,115 @@
               <div class="card mb-3">
                 <div class="card-header fw-semibold small">Organización</div>
                 <div class="card-body">
+
+                  <!-- Tipo de producto -->
                   <div class="mb-2">
                     <label class="form-label small mb-1">Tipo de producto</label>
-                    <input type="text" class="form-control form-control-sm"
-                           [(ngModel)]="editState()!.product_type"
-                           list="productTypeList" placeholder="HOODIE, JEANS…">
+                    <div class="position-relative" style="z-index:1045">
+                      <div class="form-control form-control-sm d-flex align-items-center justify-content-between gap-1"
+                           style="cursor:pointer;min-height:31px"
+                           (click)="openAc('edit-type')">
+                        <span class="text-truncate" [class.text-muted]="!editState()!.product_type" style="font-size:.875rem">
+                          {{ editState()!.product_type || 'Buscar o agregar tipo…' }}
+                        </span>
+                        <i class="bi bi-chevron-down text-muted flex-shrink-0" style="font-size:.65rem"></i>
+                      </div>
+                      @if (openDropdownKey() === 'edit-type') {
+                        <div class="position-absolute w-100 bg-white border rounded shadow-sm" style="top:calc(100% + 2px);left:0;z-index:1050">
+                          <div class="p-1 border-bottom">
+                            <input type="text" class="form-control form-control-sm border-0"
+                                   placeholder="Buscar o agregar tipo de producto"
+                                   [value]="acFilter()"
+                                   (input)="acFilter.set($any($event.target).value)">
+                          </div>
+                          <div style="max-height:200px;overflow-y:auto">
+                            @for (t of filteredProductTypes(); track t) {
+                              <div class="px-3 py-1 small d-flex align-items-center gap-2"
+                                   style="cursor:pointer"
+                                   (click)="editState()!.product_type = t; openDropdownKey.set(null)">
+                                @if (editState()!.product_type === t) {
+                                  <i class="bi bi-check text-primary"></i>
+                                } @else {
+                                  <span style="width:14px"></span>
+                                }
+                                {{ t }}
+                              </div>
+                            }
+                            @if (acFilter() && !existingProductTypes().includes(acFilter())) {
+                              <div class="px-3 py-1 small text-primary border-top"
+                                   style="cursor:pointer"
+                                   (click)="editState()!.product_type = acFilter(); openDropdownKey.set(null)">
+                                <i class="bi bi-plus me-1"></i>Agregar "{{ acFilter() }}"
+                              </div>
+                            }
+                            @if (!filteredProductTypes().length && !acFilter()) {
+                              <div class="px-3 py-2 text-muted small fst-italic">Sin tipos disponibles</div>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
                   </div>
+
+                  <!-- Vendedor -->
                   <div class="mb-2">
                     <label class="form-label small mb-1">Vendedor</label>
-                    <input type="text" class="form-control form-control-sm"
-                           [(ngModel)]="editState()!.vendor"
-                           list="vendorList" placeholder="Hiitop">
+                    <div class="position-relative" style="z-index:1044">
+                      <div class="form-control form-control-sm d-flex align-items-center justify-content-between gap-1"
+                           style="cursor:pointer;min-height:31px"
+                           (click)="openAc('edit-vendor')">
+                        <span class="text-truncate" [class.text-muted]="!editState()!.vendor" style="font-size:.875rem">
+                          {{ editState()!.vendor || 'Buscar o agregar vendedor…' }}
+                        </span>
+                        <i class="bi bi-chevron-down text-muted flex-shrink-0" style="font-size:.65rem"></i>
+                      </div>
+                      @if (openDropdownKey() === 'edit-vendor') {
+                        <div class="position-absolute w-100 bg-white border rounded shadow-sm" style="top:calc(100% + 2px);left:0;z-index:1050">
+                          <div class="p-1 border-bottom">
+                            <input type="text" class="form-control form-control-sm border-0"
+                                   placeholder="Buscar o agregar vendedor"
+                                   [value]="acFilter()"
+                                   (input)="acFilter.set($any($event.target).value)">
+                          </div>
+                          <div style="max-height:200px;overflow-y:auto">
+                            @for (v of filteredVendors(); track v) {
+                              <div class="px-3 py-1 small d-flex align-items-center gap-2"
+                                   style="cursor:pointer"
+                                   (click)="editState()!.vendor = v; openDropdownKey.set(null)">
+                                @if (editState()!.vendor === v) {
+                                  <i class="bi bi-check text-primary"></i>
+                                } @else {
+                                  <span style="width:14px"></span>
+                                }
+                                {{ v }}
+                              </div>
+                            }
+                            @if (acFilter() && !existingVendors().includes(acFilter())) {
+                              <div class="px-3 py-1 small text-primary border-top"
+                                   style="cursor:pointer"
+                                   (click)="editState()!.vendor = acFilter(); openDropdownKey.set(null)">
+                                <i class="bi bi-plus me-1"></i>Agregar "{{ acFilter() }}"
+                              </div>
+                            }
+                            @if (!filteredVendors().length && !acFilter()) {
+                              <div class="px-3 py-2 text-muted small fst-italic">Sin vendedores disponibles</div>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
                   </div>
+
+                  <!-- Tags -->
                   <div>
                     <label class="form-label small mb-1">Tags</label>
                     <input type="text" class="form-control form-control-sm"
                            [(ngModel)]="editState()!.tags"
-                           list="tagsList" placeholder="Ropa, Hombre, Verano">
+                           list="tagsList"
+                           placeholder="Ropa, Hombre, Verano">
+                    <div class="text-muted" style="font-size:.72rem;margin-top:2px">Separados por coma</div>
                   </div>
+
                 </div>
               </div>
 
@@ -830,93 +971,84 @@
 
               <!-- Precio: dentro de la tabla de variantes, no se necesita tarjeta separada -->
 
-              <!-- Inventario — todas las sucursales × variantes -->
+              <!-- Variantes e Inventario — estilo Shopify: una card por variante -->
               <div class="card mb-3">
                 <div class="card-header fw-semibold small d-flex align-items-center justify-content-between">
                   <span><i class="bi bi-boxes me-1"></i>Inventario</span>
-                  <button class="btn btn-sm btn-outline-primary" (click)="addNewVariantRow()">
-                    <i class="bi bi-plus me-1"></i>Agregar variante
+                </div>
+
+                <!-- Option name -->
+                <div class="px-3 py-2 border-bottom bg-light d-flex gap-2 align-items-center">
+                  <span class="small text-muted fw-semibold">Opción (ej: Talla):</span>
+                  <input type="text" class="form-control form-control-sm" style="max-width:160px"
+                         [(ngModel)]="newProduct.optionName" placeholder="Talla">
+                  <button class="btn btn-sm btn-outline-primary ms-auto" (click)="addNewVariantRow()">
+                    <i class="bi bi-plus me-1"></i>Variante
                   </button>
                 </div>
 
-                <!-- Option name sub-header -->
-                <div class="px-3 py-2 border-bottom bg-light d-flex gap-2 align-items-center">
-                  <span class="small text-muted">Nombre de opción:</span>
-                  <input type="text" class="form-control form-control-sm" style="max-width:160px"
-                         [(ngModel)]="newProduct.optionName" placeholder="Talla">
-                </div>
+                <!-- One block per variant -->
+                @for (v of newProductVariants(); track $index; let i = $index) {
+                  <div class="border-bottom" [class.bg-light]="i % 2 === 0">
 
-                <div class="card-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0" style="min-width:900px">
-                      <thead class="table-light">
-                        <tr>
-                          <th style="min-width:110px">{{ newProduct.optionName || 'Variante' }}</th>
-                          <th style="min-width:150px">SKU</th>
-                          <th style="min-width:130px">Cód. barras</th>
-                          <th style="min-width:110px" class="text-end">Precio</th>
-                          <th style="min-width:110px" class="text-end">Original</th>
-                          @for (loc of locations(); track loc.id) {
-                            <th class="text-center" style="min-width:90px">
-                              <i class="bi bi-geo-alt me-1 text-success"></i>{{ loc.name }}
-                            </th>
-                          }
-                          <th style="width:36px"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (v of newProductVariants(); track $index; let i = $index) {
-                          <tr>
-                            <td>
-                              <input type="text" class="form-control form-control-sm"
-                                     [(ngModel)]="v.option1" placeholder="S, M, L…">
-                            </td>
-                            <td>
-                              <input type="text" class="form-control form-control-sm w-100"
-                                     [(ngModel)]="v.sku" placeholder="SKU-001">
-                            </td>
-                            <td>
-                              <input type="text" class="form-control form-control-sm w-100"
-                                     [(ngModel)]="v.barcode" placeholder="—">
-                            </td>
-                            <td>
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">S/</span>
-                                <input type="number" class="form-control text-end"
-                                       [(ngModel)]="v.price" min="0" step="0.01">
-                              </div>
-                            </td>
-                            <td>
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">S/</span>
-                                <input type="number" class="form-control text-end"
-                                       [(ngModel)]="v.compareAtPrice" min="0" step="0.01" placeholder="—">
-                              </div>
-                            </td>
-                            <!-- Stock per location -->
-                            @for (loc of locations(); track loc.id) {
-                              <td class="text-center">
-                                <input type="number" class="form-control form-control-sm text-center"
-                                       style="max-width:70px;margin:auto" min="0"
-                                       [ngModel]="v.locationQtys[loc.id] || 0"
-                                       [ngModelOptions]="{standalone:true}"
-                                       (ngModelChange)="onNewVariantLocationQtyChange(i, loc.id, +$event)">
-                              </td>
-                            }
-                            <td class="text-center">
-                              @if (newProductVariants().length > 1) {
-                                <button class="btn btn-sm btn-outline-danger py-0"
-                                        (click)="removeNewVariantRow(i)">
-                                  <i class="bi bi-trash"></i>
-                                </button>
-                              }
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
+                    <!-- Variant header row: name + price + remove -->
+                    <div class="d-flex gap-2 align-items-center px-3 py-2 border-bottom">
+                      <span class="small fw-semibold text-muted" style="min-width:60px">{{ newProduct.optionName || 'Variante' }}</span>
+                      <input type="text" class="form-control form-control-sm" style="max-width:100px"
+                             [(ngModel)]="v.option1" placeholder="S, M, L…">
+                      <span class="ms-2 small text-muted">Precio</span>
+                      <div class="input-group input-group-sm" style="max-width:120px">
+                        <span class="input-group-text">S/</span>
+                        <input type="number" class="form-control text-end"
+                               [(ngModel)]="v.price" min="0" step="0.01" placeholder="0.00">
+                      </div>
+                      <span class="small text-muted">Original</span>
+                      <div class="input-group input-group-sm" style="max-width:110px">
+                        <span class="input-group-text">S/</span>
+                        <input type="number" class="form-control text-end"
+                               [(ngModel)]="v.compareAtPrice" min="0" step="0.01" placeholder="—">
+                      </div>
+                      @if (newProductVariants().length > 1) {
+                        <button class="btn btn-sm btn-outline-danger ms-auto py-0"
+                                (click)="removeNewVariantRow(i)" title="Eliminar variante">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      }
+                    </div>
+
+                    <!-- SKU + Barcode row -->
+                    <div class="d-flex gap-3 px-3 py-2 border-bottom">
+                      <div style="flex:1">
+                        <label class="form-label small mb-1 text-muted">SKU</label>
+                        <input type="text" class="form-control form-control-sm"
+                               [(ngModel)]="v.sku" placeholder="SKU-001">
+                      </div>
+                      <div style="flex:1">
+                        <label class="form-label small mb-1 text-muted">Código de barras</label>
+                        <input type="text" class="form-control form-control-sm"
+                               [(ngModel)]="v.barcode" placeholder="—">
+                      </div>
+                    </div>
+
+                    <!-- Per-location quantities — locations as rows like Shopify -->
+                    <div class="px-3 py-2">
+                      <div class="d-flex justify-content-between small text-muted fw-semibold mb-1">
+                        <span>Sucursal</span><span>Cantidad</span>
+                      </div>
+                      @for (loc of locations(); track loc.id) {
+                        <div class="d-flex justify-content-between align-items-center py-1 border-top">
+                          <span class="small fw-semibold" style="color:#0d6efd">{{ loc.name }}</span>
+                          <input type="number" class="form-control form-control-sm text-center"
+                                 style="max-width:90px" min="0"
+                                 [ngModel]="v.locationQtys[loc.id] || 0"
+                                 [ngModelOptions]="{standalone:true}"
+                                 (ngModelChange)="onNewVariantLocationQtyChange(i, loc.id, +$event)">
+                        </div>
+                      }
+                    </div>
+
                   </div>
-                </div>
+                }
               </div>
 
               <!-- Envío -->
@@ -969,20 +1101,105 @@
                 <div class="card-header fw-semibold small">Organización del producto</div>
                 <div class="card-body">
 
+                  <!-- Tipo de producto -->
                   <div class="mb-3">
                     <label class="form-label small mb-1">Tipo de producto</label>
-                    <input type="text" class="form-control form-control-sm"
-                           [(ngModel)]="newProduct.productType"
-                           list="productTypeList"
-                           placeholder="Ej: HOODIE, POLO, JEANS…">
+                    <div class="position-relative" style="z-index:1045">
+                      <div class="form-control form-control-sm d-flex align-items-center justify-content-between gap-1"
+                           style="cursor:pointer;min-height:31px"
+                           (click)="openAc('new-type')">
+                        <span class="text-truncate" [class.text-muted]="!newProduct.productType" style="font-size:.875rem">
+                          {{ newProduct.productType || 'Buscar o agregar tipo…' }}
+                        </span>
+                        <i class="bi bi-chevron-down text-muted flex-shrink-0" style="font-size:.65rem"></i>
+                      </div>
+                      @if (openDropdownKey() === 'new-type') {
+                        <div class="position-absolute w-100 bg-white border rounded shadow-sm" style="top:calc(100% + 2px);left:0;z-index:1050">
+                          <div class="p-1 border-bottom">
+                            <input type="text" class="form-control form-control-sm border-0"
+                                   placeholder="Buscar o agregar tipo de producto"
+                                   [value]="acFilter()"
+                                   (input)="acFilter.set($any($event.target).value)">
+                          </div>
+                          <div style="max-height:200px;overflow-y:auto">
+                            @for (t of filteredProductTypes(); track t) {
+                              <div class="px-3 py-1 small d-flex align-items-center gap-2"
+                                   style="cursor:pointer"
+                                   (click)="newProduct.productType = t; openDropdownKey.set(null)">
+                                @if (newProduct.productType === t) {
+                                  <i class="bi bi-check text-primary"></i>
+                                } @else {
+                                  <span style="width:14px"></span>
+                                }
+                                {{ t }}
+                              </div>
+                            }
+                            @if (acFilter() && !existingProductTypes().includes(acFilter())) {
+                              <div class="px-3 py-1 small text-primary border-top"
+                                   style="cursor:pointer"
+                                   (click)="newProduct.productType = acFilter(); openDropdownKey.set(null)">
+                                <i class="bi bi-plus me-1"></i>Agregar "{{ acFilter() }}"
+                              </div>
+                            }
+                            @if (!filteredProductTypes().length && !acFilter()) {
+                              <div class="px-3 py-2 text-muted small fst-italic">Sin tipos disponibles</div>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
                   </div>
+
+                  <!-- Vendedor -->
                   <div class="mb-3">
                     <label class="form-label small mb-1">Vendedor</label>
-                    <input type="text" class="form-control form-control-sm"
-                           [(ngModel)]="newProduct.vendor"
-                           list="vendorList"
-                           placeholder="Ej: Hiitop">
+                    <div class="position-relative" style="z-index:1044">
+                      <div class="form-control form-control-sm d-flex align-items-center justify-content-between gap-1"
+                           style="cursor:pointer;min-height:31px"
+                           (click)="openAc('new-vendor')">
+                        <span class="text-truncate" [class.text-muted]="!newProduct.vendor" style="font-size:.875rem">
+                          {{ newProduct.vendor || 'Buscar o agregar vendedor…' }}
+                        </span>
+                        <i class="bi bi-chevron-down text-muted flex-shrink-0" style="font-size:.65rem"></i>
+                      </div>
+                      @if (openDropdownKey() === 'new-vendor') {
+                        <div class="position-absolute w-100 bg-white border rounded shadow-sm" style="top:calc(100% + 2px);left:0;z-index:1050">
+                          <div class="p-1 border-bottom">
+                            <input type="text" class="form-control form-control-sm border-0"
+                                   placeholder="Buscar o agregar vendedor"
+                                   [value]="acFilter()"
+                                   (input)="acFilter.set($any($event.target).value)">
+                          </div>
+                          <div style="max-height:200px;overflow-y:auto">
+                            @for (v of filteredVendors(); track v) {
+                              <div class="px-3 py-1 small d-flex align-items-center gap-2"
+                                   style="cursor:pointer"
+                                   (click)="newProduct.vendor = v; openDropdownKey.set(null)">
+                                @if (newProduct.vendor === v) {
+                                  <i class="bi bi-check text-primary"></i>
+                                } @else {
+                                  <span style="width:14px"></span>
+                                }
+                                {{ v }}
+                              </div>
+                            }
+                            @if (acFilter() && !existingVendors().includes(acFilter())) {
+                              <div class="px-3 py-1 small text-primary border-top"
+                                   style="cursor:pointer"
+                                   (click)="newProduct.vendor = acFilter(); openDropdownKey.set(null)">
+                                <i class="bi bi-plus me-1"></i>Agregar "{{ acFilter() }}"
+                              </div>
+                            }
+                            @if (!filteredVendors().length && !acFilter()) {
+                              <div class="px-3 py-2 text-muted small fst-italic">Sin vendedores disponibles</div>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
                   </div>
+
+                  <!-- Tags -->
                   <div>
                     <label class="form-label small mb-1">Tags</label>
                     <input type="text" class="form-control form-control-sm"
@@ -991,6 +1208,7 @@
                            placeholder="Ropa, Hombre, Verano…">
                     <div class="form-text">Separados por coma</div>
                   </div>
+
                 </div>
               </div>
 
@@ -1199,7 +1417,7 @@
   </div>
 }
 
-<!-- Global datalists — must be outside @if blocks so they are always in DOM -->
+<!-- Global datalists — always in DOM so inputs can reference them -->
 <datalist id="productTypeList">
   @for (t of existingProductTypes(); track t) { <option value="{{ t }}"> }
 </datalist>
@@ -1209,5 +1427,3 @@
 <datalist id="tagsList">
   @for (t of existingTags(); track t) { <option value="{{ t }}"> }
 </datalist>
-
-} <!-- end @if activeTab === 'inventory' -->

@@ -326,11 +326,14 @@ export class OrdersListComponent implements OnInit {
 
     if (!q) {
       this.shopifyAllOrders.set([]);
+      this.shopifyLoading.set(false);
       this.shopifySearchTimer = setTimeout(() => this.loadShopifyOrders(), 300);
       return;
     }
 
-    // Has a search term → always search ALL Shopify history via GraphQL (fast)
+    // Show spinner immediately so there's no gap before debounce fires
+    this.shopifyLoading.set(true);
+    this.shopifyAllOrders.set([]);
     this.shopifySearchTimer = setTimeout(() => this.searchAllShopifyHistory(q), 500);
   }
 
@@ -357,7 +360,10 @@ export class OrdersListComponent implements OnInit {
         this.shopifyCount.set(orders.length);
         this.shopifyLoading.set(false);
       },
-      error: () => this.shopifyLoading.set(false),
+      error: () => {
+        this.shopifyLoading.set(false);
+        this.toast.error('No se pudo buscar en el historial de Shopify. Verifica la conexión.');
+      },
     });
   }
 

@@ -62,6 +62,8 @@ export class ProductLookupComponent {
               search: query,
               limit: this.limit(),
             };
+            const locationId = this.shopifyLocationId();
+            if (locationId !== null) params['location_id'] = locationId;
             return this.api.get<ProductLookupItem[]>('shopify/products/lookup', params);
           }
 

@@ -192,7 +192,7 @@ public sealed class PosService : IPosService
             DocumentPrintFormatId = request.DocumentPrintFormatId,
             CustomerEmail = request.CustomerEmail,
             NeedsReceipt = false,
-            UserId = userId,
+            UserId = userId ?? request.UserId,
             Items = request.Items.Select(item => new OrderItemUpsertRequest
             {
                 ProductId = item.ProductId,
@@ -249,6 +249,8 @@ public sealed class PosService : IPosService
         DocumentType documentType,
         IReadOnlyList<DocumentPrintFormat> activePrintFormats)
     {
+        string documentCode = documentType.Code?.ToUpperInvariant() ?? string.Empty;
+
         List<PosPrintFormatResponse> linkedFormats = documentType.DocumentTypePrintFormats
             .Where(link => link.DocumentPrintFormat.IsActive)
             .OrderByDescending(link => link.IsDefault)
@@ -293,29 +295,65 @@ public sealed class PosService : IPosService
                 .ToList();
         }
 
-        DocumentPrintFormat? pdfFormat = activePrintFormats.FirstOrDefault(item => item.Code == "PDF")
-            ?? activePrintFormats.FirstOrDefault();
+        DocumentPrintFormat? pdfFormat = activePrintFormats.FirstOrDefault(item => item.Code == "PDF");
+        DocumentPrintFormat? ticketFormat = activePrintFormats.FirstOrDefault(item => item.Code == "TICKET");
+        DocumentPrintFormat? a4Format = activePrintFormats.FirstOrDefault(item => item.Code == "A4");
 
-        if (pdfFormat is null)
+        List<(DocumentPrintFormat Format, bool IsDefault)> fallbackFormats = new();
+
+        if (documentCode == "TICKET")
         {
-            return [];
+            if (ticketFormat is not null)
+            {
+                fallbackFormats.Add((ticketFormat, true));
+            }
+
+            if (pdfFormat is not null && (ticketFormat is null || pdfFormat.Id != ticketFormat.Id))
+            {
+                fallbackFormats.Add((pdfFormat, false));
+            }
+        }
+        else if (documentCode is "BOLETA" or "FACTURA" or "NOTA_CREDITO" or "NOTA_DEBITO")
+        {
+            if (ticketFormat is not null)
+            {
+                fallbackFormats.Add((ticketFormat, true));
+            }
+
+            if (pdfFormat is not null)
+            {
+                fallbackFormats.Add((pdfFormat, false));
+            }
+
+            if (a4Format is not null)
+            {
+                fallbackFormats.Add((a4Format, false));
+            }
+        }
+        else
+        {
+            DocumentPrintFormat? defaultFormat = pdfFormat ?? ticketFormat ?? a4Format ?? activePrintFormats.FirstOrDefault();
+            if (defaultFormat is not null)
+            {
+                fallbackFormats.Add((defaultFormat, true));
+            }
         }
 
-        return
-        [
-            new PosPrintFormatResponse
+        return fallbackFormats
+            .DistinctBy(item => item.Format.Id)
+            .Select(item => new PosPrintFormatResponse
             {
-                Id = pdfFormat.Id,
-                Code = pdfFormat.Code,
-                Name = pdfFormat.Name,
-                Mode = pdfFormat.Mode,
-                WidthMm = pdfFormat.WidthMm,
-                IsActive = pdfFormat.IsActive,
+                Id = item.Format.Id,
+                Code = item.Format.Code,
+                Name = item.Format.Name,
+                Mode = item.Format.Mode,
+                WidthMm = item.Format.WidthMm,
+                IsActive = item.Format.IsActive,
                 Pivot = new PosPrintFormatPivotResponse
                 {
-                    IsDefault = true
+                    IsDefault = item.IsDefault
                 }
-            }
-        ];
+            })
+            .ToList();
     }
 }

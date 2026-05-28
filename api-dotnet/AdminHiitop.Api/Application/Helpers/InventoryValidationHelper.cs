@@ -33,7 +33,7 @@ public static class InventoryValidationHelper
 
         if (request.ProductId <= 0 || request.WarehouseId <= 0)
         {
-            throw new AppException("Producto y almacén son obligatorios.");
+            throw new AppException("Producto y almacÃ©n son obligatorios.");
         }
 
         if (request.Quantity < 0 || request.Reserved < 0)
@@ -41,7 +41,7 @@ public static class InventoryValidationHelper
             throw new AppException("La cantidad y la reserva no pueden ser negativas.");
         }
 
-        if (request.Reserved > request.Quantity)
+        if (!IsExitMovement(request.MovementType) && request.Reserved > request.Quantity)
         {
             throw new AppException("La reserva no puede ser mayor al stock.");
         }
@@ -69,7 +69,7 @@ public static class InventoryValidationHelper
 
         if (request.DestinationWarehouseId <= 0)
         {
-            throw new AppException("El almacén destino es obligatorio.");
+            throw new AppException("El almacÃ©n destino es obligatorio.");
         }
 
         if (request.Quantity <= 0)
@@ -85,12 +85,36 @@ public static class InventoryValidationHelper
             throw new AppException("La transferencia masiva requiere al menos un item.");
         }
 
+        bool usesWarehousePair = request.FromWarehouseId.HasValue || request.ToWarehouseId.HasValue;
+
+        if (usesWarehousePair)
+        {
+            if (request.FromWarehouseId.GetValueOrDefault() <= 0 || request.ToWarehouseId.GetValueOrDefault() <= 0)
+            {
+                throw new AppException("Los almacenes de origen y destino son obligatorios para la transferencia.");
+            }
+
+            if (request.FromWarehouseId == request.ToWarehouseId)
+            {
+                throw new AppException("El almacÃ©n de origen y destino deben ser diferentes.");
+            }
+        }
+
         foreach (StockTransferItemRequest item in request.Items)
         {
-            if (item.StockId <= 0 || item.TargetWarehouseId <= 0 || item.Quantity <= 0)
+            bool hasLegacyShape = item.StockId > 0 && (item.TargetWarehouseId > 0 || request.ToWarehouseId.GetValueOrDefault() > 0);
+            bool hasVariantShape =
+                item.ProductId.GetValueOrDefault() > 0 &&
+                request.FromWarehouseId.GetValueOrDefault() > 0 &&
+                (item.TargetWarehouseId > 0 || request.ToWarehouseId.GetValueOrDefault() > 0);
+
+            if (item.Quantity <= 0 || (!hasLegacyShape && !hasVariantShape))
             {
-                throw new AppException("La transferencia masiva contiene datos inválidos.");
+                throw new AppException("La transferencia masiva contiene datos invÃ¡lidos.");
             }
         }
     }
+
+    public static bool IsExitMovement(string? movementType)
+        => string.Equals(movementType?.Trim(), "exit", StringComparison.OrdinalIgnoreCase);
 }

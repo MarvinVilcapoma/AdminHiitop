@@ -7,7 +7,7 @@ namespace AdminHiitop.Api.Domain.Sales.Entities;
 public sealed class OrderItem : AuditableEntity
 {
     public int OrderId { get; set; }
-    public int ProductId { get; set; }
+    public int? ProductId { get; set; }
     public int? ColorId { get; set; }
     public int? CollectionId { get; set; }
     public string? ProductDescription { get; set; }
@@ -20,7 +20,7 @@ public sealed class OrderItem : AuditableEntity
     public int SortOrder { get; set; }
 
     public Order Order { get; set; } = null!;
-    public Product Product { get; set; } = null!;
+    public Product? Product { get; set; }
     public Color? Color { get; set; }
     public Collection? Collection { get; set; }
 }

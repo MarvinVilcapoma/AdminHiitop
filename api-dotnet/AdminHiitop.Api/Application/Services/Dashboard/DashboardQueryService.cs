@@ -117,20 +117,16 @@ public sealed class DashboardQueryService : IDashboardQueryService
     public async Task<DashboardAnalyticsSummaryResponse> GetAnalyticsSummaryAsync(DashboardSummaryFilterRequest request)
     {
         var orderRows = await BuildOrdersQuery(request)
-            .Include(item => item.OrderStatus)
-            .Include(item => item.Warehouse)
-            .Include(item => item.Items)
-            .ThenInclude(item => item.Product)
             .Select(item => new
             {
                 item.Total,
-                item.OrderStatus.Slug,
+                StatusSlug = item.OrderStatus != null ? item.OrderStatus.Slug : null,
                 WarehouseIsPos = item.Warehouse != null && item.Warehouse.IsPos,
                 Items = item.Items.Select(orderItem => new
                 {
                     orderItem.Quantity,
                     orderItem.Subtotal,
-                    UnitCost = orderItem.Product.UnitCost
+                    UnitCost = orderItem.Product != null ? (decimal?)orderItem.Product.UnitCost : null
                 }).ToList()
             })
             .ToListAsync();
@@ -138,14 +134,14 @@ public sealed class DashboardQueryService : IDashboardQueryService
         int totalOrders = orderRows.Count;
         decimal totalRevenue = orderRows.Sum(item => item.Total);
         int totalUnits = orderRows.Sum(item => item.Items.Sum(orderItem => orderItem.Quantity));
-        decimal totalCost = orderRows.Sum(item => item.Items.Sum(orderItem => orderItem.Quantity * orderItem.UnitCost));
+        decimal totalCost = orderRows.Sum(item => item.Items.Sum(orderItem => orderItem.Quantity * (orderItem.UnitCost ?? 0m)));
         decimal totalProfit = totalRevenue - totalCost;
         decimal avgTicket = totalOrders > 0 ? decimal.Round(totalRevenue / totalOrders, 2) : 0;
         decimal? avgMarginPct = totalRevenue > 0 ? decimal.Round((totalProfit / totalRevenue) * 100, 2) : null;
         int pendingOrders = orderRows.Count(item =>
-            item.Slug == "pending" ||
-            item.Slug == "en-proceso" ||
-            item.Slug == "reservado");
+            item.StatusSlug == "pending" ||
+            item.StatusSlug == "en-proceso" ||
+            item.StatusSlug == "reservado");
         int posSalesCount = orderRows.Count(item => item.WarehouseIsPos);
         decimal posSalesRevenue = orderRows.Where(item => item.WarehouseIsPos).Sum(item => item.Total);
 
@@ -210,7 +206,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
             .Where(item => item.Order.OrderDate >= ResolveFromDate(request) && item.Order.OrderDate < ResolveToDate(request).Date.AddDays(1))
             .Select(item => new
             {
-                Description = item.ProductDescription ?? item.Product.Name,
+                Description = item.ProductDescription ?? (item.Product != null ? item.Product.Name : null),
                 item.Quantity,
                 item.Subtotal
             })
@@ -310,6 +306,47 @@ public sealed class DashboardQueryService : IDashboardQueryService
             })
             .OrderByDescending(item => item.TotalRevenue)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<DashboardSalesByMonthResponse>> GetSalesByMonthAsync(DashboardSummaryFilterRequest request)
+    {
+        var rows = await BuildOrdersQuery(request)
+            .Include(o => o.Warehouse)
+            .Select(o => new
+            {
+                Year    = o.OrderDate.Year,
+                Month   = o.OrderDate.Month,
+                Branch  = o.Warehouse != null ? o.Warehouse.Name : "Sin sucursal",
+                o.Total
+            })
+            .ToListAsync();
+
+        return rows
+            .GroupBy(r => new { r.Year, r.Month })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+            .Select(g => new DashboardSalesByMonthResponse
+            {
+                Month      = $"{g.Key.Year:D4}-{g.Key.Month:D2}",
+                MonthLabel = MonthLabel(g.Key.Month, g.Key.Year),
+                Orders     = g.Count(),
+                Revenue    = g.Sum(r => r.Total),
+                Branches   = g.GroupBy(r => r.Branch)
+                    .Select(bg => new DashboardMonthBranchRow
+                    {
+                        Branch  = bg.Key,
+                        Orders  = bg.Count(),
+                        Revenue = bg.Sum(r => r.Total)
+                    })
+                    .OrderByDescending(b => b.Revenue)
+                    .ToList()
+            })
+            .ToList();
+    }
+
+    private static string MonthLabel(int month, int year)
+    {
+        ReadOnlySpan<string> names = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+        return $"{names[month - 1]} {year}";
     }
 
     private IQueryable<Domain.Sales.Entities.Order> BuildOrdersQuery(DashboardSummaryFilterRequest request)

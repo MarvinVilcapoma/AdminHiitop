@@ -1,5 +1,7 @@
 using AdminHiitop.Api.Application.Interfaces.Repositories;
+using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Application.Options;
+using AdminHiitop.Api.Application.Services.Shopify;
 using AdminHiitop.Api.Infrastructure.Auth;
 using AdminHiitop.Api.Infrastructure.ElectronicBilling;
 using AdminHiitop.Api.Infrastructure.Persistence;
@@ -50,8 +52,10 @@ public static class DependencyInjection
         services.Configure<PosOptions>(configuration.GetSection(PosOptions.SectionName));
         services.Configure<ShopifyOptions>(configuration.GetSection(ShopifyOptions.SectionName));
 
+        services.AddMemoryCache();
         services.AddHttpClient<NubeFactClient>();
         services.AddHttpClient<ShopifyAdminClient>();
+        services.AddHttpClient<IShopifyOAuthService, ShopifyOAuthService>();
         services.AddScoped<AdminHiitopDbSeeder>();
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IUserRepository, UserRepository>();

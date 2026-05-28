@@ -191,6 +191,13 @@ public sealed class ShopifyController : ControllerBase
     public async Task<IActionResult> GetProductInventory(long id)
         => Ok(await _products.GetProductInventoryAsync(id));
 
+    /// <summary>Retorna el stock disponible de un inventory_item en una ubicación específica.</summary>
+    [HttpGet("inventory/level")]
+    public async Task<IActionResult> GetInventoryLevel(
+        [FromQuery(Name = "inventory_item_id")] long inventoryItemId,
+        [FromQuery(Name = "location_id")]       long locationId)
+        => Ok(await _products.GetInventoryLevelAsync(inventoryItemId, locationId));
+
     // ── Orders history (multi-page) ───────────────────────────────────────────
 
     /// <summary>

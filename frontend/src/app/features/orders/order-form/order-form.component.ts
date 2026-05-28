@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { SearchableSelectComponent } from '../../../core/components/searchable-select/searchable-select.component';
 import { formatPeruDate, formatPeruDateTimeLocal } from '../../../core/utils/peru-date.util';
 import {
@@ -69,6 +70,7 @@ export class OrderFormComponent implements OnInit {
   private readonly router     = inject(Router);
   private readonly fb         = inject(FormBuilder);
   private readonly api        = inject(ApiService);
+  private readonly auth       = inject(AuthService);
   private readonly toast      = inject(ToastService);
   readonly appConfig          = inject(AppConfigService);
 
@@ -213,7 +215,7 @@ export class OrderFormComponent implements OnInit {
     });
     this.api.get<ShippingAgency[]>('shipping-agencies').subscribe(r => this.shippingAgencies.set(pick(r)));
     this.api.get<PurchaseType[]>('purchase-types').subscribe(r   => this.purchaseTypes.set(pick(r)));
-    this.api.get<Province[]>('provinces?per_page=100').subscribe(r => this.provinces.set(pick(r)));
+    this.api.get<Province[]>('provinces?per_page=300').subscribe(r => this.provinces.set(pick(r)));
     this.api.get<DocumentType[]>('document-types?active_only=1&per_page=200').subscribe(r => {
       const docs = pick(r);
       const guideDoc = docs.find((d: any) => String(d.code ?? '').toUpperCase() === 'GUIA_REMISION') ?? null;
@@ -371,16 +373,17 @@ export class OrderFormComponent implements OnInit {
 
   setStockSource(source: 'mysql' | 'shopify'): void {
     this.stockSource.set(source);
+    const warehouseCtrl = this.form.get('warehouse_id');
     if (source === 'shopify') {
       this.form.patchValue({ warehouse_id: null });
-      // Pre-select first location if only one
-      if (this.shopifyLocations().length === 1) {
-        this.shopifyLocationId.set(this.shopifyLocations()[0].id);
-      } else {
-        this.shopifyLocationId.set(null);
-      }
+      warehouseCtrl?.clearValidators();
+      warehouseCtrl?.updateValueAndValidity();
+      const locs = this.shopifyLocations();
+      this.shopifyLocationId.set(locs.length ? locs[0].id : null);
     } else {
       this.shopifyLocationId.set(null);
+      warehouseCtrl?.setValidators([Validators.required]);
+      warehouseCtrl?.updateValueAndValidity();
       this.lines.update(ls => ls.map(l => ({ ...l, source: 'mysql' as const })));
     }
   }
@@ -792,7 +795,7 @@ export class OrderFormComponent implements OnInit {
   }
 
   loadDistricts(provinceId: number): void {
-    this.api.get<any[]>(`districts?province_id=${provinceId}`).subscribe((r: unknown) => {
+    this.api.get<any[]>(`districts?province_id=${provinceId}&per_page=300`).subscribe((r: unknown) => {
       const arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
       this.districts.set(arr as any[]);
     });
@@ -885,6 +888,7 @@ export class OrderFormComponent implements OnInit {
       warehouse_id:        this.isShopifyMode ? null : (body.warehouse_id ?? null),
       shopify_location_id: this.isShopifyMode ? this.shopifyLocationId() : null,
       guide_transfer_date: body.guide_transfer_date || null,
+      user_id:             this.auth.currentUser()?.id ?? null,
       items,
       discount_type:   discountAmt > 0 ? this.discountType() : null,
       discount_value:  discountAmt > 0 ? this.discountValue() : null,

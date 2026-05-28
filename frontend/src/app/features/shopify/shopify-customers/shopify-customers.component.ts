@@ -1,8 +1,10 @@
 import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { CustomersListComponent } from '../../customers/customers-list/customers-list.component';
 
 interface ShopifyCustomer {
   id: number;
@@ -28,12 +30,14 @@ interface ShopifyCustomerListResponse {
 @Component({
   selector: 'app-shopify-customers',
   standalone: true,
-  imports: [FormsModule, DecimalPipe],
+  imports: [FormsModule, DecimalPipe, RouterLink, CustomersListComponent],
   templateUrl: './shopify-customers.component.html',
 })
 export class ShopifyCustomersComponent implements OnInit {
   private readonly api   = inject(ApiService);
   private readonly toast = inject(ToastService);
+
+  activeTab = signal<'shopify' | 'sistema'>('shopify');
 
   loading    = signal(true);
   customers  = signal<ShopifyCustomer[]>([]);

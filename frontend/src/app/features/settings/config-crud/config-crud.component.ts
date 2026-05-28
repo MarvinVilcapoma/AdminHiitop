@@ -100,14 +100,10 @@ export class ConfigCrudComponent implements OnInit {
     this.loading.set(true);
 
     if (this.useServerPagination()) {
-      const params: Record<string, string | number> = {
+      const params = this.buildListParams({
         per_page: this.pageSize(),
         page: this.currentPage(),
-      };
-
-      if (this.searchEnabled() && this.searchTerm.trim()) {
-        params['search'] = this.searchTerm.trim();
-      }
+      });
 
       this.api.get<any>(this.endpoint(), params).subscribe({
         next: (res) => {
@@ -124,7 +120,7 @@ export class ConfigCrudComponent implements OnInit {
       return;
     }
 
-    this.api.get<any>(this.endpoint() + '?per_page=500').subscribe({
+    this.api.get<any>(this.endpoint(), this.buildListParams({ per_page: 500, page: 1 })).subscribe({
       next: (res) => {
         const rows = Array.isArray(res) ? res : (res as any).data ?? [];
         this.rows.set(rows);
@@ -149,7 +145,7 @@ export class ConfigCrudComponent implements OnInit {
       this.formError.set('El nombre es requerido.'); return;
     }
     this.saving.set(true);
-    this.api.post(this.endpoint(), this.newRow).subscribe({
+    this.api.post(this.endpoint(), this.normalizePayload(this.newRow)).subscribe({
       next: () => {
         this.saving.set(false);
         this.showForm.set(false);
@@ -185,7 +181,7 @@ export class ConfigCrudComponent implements OnInit {
     const row = this.editRow();
     if (!row) return;
     this.saving.set(true);
-    this.api.put(`${this.endpoint()}/${row.id}`, row).subscribe({
+    this.api.put(`${this.endpoint()}/${row.id}`, this.normalizePayload(row)).subscribe({
       next: () => {
         this.saving.set(false);
         this.editRow.set(null);
@@ -306,6 +302,10 @@ export class ConfigCrudComponent implements OnInit {
   }
 
   isProtectedRow(row: any): boolean {
+    if (this.isShopifyRow(row)) {
+      return true;
+    }
+
     if (row?.is_protected === true) {
       return true;
     }
@@ -318,7 +318,7 @@ export class ConfigCrudComponent implements OnInit {
 
     if (endpoint === 'document-types') {
       const code = String(row?.code ?? '').toUpperCase();
-      return ['BOLETA', 'FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'GUIA_REMISION', 'COTIZACION', 'ORDEN_VENTA'].includes(code);
+      return ['BOLETA', 'FACTURA', 'TICKET', 'NOTA_CREDITO', 'NOTA_DEBITO', 'GUIA_REMISION', 'COTIZACION', 'ORDEN_VENTA'].includes(code);
     }
 
     if (endpoint === 'document-print-formats') {
@@ -327,6 +327,10 @@ export class ConfigCrudComponent implements OnInit {
     }
 
     return false;
+  }
+
+  isShopifyRow(row: any): boolean {
+    return row?.source === 'shopify';
   }
 
   // ── Warehouse geo selects + type (only for warehouses endpoint) ──────────
@@ -367,6 +371,11 @@ export class ConfigCrudComponent implements OnInit {
   unitMeasures      = signal<{ id: number; name: string }[]>([]);
 
   toggleSizesPanel(rowId: number): void {
+    const row = this.rows().find(item => item.id === rowId);
+    if (row && this.isProtectedRow(row)) {
+      return;
+    }
+
     this.activeSizesRowId.set(this.activeSizesRowId() === rowId ? null : rowId);
     if (this.unitMeasures().length === 0) this.loadUnitMeasures();
   }
@@ -405,5 +414,65 @@ export class ConfigCrudComponent implements OnInit {
         this.toast.error(e?.error?.message ?? 'No se pudieron actualizar las tallas.');
       },
     });
+  }
+
+  private buildListParams(base: Record<string, string | number>): Record<string, string | number> {
+    const params: Record<string, string | number> = { ...base };
+
+    if (this.searchEnabled() && this.searchTerm.trim()) {
+      params['search'] = this.searchTerm.trim();
+    }
+
+    if (this.supportsShopifyCatalogMerge()) {
+      params['include_shopify'] = 1;
+    }
+
+    return params;
+  }
+
+  private supportsShopifyCatalogMerge(): boolean {
+    const endpoint = this.endpoint();
+    return endpoint === 'warehouses' || endpoint === 'product-types';
+  }
+
+  private normalizePayload(row: Record<string, any>): Record<string, any> {
+    const payload: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(row)) {
+      if (['source', 'shopify_location_id', 'warehouse_type', 'province', 'district', 'sizes'].includes(key)) {
+        continue;
+      }
+
+      payload[key] = this.normalizePayloadValue(key, value);
+    }
+
+    return payload;
+  }
+
+  private normalizePayloadValue(key: string, value: any): any {
+    if (value === '') {
+      return this.isNumericField(key) ? null : '';
+    }
+
+    if (typeof value === 'string' && this.isNumericField(key)) {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+
+      const normalized = trimmed.replace(',', '.');
+      const numeric = Number(normalized);
+      return Number.isFinite(numeric) ? numeric : value;
+    }
+
+    return value;
+  }
+
+  private isNumericField(key: string): boolean {
+    if (key.endsWith('_id')) {
+      return true;
+    }
+
+    return this.columns().some((col) => col.key === key && col.type === 'number');
   }
 }

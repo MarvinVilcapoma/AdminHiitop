@@ -2,7 +2,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AdminHiitop.Api.Application.DTOs.Shopify;
+using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Shared.Exceptions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace AdminHiitop.Api.Infrastructure.Shopify;
@@ -15,18 +17,15 @@ public sealed class ShopifyAdminClient
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private readonly HttpClient     _http;
-    private readonly ShopifyOptions _opts;
+    private readonly HttpClient           _http;
+    private readonly ShopifyOptions       _opts;
+    private readonly AdminHiitopDbContext _db;
 
-    // OAuth token cache — used only when AccessToken is not configured
-    private string?         _cachedOAuthToken;
-    private DateTimeOffset  _tokenExpiresAt = DateTimeOffset.MinValue;
-    private readonly SemaphoreSlim _tokenLock = new(1, 1);
-
-    public ShopifyAdminClient(HttpClient http, IOptions<ShopifyOptions> opts)
+    public ShopifyAdminClient(HttpClient http, IOptions<ShopifyOptions> opts, AdminHiitopDbContext db)
     {
         _http = http;
         _opts = opts.Value;
+        _db   = db;
     }
 
     // ── Token resolution ──────────────────────────────────────────────────────
@@ -35,63 +34,31 @@ public sealed class ShopifyAdminClient
     /// Returns the access token to use for API calls.
     /// Priority:
     ///   1. AccessToken (shpat_...) from config → permanent, never expires, skips OAuth.
-    ///   2. OAuth client_credentials exchange using ClientId + ClientSecret → cached with auto-refresh.
+    ///   2. OAuth token stored in DB (shopify_store_connections) — installed via /oauth/install flow.
     /// </summary>
     private async Task<string> GetAccessTokenAsync()
     {
-        // Direct permanent token (shpat_...) — most reliable, no refresh needed
+        // Priority 1: static permanent token from appsettings.json
         if (!string.IsNullOrWhiteSpace(_opts.AccessToken))
             return _opts.AccessToken.Trim();
 
-        // OAuth path — check cache first (refresh 5 min before expiry)
-        if (_cachedOAuthToken is not null && DateTimeOffset.UtcNow < _tokenExpiresAt.AddMinutes(-5))
-            return _cachedOAuthToken;
-
-        await _tokenLock.WaitAsync();
-        try
+        // Priority 2: OAuth token persisted in DB after install flow
+        string shop = _opts.ShopDomain.Trim();
+        if (!string.IsNullOrWhiteSpace(shop))
         {
-            if (_cachedOAuthToken is not null && DateTimeOffset.UtcNow < _tokenExpiresAt.AddMinutes(-5))
-                return _cachedOAuthToken;
+            string? dbToken = await _db.ShopifyStoreConnections
+                .Where(c => c.ShopDomain == shop && c.AccessToken != "")
+                .Select(c => c.AccessToken)
+                .FirstOrDefaultAsync();
 
-            ValidateOAuthCredentials();
-
-            string tokenUrl = $"https://{_opts.ShopDomain.Trim().TrimEnd('/')}/admin/oauth/access_token";
-            var body = new
-            {
-                client_id     = _opts.ClientId,
-                client_secret = _opts.ClientSecret,
-                grant_type    = "client_credentials",
-            };
-
-            string json = JsonSerializer.Serialize(body, JsonOpts);
-            using var req = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json")
-            };
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            using HttpResponseMessage resp = await _http.SendAsync(req, cts.Token);
-            string respBody = await resp.Content.ReadAsStringAsync(cts.Token);
-
-            if (!resp.IsSuccessStatusCode)
-                throw new AppException($"Shopify OAuth {(int)resp.StatusCode}: {ExtractShopifyError(respBody)}");
-
-            using JsonDocument doc = JsonDocument.Parse(respBody);
-
-            if (!doc.RootElement.TryGetProperty("access_token", out JsonElement tokenEl))
-                throw new AppException("Shopify OAuth: no se recibió access_token.");
-
-            _cachedOAuthToken = tokenEl.GetString()
-                ?? throw new AppException("Shopify OAuth: access_token vacío.");
-
-            // Parse expires_in if present, default 23 h to be safe
-            int expiresIn = doc.RootElement.TryGetProperty("expires_in", out JsonElement expEl)
-                ? expEl.GetInt32()
-                : 82800;
-            _tokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
-
-            return _cachedOAuthToken;
+            if (!string.IsNullOrWhiteSpace(dbToken))
+                return dbToken;
         }
-        finally { _tokenLock.Release(); }
+
+        throw new AppException(
+            "No hay token de Shopify configurado. " +
+            "Agrega AccessToken en appsettings.json o instala la app via /api/shopify/oauth/install.",
+            502);
     }
 
     // ── Orders ────────────────────────────────────────────────────────────────
@@ -353,16 +320,53 @@ public sealed class ShopifyAdminClient
     /// </summary>
     public async Task<bool> AdjustInventoryQuantityAsync(long inventoryItemId, long locationId, int delta)
     {
+        // Shopify adjust.json expects the payload directly (no "inventory_level" wrapper).
+        // set.json uses the wrapper; adjust.json does not.
         var payload = new
         {
             location_id          = locationId,
             inventory_item_id    = inventoryItemId,
             available_adjustment = delta,
         };
-        string json = JsonSerializer.Serialize(new { inventory_level = payload }, JsonOpts);
+        string json = JsonSerializer.Serialize(payload, JsonOpts);
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post, BuildUrl("inventory_levels/adjust.json"), json);
-        return response.IsSuccessStatusCode;
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // 404 means the inventory item is not connected to this location yet.
+            // Connect it first, then retry the adjustment.
+            await ConnectInventoryLevelAsync(inventoryItemId, locationId);
+
+            using HttpResponseMessage retry = await SendAsync(
+                HttpMethod.Post, BuildUrl("inventory_levels/adjust.json"), json);
+            if (!retry.IsSuccessStatusCode)
+            {
+                string retryBody = await retry.Content.ReadAsStringAsync();
+                EnsureSuccessOrThrow(retry, retryBody);
+            }
+            return true;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            EnsureSuccessOrThrow(response, body);
+        }
+        return true;
+    }
+
+    private async Task ConnectInventoryLevelAsync(long inventoryItemId, long locationId)
+    {
+        var payload = new { location_id = locationId, inventory_item_id = inventoryItemId };
+        string json = JsonSerializer.Serialize(new { inventory_level = payload }, JsonOpts);
+        using HttpResponseMessage response = await SendAsync(
+            HttpMethod.Post, BuildUrl("inventory_levels/connect.json"), json);
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            EnsureSuccessOrThrow(response, body);
+        }
     }
 
     // ── Product images ────────────────────────────────────────────────────────
@@ -550,7 +554,7 @@ public sealed class ShopifyAdminClient
                 shippingAddress     { firstName lastName company address1 city province phone }
                 billingAddress      { company }
                 note tags cancelReason cancelledAt
-                fulfillments        { trackingNumber trackingCompany trackingUrl }
+                fulfillments        { trackingInfo { number company url } }
                 lineItems(first: 10) {
                   edges { node {
                     id title variantTitle quantity sku fulfillmentStatus
@@ -564,7 +568,7 @@ public sealed class ShopifyAdminClient
                     discountedPriceSet { shopMoney { amount } }
                   }}
                 }
-                discountCodes { code }
+                discountCodes
               }
             }
             pageInfo { hasNextPage endCursor }
@@ -682,6 +686,9 @@ public sealed class ShopifyAdminClient
                   maxVariantPrice { amount }
                 }
                 totalInventory
+                variants(first: 50) {
+                  edges { node { inventoryItem { id } } }
+                }
               }
             }
             pageInfo { hasNextPage endCursor }
@@ -774,11 +781,14 @@ public sealed class ShopifyAdminClient
         {
             Company = o.BillingAddress.Company,
         },
-        Fulfillments = o.Fulfillments.Select(f => new ShopifyApiFulfillment
-        {
-            TrackingNumber  = f.TrackingNumber,
-            TrackingCompany = f.TrackingCompany,
-            TrackingUrl     = f.TrackingUrl,
+        Fulfillments = o.Fulfillments.Select(f => {
+            var info = f.TrackingInfo.FirstOrDefault();
+            return new ShopifyApiFulfillment
+            {
+                TrackingNumber  = info?.Number,
+                TrackingCompany = info?.Company,
+                TrackingUrl     = info?.Url,
+            };
         }).ToList(),
         LineItems = o.LineItems.Edges.Select(e => new ShopifyApiLineItem
         {
@@ -796,7 +806,7 @@ public sealed class ShopifyAdminClient
             Price           = e.Node.OriginalPriceSet?.ShopMoney.Amount ?? "0.00",
             DiscountedPrice = e.Node.DiscountedPriceSet?.ShopMoney.Amount ?? "0.00",
         }).ToList(),
-        DiscountCodes = o.DiscountCodes.Select(dc => new ShopifyApiDiscountCode { Code = dc.Code }).ToList(),
+        DiscountCodes = o.DiscountCodes.Select(code => new ShopifyApiDiscountCode { Code = code }).ToList(),
     };
 
     private static ShopifyApiProduct MapGqlProduct(ShopifyGqlProduct p)
@@ -880,14 +890,6 @@ public sealed class ShopifyAdminClient
             request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         return await _http.SendAsync(request, cts.Token);
-    }
-
-    private void ValidateOAuthCredentials()
-    {
-        if (string.IsNullOrWhiteSpace(_opts.ClientId))
-            throw new AppException("Shopify ClientId no está configurado. Agrega AccessToken o ClientId+ClientSecret.");
-        if (string.IsNullOrWhiteSpace(_opts.ClientSecret))
-            throw new AppException("Shopify ClientSecret no está configurado.");
     }
 
     private static void EnsureSuccessOrThrow(HttpResponseMessage response, string body)

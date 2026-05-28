@@ -4,7 +4,7 @@ namespace AdminHiitop.Api.Application.Interfaces.Services;
 
 public interface IShippingAgencyService
 {
-    Task<object> GetAsync(int perPage, int page);
+    Task<object> GetAsync(int perPage, int page, string? search);
     Task<ShippingAgency?> GetByIdAsync(int id);
     Task<ShippingAgency> CreateAsync(ShippingAgency request);
     Task<ShippingAgency> UpdateAsync(int id, ShippingAgency request);

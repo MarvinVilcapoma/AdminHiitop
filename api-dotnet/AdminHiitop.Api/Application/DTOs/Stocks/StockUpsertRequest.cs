@@ -8,4 +8,7 @@ public sealed class StockUpsertRequest
     public string? Size { get; set; }
     public int Quantity { get; set; }
     public int Reserved { get; set; }
+    public string? MovementType { get; set; }
+    public string? SubMovementType { get; set; }
+    public string? Reason { get; set; }
 }

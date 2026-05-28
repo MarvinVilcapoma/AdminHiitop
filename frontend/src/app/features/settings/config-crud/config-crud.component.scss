@@ -26,6 +26,12 @@
 
 .col-actions { width: 80px; }
 
+.alert {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 // ── Status filter active states ──────────────────────────────────────────────
 // Make the active filter button visually distinct from inactive ones
 

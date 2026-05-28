@@ -318,6 +318,7 @@ export interface OrderUpsertRequest {
   guide_driver_name?: string | null;
   guide_driver_license?: string | null;
   guide_transport_certificate?: string | null;
+  user_id?: number | null;
   items: OrderItem[];
 }
 
@@ -340,6 +341,7 @@ export interface PosOrderCreateRequest {
   customer_email?: string | null;
   phone?: string | null;
   address?: string | null;
+  user_id?: number | null;
   print_after_save?: boolean;
   items: OrderItem[];
 }

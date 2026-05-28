@@ -1,11 +1,12 @@
-import { Component, inject, input, OnInit, signal, computed } from '@angular/core';
+import { Component, effect, HostListener, inject, input, OnDestroy, OnInit, signal, computed, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { QuillModule } from 'ngx-quill';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
-import { ShopifyCustomersComponent } from '../shopify-customers/shopify-customers.component';
+import { ShopifyOAuthService } from '../../../core/services/shopify-oauth.service';
 
 interface ShopifyVariant {
   id: number;
@@ -153,36 +154,69 @@ interface BulkRow {
   inventoryItemId: number;
   variantTitle: string;
   productTitle: string;
-  // SKU
   currentSku: string;
   newSku: string | null;
-  // Price
   currentPrice: number;
   newPrice: number | null;
-  // Compare-at
   currentCompare: number | null;
   newCompare: number | null;
-  // Inventory
   currentQty: number;
   newQty: number | null;
   saving?: boolean;
 }
 
+interface BulkProductGroup {
+  productId: number;
+  productTitle: string;
+  imageUrl?: string;
+  currentStatus: string;
+  newStatus: string | null;
+  currentProductType: string;
+  newProductType: string | null;
+  currentVendor: string;
+  newVendor: string | null;
+  expanded: boolean;
+  variants: BulkRow[];
+}
+
 @Component({
   selector: 'app-shopify-inventory',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, ShopifyCustomersComponent, QuillModule],
+  imports: [FormsModule, DecimalPipe, QuillModule],
   templateUrl: './shopify-inventory.component.html',
+  styleUrl: './shopify-inventory.component.scss',
 })
-export class ShopifyInventoryComponent implements OnInit {
-  private readonly api       = inject(ApiService);
-  private readonly toast     = inject(ToastService);
-  private readonly sanitizer = inject(DomSanitizer);
+export class ShopifyInventoryComponent implements OnInit, OnDestroy {
+  private readonly api        = inject(ApiService);
+  private readonly toast      = inject(ToastService);
+  private readonly sanitizer  = inject(DomSanitizer);
+  readonly shopifyOAuth        = inject(ShopifyOAuthService);
+
+  oauthConnected  = signal<boolean | null>(null);  // null = loading
+
+  private locationsReady = false;
+  private readonly offcanvasListener = () => this.openDropdownKey.set(null);
+
+  constructor() {
+    effect(() => {
+      this.activeLocationId();
+      this.activeStatus();
+      if (!this.locationsReady) return;
+      untracked(() => this.loadProducts(1));
+    });
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    if (this.openDropdownKey()) this.openDropdownKey.set(null);
+  }
+
+  ngOnDestroy(): void {
+    document.removeEventListener('show.bs.offcanvas', this.offcanvasListener);
+  }
 
   /** When true, hides the page-header (used when embedded in Products page) */
   embedded = input(false);
-
-  activeTab = signal<'inventory' | 'customers'>('inventory');
 
   loading    = signal(true);
   saving     = signal(false);
@@ -194,12 +228,44 @@ export class ShopifyInventoryComponent implements OnInit {
   search     = '';
   activeStatus = signal<string>('active');
 
-  // Suggestions for create/edit form autocomplete (loaded from existing products)
+  // Suggestions for searchable dropdown
   existingProductTypes = signal<string[]>([]);
   existingVendors      = signal<string[]>([]);
-  existingTags         = signal<string[]>([]);  // '' | 'active' | 'draft' | 'archived'
+  existingTags         = signal<string[]>([]);
+
+  openDropdownKey  = signal<string | null>(null);
+  acFilter         = signal('');
+
+  filteredProductTypes = computed(() => {
+    const f = this.acFilter().toLowerCase();
+    return f ? this.existingProductTypes().filter(t => t.toLowerCase().includes(f)) : this.existingProductTypes();
+  });
+
+  filteredVendors = computed(() => {
+    const f = this.acFilter().toLowerCase();
+    return f ? this.existingVendors().filter(v => v.toLowerCase().includes(f)) : this.existingVendors();
+  });
+
+  openAc(key: string): void {
+    this.acFilter.set('');
+    this.openDropdownKey.set(key);
+  }
+
+  connectShopify(): void {
+    this.shopifyOAuth.initiateInstall();
+  }
+
+  async disconnectShopify(): Promise<void> {
+    if (!confirm('¿Desconectar la tienda Shopify? El token OAuth se eliminará.')) return;
+    try {
+      await this.shopifyOAuth.disconnect();
+      this.oauthConnected.set(false);
+      this.toast.success('Shopify desconectado.');
+    } catch {
+      this.toast.error('Error al desconectar.');
+    }
+  }
   readonly STATUS_TABS = [
-    { label: 'Todos',      value: '' },
     { label: 'Activos',    value: 'active' },
     { label: 'Borrador',   value: 'draft' },
     { label: 'Archivado',  value: 'archived' },
@@ -227,27 +293,52 @@ export class ShopifyInventoryComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    document.addEventListener('show.bs.offcanvas', this.offcanvasListener);
+    this.shopifyOAuth.getStatus()
+      .then(s => this.oauthConnected.set(s.connected))
+      .catch(() => this.oauthConnected.set(null));
+
     this.api.get<ShopifyLocation[]>('shopify/locations').subscribe({
       next: locs => {
         const active = locs.filter(l => l.active);
         this.locations.set(active);
+        this.locationsReady = true;  // arm the effect before changing signals
         if (active.length) {
-          this.activeLocationId.set(active[0].id);
           this.newProductLocationId.set(active[0].id);
+          this.activeLocationId.set(active[0].id); // triggers effect → loadProducts(1)
+        } else {
+          this.loadProducts(1); // no locations: load once without filter
         }
       },
+      error: () => {
+        this.locationsReady = true;
+        this.loadProducts(1);
+      },
     });
-    this.loadProducts();
+    this.loadSuggestions();
+  }
+
+  private loadSuggestions(): void {
+    this.api.get<{ products: ShopifyProduct[]; total: number }>(
+      'shopify/products', { page: 1, per_page: 250, status: '' }
+    ).subscribe({
+      next: res => {
+        const list = res.products ?? [];
+        this.existingProductTypes.set([...new Set(list.map(p => p.product_type).filter((v): v is string => !!v))].sort());
+        this.existingVendors.set([...new Set(list.map(p => p.vendor).filter((v): v is string => !!v))].sort());
+        const tagSet = new Set<string>();
+        list.forEach(p => (p.tags ?? '').split(',').forEach(t => { const s = t.trim(); if (s) tagSet.add(s); }));
+        this.existingTags.set([...tagSet].sort());
+      },
+    });
   }
 
   onStatusTab(status: string): void {
-    this.activeStatus.set(status);
-    this.loadProducts(1);
+    this.activeStatus.set(status); // effect reacts → loadProducts(1)
   }
 
   onLocationChange(locationId: number): void {
-    this.activeLocationId.set(locationId);
-    this.loadProducts(1);
+    this.activeLocationId.set(locationId); // effect reacts → loadProducts(1)
   }
 
   loadProducts(page = 1): void {
@@ -264,12 +355,6 @@ export class ShopifyInventoryComponent implements OnInit {
         this.products.set(list);
         this.total.set(res.total ?? 0);
         this.loading.set(false);
-        // Collect unique types, vendors, tags for autocomplete suggestions
-        this.existingProductTypes.set([...new Set(list.map(p => p.product_type).filter((v): v is string => !!v))].sort());
-        this.existingVendors.set([...new Set(list.map(p => p.vendor).filter((v): v is string => !!v))].sort());
-        const tagSet = new Set<string>();
-        list.forEach(p => (p.tags ?? '').split(',').forEach(t => { const s = t.trim(); if (s) tagSet.add(s); }));
-        this.existingTags.set([...tagSet].sort());
       },
       error: () => { this.loading.set(false); this.toast.error('No se pudo cargar el inventario de Shopify.'); },
     });
@@ -540,148 +625,207 @@ export class ShopifyInventoryComponent implements OnInit {
 
   // ── Bulk edit mode ────────────────────────────────────────────────────────
 
-  bulkMode     = signal(false);
-  bulkRows     = signal<BulkRow[]>([]);
-  bulkLoading  = signal(false);
-  bulkSaving   = signal(false);
+  bulkMode    = signal(false);
+  bulkGroups  = signal<BulkProductGroup[]>([]);
+  bulkLoading = signal(false);
+  bulkSaving  = signal(false);
+
+  bulkRows = computed(() => this.bulkGroups().flatMap(g => g.variants));
 
   async enterBulkMode(): Promise<void> {
     this.bulkMode.set(true);
     this.bulkLoading.set(true);
-    this.bulkRows.set([]);
+    this.bulkGroups.set([]);
 
-    // Load all products (up to 250)
-    const res = await this.api.get<{ products: ShopifyProduct[]; total: number }>(
-      'shopify/products', { page: 1, per_page: 250, status: 'active' }
-    ).toPromise().catch(() => null);
+    const currentProducts = this.products();
+    const needsVariants   = currentProducts.filter(p => !p.variants);
 
-    if (!res) { this.bulkLoading.set(false); return; }
-    const allProducts: ShopifyProduct[] = res.products ?? [];
+    await Promise.all(
+      needsVariants.map(p =>
+        firstValueFrom(this.api.get<any>(`shopify/products/${p.id}`)).then(
+          detail => { p.variants = detail.variants ?? []; },
+          () => {}
+        )
+      )
+    );
 
-    // Load detail for each product to get variants with prices
-    const rows: BulkRow[] = [];
-    for (const p of allProducts) {
-      if (!p.variants) {
-        const detail = await this.api.get<any>(`shopify/products/${p.id}`).toPromise().catch(() => null);
-        if (detail) p.variants = detail.variants ?? [];
-      }
-      for (const v of p.variants ?? []) {
-        rows.push({
-          variantId:       v.id,
-          inventoryItemId: v.inventory_item_id,
-          variantTitle:    v.title === 'Default Title' ? p.title : v.title,
-          productTitle:    p.title,
-          currentSku:      v.sku ?? '',
-          newSku:          null,
-          currentPrice:    v.price ?? 0,
-          newPrice:        null,
-          currentCompare:  v.compare_at_price ?? null,
-          newCompare:      null,
-          currentQty:      v.inventory_qty ?? 0,
-          newQty:          null,
-        });
-      }
-    }
-    this.bulkRows.set(rows);
+    const groups: BulkProductGroup[] = currentProducts.map(p => {
+      const variants: BulkRow[] = (p.variants ?? []).map(v => ({
+        variantId:       v.id,
+        inventoryItemId: v.inventory_item_id,
+        variantTitle:    v.title === 'Default Title' ? '' : v.title,
+        productTitle:    p.title,
+        currentSku:      v.sku ?? '',
+        newSku:          null,
+        currentPrice:    v.price ?? 0,
+        newPrice:        null,
+        currentCompare:  v.compare_at_price ?? null,
+        newCompare:      null,
+        currentQty:      v.inventory_qty ?? 0,
+        newQty:          null,
+      }));
+      return {
+        productId:          p.id,
+        productTitle:       p.title,
+        imageUrl:           p.image_url,
+        currentStatus:      p.status,
+        newStatus:          null,
+        currentProductType: p.product_type ?? '',
+        newProductType:     null,
+        currentVendor:      p.vendor ?? '',
+        newVendor:          null,
+        expanded:           true,
+        variants,
+      };
+    });
+
+    this.bulkGroups.set(groups);
     this.bulkLoading.set(false);
   }
 
   exitBulkMode(): void {
     this.bulkMode.set(false);
-    this.bulkRows.set([]);
+    this.bulkGroups.set([]);
+  }
+
+  toggleBulkGroup(group: BulkProductGroup): void {
+    group.expanded = !group.expanded;
+    this.bulkGroups.update(gs => [...gs]);
+  }
+
+  onBulkStatusChange(group: BulkProductGroup, value: string): void {
+    group.newStatus = value !== group.currentStatus ? value : null;
+    this.bulkGroups.update(gs => [...gs]);
+  }
+
+  onBulkTypeChange(group: BulkProductGroup, value: string): void {
+    group.newProductType = value !== group.currentProductType ? value : null;
+    this.bulkGroups.update(gs => [...gs]);
+  }
+
+  onBulkVendorChange(group: BulkProductGroup, value: string): void {
+    group.newVendor = value !== group.currentVendor ? value : null;
+    this.bulkGroups.update(gs => [...gs]);
   }
 
   onBulkQtyChange(row: BulkRow, value: number | null): void {
     row.newQty = value !== null ? +value : null;
-    this.bulkRows.update(rows => [...rows]);
+    this.bulkGroups.update(gs => [...gs]);
   }
 
   onBulkSkuChange(row: BulkRow, value: string): void {
     row.newSku = value !== row.currentSku ? value : null;
-    this.bulkRows.update(rows => [...rows]);
+    this.bulkGroups.update(gs => [...gs]);
   }
 
   onBulkPriceChange(row: BulkRow, value: number): void {
     row.newPrice = +value !== row.currentPrice ? +value : null;
-    this.bulkRows.update(rows => [...rows]);
+    this.bulkGroups.update(gs => [...gs]);
   }
 
   onBulkCompareChange(row: BulkRow, value: number | ''): void {
     row.newCompare = value !== '' ? +value : null;
-    this.bulkRows.update(rows => [...rows]);
+    this.bulkGroups.update(gs => [...gs]);
   }
 
   applyPriceToAll(sourceRow: BulkRow): void {
     const price = sourceRow.newPrice ?? sourceRow.currentPrice;
-    this.bulkRows.update(rows => rows.map(r => ({ ...r, newPrice: +price !== r.currentPrice ? +price : null })));
+    this.bulkGroups.update(gs => {
+      gs.forEach(g => g.variants.forEach(r => {
+        r.newPrice = +price !== r.currentPrice ? +price : null;
+      }));
+      return [...gs];
+    });
   }
 
   applyCompareToAll(sourceRow: BulkRow): void {
     const compare = sourceRow.newCompare ?? sourceRow.currentCompare;
-    this.bulkRows.update(rows => rows.map(r => ({ ...r, newCompare: compare })));
+    this.bulkGroups.update(gs => {
+      gs.forEach(g => g.variants.forEach(r => { r.newCompare = compare; }));
+      return [...gs];
+    });
   }
 
-  applySkuPatternToAll(_sourceRow: BulkRow): void {
-    // Clear all SKU overrides - user may want to reset
-    this.bulkRows.update(rows => rows.map(r => ({ ...r, newSku: null })));
-  }
-
-  bulkChanged = computed(() => this.bulkRows().filter(r =>
+  bulkVariantChanged = computed(() => this.bulkRows().filter(r =>
     (r.newQty     !== null && r.newQty     !== r.currentQty) ||
     (r.newPrice   !== null && r.newPrice   !== r.currentPrice) ||
     (r.newCompare !== null && r.newCompare !== r.currentCompare) ||
     (r.newSku     !== null && r.newSku     !== r.currentSku)
   ));
 
+  bulkProductChanged = computed(() => this.bulkGroups().filter(g =>
+    g.newStatus !== null || g.newProductType !== null || g.newVendor !== null
+  ));
+
+  bulkChangedCount = computed(() =>
+    this.bulkVariantChanged().length + this.bulkProductChanged().length
+  );
+
+  // Kept for template compatibility (toolbar uses .length)
+  bulkChanged = this.bulkVariantChanged;
+
   async saveBulkEdit(): Promise<void> {
-    const changed = this.bulkChanged();
-    if (!changed.length) { this.toast.info('No hay cambios pendientes.'); return; }
+    const varChanged  = this.bulkVariantChanged();
+    const prodChanged = this.bulkProductChanged();
+    if (!varChanged.length && !prodChanged.length) { this.toast.info('No hay cambios pendientes.'); return; }
 
     const locationId = this.activeLocationId();
     this.bulkSaving.set(true);
-
     const tasks: Promise<any>[] = [];
 
-    // 1. Inventory bulk-set (group changed qty by location)
-    const qtyChanged = changed.filter(r => r.newQty !== null && r.newQty !== r.currentQty);
-    if (qtyChanged.length && locationId) {
-      tasks.push(
-        this.api.post<any>('shopify/inventory/bulk-set', {
-          location_id: locationId,
-          items: qtyChanged.map(r => ({ inventory_item_id: r.inventoryItemId, available: r.newQty! })),
-        }).toPromise().catch(() => null)
-      );
+    // 1. Product-level changes (status, type, vendor)
+    for (const g of prodChanged) {
+      const payload: Record<string, any> = {};
+      if (g.newStatus      !== null) payload['status']       = g.newStatus;
+      if (g.newProductType !== null) payload['product_type'] = g.newProductType;
+      if (g.newVendor      !== null) payload['vendor']       = g.newVendor;
+      if (Object.keys(payload).length)
+        tasks.push(firstValueFrom(this.api.put<any>(`shopify/products/${g.productId}`, payload)).catch(() => null));
     }
 
-    // 2. Variant updates (price, compare-at, SKU) — one API call per changed variant
-    const variantChanged = changed.filter(r =>
-      (r.newPrice !== null && r.newPrice !== r.currentPrice) ||
-      (r.newCompare !== null && r.newCompare !== r.currentCompare) ||
-      (r.newSku !== null && r.newSku !== r.currentSku)
-    );
-    for (const r of variantChanged) {
+    // 2. Inventory bulk-set
+    const qtyChanged = varChanged.filter(r => r.newQty !== null && r.newQty !== r.currentQty);
+    if (qtyChanged.length && locationId) {
+      tasks.push(firstValueFrom(this.api.post<any>('shopify/inventory/bulk-set', {
+        location_id: locationId,
+        items: qtyChanged.map(r => ({ inventory_item_id: r.inventoryItemId, available: r.newQty! })),
+      })).catch(() => null));
+    }
+
+    // 3. Variant updates (price, compare-at, SKU)
+    for (const r of varChanged) {
       const payload: Record<string, any> = {};
       if (r.newPrice   !== null && r.newPrice   !== r.currentPrice)   payload['price']            = r.newPrice;
       if (r.newCompare !== null && r.newCompare !== r.currentCompare)  payload['compare_at_price'] = r.newCompare;
       if (r.newSku     !== null && r.newSku     !== r.currentSku)      payload['sku']              = r.newSku;
       if (Object.keys(payload).length)
-        tasks.push(this.api.put<any>(`shopify/variants/${r.variantId}`, payload).toPromise().catch(() => null));
+        tasks.push(firstValueFrom(this.api.put<any>(`shopify/variants/${r.variantId}`, payload)).catch(() => null));
     }
 
     await Promise.all(tasks);
     this.bulkSaving.set(false);
-    const total = changed.length;
-    this.toast.success(`${total} variante${total !== 1 ? 's' : ''} actualizadas en Shopify.`);
+    const total = varChanged.length + prodChanged.length;
+    this.toast.success(`${total} cambio${total !== 1 ? 's' : ''} guardado${total !== 1 ? 's' : ''} en Shopify.`);
 
-    // Apply changes locally
-    this.bulkRows.update(rows => rows.map(r => ({
-      ...r,
-      currentQty:     r.newQty     !== null ? r.newQty     : r.currentQty,
-      currentPrice:   r.newPrice   !== null ? r.newPrice   : r.currentPrice,
-      currentCompare: r.newCompare !== null ? r.newCompare : r.currentCompare,
-      currentSku:     r.newSku     !== null ? r.newSku     : r.currentSku,
-      newQty: null, newPrice: null, newCompare: null, newSku: null,
-    })));
+    // Apply locally
+    this.bulkGroups.update(gs => gs.map(g => {
+      const changed = prodChanged.find(p => p.productId === g.productId);
+      return {
+        ...g,
+        currentStatus:      changed?.newStatus      ?? g.currentStatus,
+        currentProductType: changed?.newProductType ?? g.currentProductType,
+        currentVendor:      changed?.newVendor      ?? g.currentVendor,
+        newStatus: null, newProductType: null, newVendor: null,
+        variants: g.variants.map(r => ({
+          ...r,
+          currentQty:     r.newQty     !== null ? r.newQty     : r.currentQty,
+          currentPrice:   r.newPrice   !== null ? r.newPrice   : r.currentPrice,
+          currentCompare: r.newCompare !== null ? r.newCompare : r.currentCompare,
+          currentSku:     r.newSku     !== null ? r.newSku     : r.currentSku,
+          newQty: null, newPrice: null, newCompare: null, newSku: null,
+        })),
+      };
+    }));
     this.loadProducts(1);
   }
 
@@ -689,10 +833,13 @@ export class ShopifyInventoryComponent implements OnInit {
 
   editState      = signal<EditProductState | null>(null);
   editSaving     = signal(false);
+  editLoading    = signal(false);
   allCollections = signal<ShopifyCollectionItem[]>([]);
   collectionsLoaded = false;
 
   openEditProduct(product: ShopifyProduct): void {
+    this.editLoading.set(true);
+
     // Load collections once
     if (!this.collectionsLoaded) {
       this.api.get<ShopifyCollectionItem[]>('shopify/collections').subscribe({
@@ -743,10 +890,18 @@ export class ShopifyInventoryComponent implements OnInit {
               loading_inventory:      true,
               inventory_levels:       [],
             };
+            this.editLoading.set(false);
             this.editState.set(state);
             this.loadEditInventory(state);
           },
+          error: () => this.editLoading.set(false),
         });
+      },
+      error: (err) => {
+        this.editLoading.set(false);
+        this.toast.error(err.status === 429
+          ? 'Límite de solicitudes Shopify alcanzado. Espera unos segundos e intenta de nuevo.'
+          : 'Error al cargar el producto.');
       },
     });
   }
@@ -798,7 +953,7 @@ export class ShopifyInventoryComponent implements OnInit {
     };
     if (state.new_image_url.trim())
       productPayload['images'] = [{ src: state.new_image_url.trim() }];
-    tasks.push(this.api.put<any>(`shopify/products/${state.id}`, productPayload).toPromise().catch(() => null));
+    tasks.push(firstValueFrom(this.api.put<any>(`shopify/products/${state.id}`, productPayload)).catch(() => null));
 
     // 2. Update variants that changed
     for (const v of state.variants) {
@@ -811,7 +966,7 @@ export class ShopifyInventoryComponent implements OnInit {
       if (v.option2 !== v.original.option2) payload['option2'] = v.option2;
       if (v.option3 !== v.original.option3) payload['option3'] = v.option3;
       if (Object.keys(payload).length > 0)
-        tasks.push(this.api.put<any>(`shopify/variants/${v.id}`, payload).toPromise().catch(() => null));
+        tasks.push(firstValueFrom(this.api.put<any>(`shopify/variants/${v.id}`, payload)).catch(() => null));
     }
 
     // 3. Update collections
@@ -820,10 +975,10 @@ export class ShopifyInventoryComponent implements OnInit {
     const addIds      = [...selectedIds].filter(id => !originalIds.has(id));
     const removeIds   = state.collects.filter(c => !selectedIds.has(c.collection_id)).map(c => c.id);
     if (addIds.length || removeIds.length)
-      tasks.push(this.api.put<any>(`shopify/products/${state.id}/collections`, {
+      tasks.push(firstValueFrom(this.api.put<any>(`shopify/products/${state.id}/collections`, {
         add_collection_ids:  addIds,
         remove_collect_ids:  removeIds,
-      }).toPromise().catch(() => null));
+      })).catch(() => null));
 
     // 4. Bulk-set inventory levels that changed — group by location_id
     const changedLevels = state.inventory_levels.filter(l => l.new_available !== null && l.new_available !== l.available);
@@ -835,10 +990,10 @@ export class ShopifyInventoryComponent implements OnInit {
         byLocation.set(l.location_id, group);
       }
       for (const [locationId, items] of byLocation) {
-        tasks.push(this.api.post<any>('shopify/inventory/bulk-set', {
+        tasks.push(firstValueFrom(this.api.post<any>('shopify/inventory/bulk-set', {
           location_id: locationId,
           items,
-        }).toPromise().catch(() => null));
+        })).catch(() => null));
       }
     }
 
@@ -939,6 +1094,10 @@ export class ShopifyInventoryComponent implements OnInit {
       available_at_source: inv?.inventory_qty ?? 0,
     };
     this.showTransferModal.set(true);
+    // Fetch real stock for the initial origin location
+    if (inv?.inventory_item_id && loc) {
+      this.fetchSourceStock(inv.inventory_item_id, loc);
+    }
   }
 
   onTransferVariantChange(variantId: number, product: ShopifyProduct): void {
@@ -948,25 +1107,27 @@ export class ShopifyInventoryComponent implements OnInit {
     this.transferForm.inventory_item_id   = v.inventory_item_id;
     this.transferForm.variant_title       = v.title;
     this.transferForm.available_at_source = v.inventory_qty;
+    this.fetchSourceStock(v.inventory_item_id, this.transferForm.from_location_id);
   }
 
   onTransferFromLocationChange(locationId: number): void {
     this.transferForm.from_location_id = locationId;
-    // Auto-pick a different destination
+    // Auto-pick a different destination when origin matches
     const other = this.locations().find(l => l.id !== locationId);
     if (other && this.transferForm.to_location_id === locationId)
       this.transferForm.to_location_id = other.id;
-    // Refresh available quantity
-    const v = this.findVariantInProducts(this.transferForm.shopify_variant_id);
-    if (v) this.transferForm.available_at_source = v.inventory_qty;
+    // Fetch real stock for this location from Shopify
+    this.fetchSourceStock(this.transferForm.inventory_item_id, locationId);
   }
 
-  private findVariantInProducts(variantId: number): ShopifyVariant | null {
-    for (const p of this.products()) {
-      const v = p.variants?.find(vv => vv.id === variantId);
-      if (v) return v;
-    }
-    return null;
+  private fetchSourceStock(inventoryItemId: number, locationId: number): void {
+    if (!inventoryItemId || !locationId) return;
+    this.api.get<{ available: number }>(
+      `shopify/inventory/level?inventory_item_id=${inventoryItemId}&location_id=${locationId}`
+    ).subscribe({
+      next: r => { this.transferForm.available_at_source = r?.available ?? 0; },
+      error: () => { /* keep existing value on error */ },
+    });
   }
 
   confirmTransfer(): void {

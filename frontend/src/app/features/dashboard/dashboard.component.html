@@ -16,6 +16,8 @@
           [class.active]="preset() === 'week'" (click)="setPreset('week')">Semana</button>
         <button type="button" class="btn btn-outline-secondary btn-xs"
           [class.active]="preset() === 'month'" (click)="setPreset('month')">Mes</button>
+        <button type="button" class="btn btn-outline-secondary btn-xs"
+          [class.active]="preset() === 'year'" (click)="setPreset('year')">Año</button>
       </div>
       <input type="date" class="form-control form-control-sm" style="width:145px" [(ngModel)]="from" (change)="load()">
       <span class="text-muted small">→</span>
@@ -111,15 +113,15 @@
             <!-- Shopify section in KPI panel -->
             <div class="mt-3 pt-3 border-top">
               <div class="d-flex align-items-center gap-2 mb-2">
-                <i class="bi bi-shop text-success"></i>
-                <span class="fw-semibold small text-success">Shopify</span>
+                <i class="bi bi-globe text-success"></i>
+                <span class="fw-semibold small text-success">Ventas Web</span>
                 @if (shopifyMetricsLoading()) {
                   <span class="spinner-border spinner-border-sm text-success ms-auto" style="width:14px;height:14px"></span>
                 }
               </div>
               @if (shopifyMetrics(); as sh) {
                 <div class="d-flex align-items-center justify-content-between mb-1">
-                  <span class="text-muted" style="font-size:.78rem">Pedidos Shopify</span>
+                  <span class="text-muted" style="font-size:.78rem">Pedidos Web</span>
                   <span class="fw-semibold" style="font-size:.9rem;color:#16a34a">{{ sh.total_orders | number }}</span>
                 </div>
                 <div class="d-flex align-items-center justify-content-between mb-1">
@@ -127,7 +129,7 @@
                   <span class="fw-semibold" style="font-size:.88rem;color:#ea580c">{{ sh.pending_orders | number }}</span>
                 </div>
                 <div class="d-flex align-items-center justify-content-between mb-1">
-                  <span class="text-muted" style="font-size:.78rem">Ingresos Shopify</span>
+                  <span class="text-muted" style="font-size:.78rem">Ingresos Web</span>
                   <span class="fw-semibold" style="font-size:.9rem;color:#0f766e">{{ formatCurrency(sh.total_revenue) }}</span>
                 </div>
                 <div class="d-flex align-items-center justify-content-between pt-2 border-top mt-2">
@@ -162,7 +164,7 @@
               <i class="bi bi-exclamation-octagon"></i>
               <p>{{ salesByDaySection().error }}</p>
             </div>
-          } @else if (salesByDay().length) {
+          } @else if (salesByDay().length || shopifyMetrics()?.daily_stats?.length) {
             <canvas #salesLineChart></canvas>
           } @else {
             <div class="empty-state">
@@ -189,9 +191,9 @@
       </div>
       <div class="col-6 col-md-3">
         <div class="stat-card d-flex align-items-center gap-3">
-          <div class="stat-icon bg-success bg-opacity-10"><i class="bi bi-shop text-success"></i></div>
+          <div class="stat-icon bg-success bg-opacity-10"><i class="bi bi-globe text-success"></i></div>
           <div>
-            <div class="stat-label">Pedidos Shopify</div>
+            <div class="stat-label">Pedidos Web</div>
             <div class="stat-value text-success">{{ sh.total_orders | number }}</div>
           </div>
         </div>
@@ -200,12 +202,12 @@
         <div class="stat-card d-flex align-items-center gap-3">
           <div class="stat-icon" style="background:#fff7ed"><i class="bi bi-truck" style="color:#ea580c"></i></div>
           <div>
-            <div class="stat-label">Sin enviar (Shopify)</div>
+            <div class="stat-label">Sin enviar (Web)</div>
             <div class="stat-value" style="color:#ea580c">{{ sh.pending_orders | number }}</div>
           </div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
+      <div class="col-12 col-md-3">
         <div class="stat-card d-flex align-items-center gap-3">
           <div class="stat-icon" style="background:#f0fdf4"><i class="bi bi-currency-dollar" style="color:#16a34a"></i></div>
           <div>
@@ -427,5 +429,98 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Monthly breakdown section ─────────────────────────────────────────── -->
+  <div class="row g-3 section-gap">
+    <div class="col-12">
+      <div class="chart-card">
+        <div class="card-head">
+          <span class="card-title">
+            <i class="bi bi-bar-chart-steps" style="color:#f97316"></i>
+            Ingresos por mes · todos los canales
+          </span>
+          @if (monthlySection().loading) {
+            <span class="spinner-border spinner-border-sm text-secondary ms-2" style="width:14px;height:14px"></span>
+          }
+        </div>
+
+        @if (monthlyRows().length) {
+          <div class="chart-area" style="height:240px">
+            <canvas #monthlyBarChart></canvas>
+          </div>
+        } @else if (!monthlySection().loading) {
+          <div class="empty-state">
+            <i class="bi bi-bar-chart"></i>
+            <p>Sin datos para el periodo seleccionado.</p>
+          </div>
+        }
+
+        @if (monthlyRows().length) {
+          <div class="table-responsive mt-3" style="font-size:.78rem">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="fw-semibold">Mes</th>
+                  <th class="text-center" style="color:#f97316">
+                    <i class="bi bi-bag me-1"></i>Ped. local
+                  </th>
+                  <th class="text-end" style="color:#f97316">Ing. local</th>
+                  <th class="text-center" style="color:#0d9488">
+                    <i class="bi bi-globe me-1"></i>Ped. Web
+                  </th>
+                  <th class="text-end" style="color:#0d9488">Ing. Web</th>
+                    <th class="text-center fw-semibold">Total ped.</th>
+                    <th class="text-end fw-semibold">Total S/</th>
+                    @for (b of allBranches(); track b) {
+                      <th class="text-end" style="color:#7c3aed;white-space:nowrap">{{ b }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of monthlyRows(); track row.month) {
+                    <tr>
+                      <td class="fw-semibold" style="white-space:nowrap">{{ row.month_label }}</td>
+                      <td class="text-center text-muted">{{ row.local_orders }}</td>
+                      <td class="text-end" [class.text-muted]="row.local_revenue === 0">
+                        {{ row.local_revenue > 0 ? (row.local_revenue | number:'1.2-2') : '—' }}
+                      </td>
+                      <td class="text-center text-muted">{{ row.shopify_orders }}</td>
+                      <td class="text-end" [class.text-muted]="row.shopify_revenue === 0">
+                        {{ row.shopify_revenue > 0 ? (row.shopify_revenue | number:'1.2-2') : '—' }}
+                      </td>
+                      <td class="text-center fw-semibold">{{ row.total_orders }}</td>
+                      <td class="text-end fw-bold" style="color:#1e293b">
+                        S/ {{ row.total_revenue | number:'1.2-2' }}
+                      </td>
+                      @for (b of allBranches(); track b) {
+                        <td class="text-end text-muted">
+                          {{ getBranchRevenue(row, b) > 0 ? ('S/ ' + (getBranchRevenue(row, b) | number:'1.2-2')) : '—' }}
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+                <tfoot class="table-light fw-semibold" style="border-top:2px solid #e2e8f0">
+                  <tr>
+                    <td>Total periodo</td>
+                    <td class="text-center">{{ totalLocal('orders') }}</td>
+                    <td class="text-end">{{ totalLocal('revenue') | number:'1.2-2' }}</td>
+                    <td class="text-center">{{ totalShopify('orders') }}</td>
+                    <td class="text-end">{{ totalShopify('revenue') | number:'1.2-2' }}</td>
+                    <td class="text-center">{{ totalLocal('orders') + totalShopify('orders') }}</td>
+                    <td class="text-end" style="color:#1e293b">
+                      S/ {{ (totalLocal('revenue') + totalShopify('revenue')) | number:'1.2-2' }}
+                    </td>
+                    @for (b of allBranches(); track b) {
+                      <td class="text-end">—</td>
+                    }
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
 
 </div>

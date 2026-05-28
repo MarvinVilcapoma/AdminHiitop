@@ -62,6 +62,32 @@ interface SellerItem {
   avg_ticket: number;
 }
 
+interface MonthBranchRow {
+  branch: string;
+  orders: number;
+  revenue: number;
+}
+
+interface MonthlySalesItem {
+  month: string;
+  month_label: string;
+  orders: number;
+  revenue: number;
+  branches: MonthBranchRow[];
+}
+
+interface MonthlyRow {
+  month: string;
+  month_label: string;
+  local_orders: number;
+  local_revenue: number;
+  shopify_orders: number;
+  shopify_revenue: number;
+  total_orders: number;
+  total_revenue: number;
+  branches: MonthBranchRow[];
+}
+
 interface SectionState<T> {
   loading: boolean;
   error: string | null;
@@ -83,14 +109,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  @ViewChild('salesLineChart') salesChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('salesLineChart')   salesChartRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('branchDonutChart') branchChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('monthlyBarChart')  monthlyChartRef?: ElementRef<HTMLCanvasElement>;
 
   private salesChartInst?: Chart;
   private branchChartInst?: Chart;
+  private monthlyChartInst?: Chart;
   private viewReady = false;
 
-  preset = signal<'today' | 'week' | 'month'>('month');
+  preset = signal<'today' | 'week' | 'month' | 'year'>('month');
   topMode = signal<'revenue' | 'qty'>('revenue');
   sellerSort = signal<'revenue' | 'orders' | 'ticket'>('revenue');
 
@@ -104,7 +132,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   paymentMethodsSection = signal<SectionState<PaymentMethodItem[]>>(sectionState());
   sellersSection = signal<SectionState<SellerItem[]>>(sectionState());
 
-  shopifyMetrics         = signal<{ total_orders: number; pending_orders: number; total_revenue: number } | null>(null);
+  monthlySection = signal<SectionState<MonthlySalesItem[]>>(sectionState());
+
+  shopifyMetrics         = signal<{
+    total_orders: number;
+    pending_orders: number;
+    total_revenue: number;
+    daily_stats: Array<{ date: string; orders: number; revenue: number }>;
+  } | null>(null);
   shopifyMetricsLoading  = signal(false);
 
   loading = computed(() =>
@@ -173,6 +208,51 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   branchColors = ['#7c3aed', '#0d9488', '#f59e0b', '#3b82f6', '#ef4444'];
 
+  private readonly MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  monthlyRows = computed<MonthlyRow[]>(() => {
+    const local   = this.monthlySection().data ?? [];
+    const shopify = this.shopifyMetrics();
+
+    const shMap = new Map<string, { orders: number; revenue: number }>();
+    for (const s of shopify?.daily_stats ?? []) {
+      const key = s.date.substring(0, 7);
+      const cur = shMap.get(key) ?? { orders: 0, revenue: 0 };
+      shMap.set(key, { orders: cur.orders + s.orders, revenue: cur.revenue + s.revenue });
+    }
+
+    const keys = [...new Set([...local.map(r => r.month), ...shMap.keys()])].sort();
+    return keys.map(key => {
+      const loc = local.find(r => r.month === key);
+      const sh  = shMap.get(key);
+      const [y, m] = key.split('-').map(Number);
+      const label  = loc?.month_label ?? `${this.MONTH_NAMES[m - 1]} ${y}`;
+      return {
+        month:           key,
+        month_label:     label,
+        local_orders:    loc?.orders   ?? 0,
+        local_revenue:   loc?.revenue  ?? 0,
+        shopify_orders:  sh?.orders    ?? 0,
+        shopify_revenue: sh?.revenue   ?? 0,
+        total_orders:    (loc?.orders  ?? 0) + (sh?.orders   ?? 0),
+        total_revenue:   (loc?.revenue ?? 0) + (sh?.revenue  ?? 0),
+        branches:        loc?.branches ?? [],
+      };
+    });
+  });
+
+  allBranches = computed<string[]>(() => {
+    const names = new Set<string>();
+    for (const row of this.monthlyRows()) {
+      for (const b of row.branches) names.add(b.branch);
+    }
+    return [...names];
+  });
+
+  showMonthlySection = computed(() =>
+    this.preset() === 'year' || this.monthlyRows().length > 1
+  );
+
   ngOnInit(): void {
     this.setPreset('month');
   }
@@ -187,24 +267,26 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.destroyCharts();
   }
 
-  setPreset(preset: 'today' | 'week' | 'month'): void {
+  setPreset(preset: 'today' | 'week' | 'month' | 'year'): void {
     this.preset.set(preset);
+    const now = new Date();
 
     if (preset === 'today') {
       const value = formatPeruDate();
       this.from = value;
-      this.to = value;
+      this.to   = value;
     } else if (preset === 'week') {
-      const now = new Date();
-      const day = now.getDay() || 7;
+      const day    = now.getDay() || 7;
       const monday = new Date(now);
       monday.setDate(now.getDate() - day + 1);
       this.from = formatPeruDate(monday);
-      this.to = formatPeruDate(now);
-    } else {
-      const now = new Date();
+      this.to   = formatPeruDate(now);
+    } else if (preset === 'month') {
       this.from = formatPeruDate(new Date(now.getFullYear(), now.getMonth(), 1));
-      this.to = formatPeruDate(now);
+      this.to   = formatPeruDate(now);
+    } else {
+      this.from = formatPeruDate(new Date(now.getFullYear(), 0, 1));
+      this.to   = formatPeruDate(now);
     }
 
     this.load();
@@ -218,6 +300,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadPaymentMethods();
     this.loadSellers();
     this.loadShopifyMetrics();
+    this.loadMonthlyData();
   }
 
   private loadShopifyMetrics(): void {
@@ -227,10 +310,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       next: m => {
         this.shopifyMetrics.set({
           total_orders:   m.total_orders   ?? 0,
+          daily_stats:    m.daily_stats    ?? [],
           pending_orders: m.pending_orders  ?? 0,
           total_revenue:  m.total_revenue   ?? 0,
         });
         this.shopifyMetricsLoading.set(false);
+        this.queueSalesChartBuild();
+        this.queueMonthlyChartBuild();
       },
       error: () => this.shopifyMetricsLoading.set(false),
     });
@@ -320,6 +406,21 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  private loadMonthlyData(): void {
+    this.monthlySection.update(s => ({ ...s, loading: true, error: null }));
+    this.api.get<MonthlySalesItem[]>('dashboard/sales-by-month', this.queryParams()).subscribe({
+      next: data => {
+        this.monthlySection.set({ loading: false, error: null, data });
+        this.queueMonthlyChartBuild();
+      },
+      error: err => this.monthlySection.set({
+        loading: false,
+        error: err?.error?.message ?? 'No se pudo cargar el resumen mensual.',
+        data: null,
+      }),
+    });
+  }
+
   private queryParams(): Record<string, string> {
     return { from: this.from, to: this.to };
   }
@@ -336,9 +437,21 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => this.buildBranchChart(), 60);
   }
 
+  private queueMonthlyChartBuild(): void {
+    if (!this.viewReady) return;
+    this.cdr.detectChanges();
+    setTimeout(() => this.buildMonthlyChart(), 80);
+  }
+
   private destroyCharts(): void {
     this.destroySalesChart();
     this.destroyBranchChart();
+    this.destroyMonthlyChart();
+  }
+
+  private destroyMonthlyChart(): void {
+    this.monthlyChartInst?.destroy();
+    this.monthlyChartInst = undefined;
   }
 
   private destroySalesChart(): void {
@@ -354,42 +467,92 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private buildSalesChart(): void {
     this.destroySalesChart();
 
-    const canvas = this.salesChartRef?.nativeElement;
-    const data = this.salesByDay();
-    if (!canvas || !data.length) return;
+    const canvas    = this.salesChartRef?.nativeElement;
+    const localData = this.salesByDay();
+    const shopify   = this.shopifyMetrics();
+    if (!canvas || (!localData.length && !shopify?.daily_stats?.length)) return;
+
+    const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const formatLabel = (date: string) => {
+      const p = date.split('-');
+      return `${p[2]} ${MONTHS[+p[1] - 1]}`;
+    };
+
+    // Build unified date set across local + Shopify
+    const dateSet = new Set<string>([
+      ...localData.map(r => r.date),
+      ...(shopify?.daily_stats ?? []).map(r => r.date),
+    ]);
+    const allDates = [...dateSet].sort();
+
+    const localMap   = new Map(localData.map(r => [r.date, r]));
+    const shopifyMap = new Map((shopify?.daily_stats ?? []).map(r => [r.date, r]));
+
+    const datasets: any[] = [];
+
+    if (localData.length) {
+      datasets.push(
+        {
+          label: 'Ingresos locales (S/)',
+          data: allDates.map(d => localMap.get(d)?.revenue ?? 0),
+          borderColor: '#f97316',
+          backgroundColor: 'rgba(249,115,22,.08)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#f97316',
+          tension: .35,
+          fill: true,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Pedidos locales',
+          data: allDates.map(d => localMap.get(d)?.orders ?? 0),
+          borderColor: '#7c3aed',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 2,
+          tension: .35,
+          fill: false,
+          yAxisID: 'y2',
+        }
+      );
+    }
+
+    if (shopify?.daily_stats?.length) {
+      datasets.push(
+        {
+          label: 'Ingresos Web (S/)',
+          data: allDates.map(d => shopifyMap.get(d)?.revenue ?? 0),
+          borderColor: '#0d9488',
+          backgroundColor: 'rgba(13,148,136,.08)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#0d9488',
+          tension: .35,
+          fill: true,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Pedidos Web',
+          data: allDates.map(d => shopifyMap.get(d)?.orders ?? 0),
+          borderColor: '#3b82f6',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 2,
+          tension: .35,
+          fill: false,
+          yAxisID: 'y2',
+        }
+      );
+    }
+
+    if (!datasets.length) return;
 
     this.salesChartInst = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: data.map(row => {
-          const parts = row.date.split('-');
-          return `${parts[2]} ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][+parts[1] - 1]}`;
-        }),
-        datasets: [
-          {
-            label: 'Ingresos (S/)',
-            data: data.map(row => row.revenue),
-            borderColor: '#f97316',
-            backgroundColor: 'rgba(249,115,22,.1)',
-            borderWidth: 2.5,
-            pointRadius: 3,
-            pointBackgroundColor: '#f97316',
-            tension: .35,
-            fill: true,
-            yAxisID: 'y',
-          },
-          {
-            label: 'Pedidos',
-            data: data.map(row => row.orders),
-            borderColor: '#7c3aed',
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            pointRadius: 2,
-            tension: .35,
-            fill: false,
-            yAxisID: 'y2',
-          },
-        ],
+        labels: allDates.map(formatLabel),
+        datasets,
       },
       options: {
         responsive: true,
@@ -397,9 +560,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         interaction: { mode: 'index', intersect: false },
         plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
         scales: {
-          y: { position: 'left', grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (value: any) => 'S/' + value } },
+          y:  { position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v: any) => 'S/' + v } },
           y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
-          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+          x:  { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
         },
       },
     });
@@ -430,6 +593,97 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         plugins: { legend: { display: false } },
       },
     });
+  }
+
+  private buildMonthlyChart(): void {
+    this.destroyMonthlyChart();
+    const canvas = this.monthlyChartRef?.nativeElement;
+    const rows   = this.monthlyRows();
+    if (!canvas || !rows.length) return;
+
+    const labels       = rows.map(r => r.month_label);
+    const localRev     = rows.map(r => r.local_revenue);
+    const shopifyRev   = rows.map(r => r.shopify_revenue);
+    const totalOrders  = rows.map(r => r.total_orders);
+
+    this.monthlyChartInst = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Local (S/)',
+            data: localRev,
+            backgroundColor: 'rgba(249,115,22,.75)',
+            borderColor: '#f97316',
+            borderWidth: 1,
+            stack: 'revenue',
+            order: 2,
+          },
+          {
+            label: 'Web (S/)',
+            data: shopifyRev,
+            backgroundColor: 'rgba(13,148,136,.75)',
+            borderColor: '#0d9488',
+            borderWidth: 1,
+            stack: 'revenue',
+            order: 2,
+          },
+          {
+            label: 'Pedidos totales',
+            data: totalOrders,
+            type: 'line' as any,
+            borderColor: '#7c3aed',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#7c3aed',
+            tension: 0.35,
+            fill: false,
+            yAxisID: 'y2',
+            order: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+          tooltip: {
+            callbacks: {
+              label: (ctx: any) => ctx.dataset.yAxisID === 'y2'
+                ? `${ctx.dataset.label}: ${ctx.parsed.y} pedidos`
+                : `${ctx.dataset.label}: S/ ${(ctx.parsed.y as number).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+            },
+          },
+        },
+        scales: {
+          x:  { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+          y:  { stacked: true, position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v: any) => 'S/' + v } },
+          y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
+        },
+      },
+    });
+  }
+
+  getBranchRevenue(row: MonthlyRow, branch: string): number {
+    return row.branches.find(b => b.branch === branch)?.revenue ?? 0;
+  }
+
+  getBranchOrders(row: MonthlyRow, branch: string): number {
+    return row.branches.find(b => b.branch === branch)?.orders ?? 0;
+  }
+
+  totalLocal(field: 'orders' | 'revenue'): number {
+    return this.monthlyRows().reduce((sum, r) =>
+      sum + (field === 'orders' ? r.local_orders : r.local_revenue), 0);
+  }
+
+  totalShopify(field: 'orders' | 'revenue'): number {
+    return this.monthlyRows().reduce((sum, r) =>
+      sum + (field === 'orders' ? r.shopify_orders : r.shopify_revenue), 0);
   }
 
   barPct(value: number, max: number): number {

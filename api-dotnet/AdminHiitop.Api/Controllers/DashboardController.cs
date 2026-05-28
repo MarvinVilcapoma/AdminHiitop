@@ -60,4 +60,8 @@ public sealed class DashboardController : BaseApiController
     [HttpGet("by-seller")]
     public async Task<IActionResult> GetBySeller([FromQuery] DashboardSummaryFilterRequest request)
         => Ok(await _dashboardQueryService.GetBySellerAsync(request));
+
+    [HttpGet("sales-by-month")]
+    public async Task<IActionResult> GetSalesByMonth([FromQuery] DashboardSummaryFilterRequest request)
+        => Ok(await _dashboardQueryService.GetSalesByMonthAsync(request));
 }

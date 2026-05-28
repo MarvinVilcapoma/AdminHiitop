@@ -1,6 +1,6 @@
 export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:5224/api',
+  production: true,
+  apiUrl: 'https://api.hiitop-peru.com/api',
   locale: 'es-PE',
   timeZone: 'America/Lima',
 };

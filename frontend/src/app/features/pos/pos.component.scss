@@ -313,6 +313,7 @@
 .sale-row__product strong,
 .sale-row__subtotal strong {
   color: var(--pos-text);
+  overflow-wrap: anywhere;
 }
 
 .sale-row__product span,
@@ -320,6 +321,7 @@
 .sale-row__discount span {
   color: var(--pos-muted);
   font-size: 0.84rem;
+  overflow-wrap: anywhere;
 }
 
 .sale-row__price,
@@ -776,6 +778,24 @@
     padding: 0.7rem 0.8rem;
   }
 
+  .pos-header__left,
+  .pos-header__right {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .pos-header__channel {
+    flex: 1 1 100%;
+  }
+
+  .pos-header__select {
+    width: 100%;
+  }
+
+  .pos-header__brand span {
+    font-size: 1.25rem;
+  }
+
   .pos-sale,
   .pos-side {
     padding: 0.7rem;
@@ -815,6 +835,17 @@
     align-items: stretch;
   }
 
+  .pos-sale__toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pos-sale__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .pos-sale__summary,
   .pos-sale__buttons {
     width: 100%;
@@ -842,11 +873,27 @@
   }
 
   .sale-row__qty {
-    width: 126px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    justify-self: stretch;
+    grid-template-columns: 40px minmax(56px, 1fr) 40px;
+  }
+
+  .sale-row__money,
+  .sale-row__discount-editor {
+    width: 100%;
   }
 
   .sale-row__subtotal {
     align-items: flex-start;
+  }
+
+  .sale-row__product,
+  .sale-row__price,
+  .sale-row__discount,
+  .sale-row__subtotal {
+    min-width: 0;
   }
 
   .pos-sale__footer {
@@ -888,6 +935,29 @@
 
   .pos-side__nav {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pos-side__nav-item {
+    min-height: 58px;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .sale-row {
+    padding: 0.7rem 0.6rem;
+  }
+
+  .sale-row__qty {
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+  }
+
+  .pos-sale__buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .pos-side__nav-item {
+    min-height: 54px;
   }
 }
 

@@ -32,7 +32,13 @@ public sealed class NubeFactClient
         return Task.FromResult(isValid);
     }
 
-    public async Task<NubeFactSubmitResult> SendDocumentAsync(NubeFactDocumentRequest request)
+    public Task<NubeFactSubmitResult> SendDocumentAsync(NubeFactDocumentRequest request)
+        => SendAsync(request, request);
+
+    public Task<NubeFactSubmitResult> SendGuideDocumentAsync(NubeFactGuideDocumentRequest request)
+        => SendAsync(request, new NubeFactDocumentRequest());
+
+    private async Task<NubeFactSubmitResult> SendAsync(object payload, NubeFactDocumentRequest requestRef)
     {
         string apiUrl = ResolveApiUrl();
 
@@ -46,7 +52,7 @@ public sealed class NubeFactClient
             throw new AppException("El token de Nubefact no est� configurado.");
         }
 
-        string requestJson = JsonSerializer.Serialize(request, JsonOptions);
+        string requestJson = JsonSerializer.Serialize(payload, JsonOptions);
 
         using HttpRequestMessage httpRequest = new(HttpMethod.Post, apiUrl);
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Token", $"token={_options.ApiToken}");
@@ -80,7 +86,7 @@ public sealed class NubeFactClient
             ProviderName = "NubeFact",
             Environment = ResolveEnvironmentName(),
             Endpoint = apiUrl,
-            Request = request,
+            Request = requestRef,
             Response = response,
             RawRequestJson = requestJson,
             RawResponseJson = responseJson

@@ -77,9 +77,71 @@ public sealed class AdminHiitopDbSeeder
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Patch: create shopify_store_connections table if missing (2026-05-25)
+        cmd.CommandText = """
+            SELECT COUNT(*)
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'shopify_store_connections'
+            """;
+        var tableExists = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        if (tableExists == 0)
+        {
+            cmd.CommandText = """
+                CREATE TABLE `shopify_store_connections` (
+                    `id`           INT          NOT NULL AUTO_INCREMENT,
+                    `shop_domain`  VARCHAR(255) NOT NULL,
+                    `access_token` TEXT         NOT NULL,
+                    `scope`        TEXT         NOT NULL,
+                    `installed_at` DATETIME(6)  NOT NULL,
+                    `updated_at`   DATETIME(6)  NOT NULL,
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `IX_shopify_store_connections_shop_domain` (`shop_domain`)
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         // Patch: normalize order_status slug "pending" -> "pendiente" (2026-05-19)
         cmd.CommandText = "UPDATE `order_statuses` SET `slug` = 'pendiente' WHERE `slug` = 'pending'";
         await cmd.ExecuteNonQueryAsync();
+
+        // Patch: make order_items.product_id nullable to support Web/Shopify-only items (2026-05-24)
+        cmd.CommandText = """
+            SELECT IS_NULLABLE
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'order_items'
+              AND COLUMN_NAME = 'product_id'
+            """;
+        var productIdNullable = (string?)await cmd.ExecuteScalarAsync();
+
+        if (productIdNullable == "NO")
+        {
+            // Find the actual FK name in case it differs from the EF-generated name
+            cmd.CommandText = """
+                SELECT CONSTRAINT_NAME
+                FROM information_schema.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'order_items'
+                  AND COLUMN_NAME = 'product_id'
+                  AND REFERENCED_TABLE_NAME = 'products'
+                LIMIT 1
+                """;
+            var fkName = (string?)await cmd.ExecuteScalarAsync();
+
+            if (!string.IsNullOrEmpty(fkName))
+            {
+                cmd.CommandText = $"ALTER TABLE `order_items` DROP FOREIGN KEY `{fkName}`";
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            cmd.CommandText = "ALTER TABLE `order_items` MODIFY COLUMN `product_id` INT NULL";
+            await cmd.ExecuteNonQueryAsync();
+
+            cmd.CommandText = "ALTER TABLE `order_items` ADD CONSTRAINT `FK_order_items_products_product_id` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL";
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 
     private async Task SeedOrderStatusesAsync()
@@ -155,8 +217,9 @@ public sealed class AdminHiitopDbSeeder
         foreach (DocumentType documentType in documentTypes)
         {
             List<(DocumentPrintFormat Format, bool IsDefault)> desiredFormats = new();
+            string code = documentType.Code?.ToUpperInvariant() ?? string.Empty;
 
-            if (documentType.Code is "BOLETA" or "FACTURA" or "NOTA_CREDITO" or "NOTA_DEBITO")
+            if (code is "BOLETA" or "FACTURA" or "NOTA_CREDITO" or "NOTA_DEBITO")
             {
                 if (pdfFormat is not null)
                 {
@@ -171,6 +234,18 @@ public sealed class AdminHiitopDbSeeder
                 if (a4Format is not null)
                 {
                     desiredFormats.Add((a4Format, false));
+                }
+            }
+            else if (code == "TICKET")
+            {
+                if (ticketFormat is not null)
+                {
+                    desiredFormats.Add((ticketFormat, true));
+                }
+
+                if (pdfFormat is not null)
+                {
+                    desiredFormats.Add((pdfFormat, false));
                 }
             }
             else
@@ -301,12 +376,16 @@ public sealed class AdminHiitopDbSeeder
 
     private async Task SeedInvoiceSeriesAsync()
     {
-        foreach ((string docType, string serie, int nextNumber) in HiitopSeedData.InvoiceSeries)
+        foreach ((string docType, string serie, string name, int nextNumber) in HiitopSeedData.InvoiceSeries)
         {
-            bool exists = await _context.InvoiceSeries.AnyAsync(x => x.Serie == serie);
-            if (!exists)
+            InvoiceSeries? existing = await _context.InvoiceSeries.FirstOrDefaultAsync(x => x.Serie == serie);
+            if (existing is null)
             {
-                _context.InvoiceSeries.Add(new InvoiceSeries { DocType = docType, Serie = serie, NextNumber = nextNumber });
+                _context.InvoiceSeries.Add(new InvoiceSeries { DocType = docType, Serie = serie, Name = name, NextNumber = nextNumber });
+            }
+            else if (string.IsNullOrWhiteSpace(existing.Name))
+            {
+                existing.Name = name;
             }
         }
 

@@ -3,7 +3,7 @@ using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Catalog.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Shared.Exceptions;
-using AdminHiitop.Api.Shared.Helpers;
+using AdminHiitop.Api.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace AdminHiitop.Api.Application.Services.ProductTypes;
@@ -11,27 +11,76 @@ namespace AdminHiitop.Api.Application.Services.ProductTypes;
 public sealed class ProductTypeService : IProductTypeService
 {
     private readonly AdminHiitopDbContext _context;
+    private readonly IShopifyProductService _shopifyProductService;
 
-    public ProductTypeService(AdminHiitopDbContext context) => _context = context;
-
-    public async Task<object> GetAsync(int perPage, int page, string? search)
+    public ProductTypeService(AdminHiitopDbContext context, IShopifyProductService shopifyProductService)
     {
-        IQueryable<ProductType> baseQuery = _context.ProductTypes.AsNoTracking().OrderBy(item => item.Name);
+        _context = context;
+        _shopifyProductService = shopifyProductService;
+    }
+
+    public async Task<object> GetAsync(int perPage, int page, string? search, bool includeShopify = false)
+    {
+        IQueryable<ProductType> baseQuery = _context.ProductTypes.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
+        {
             baseQuery = baseQuery.Where(item => item.Name.Contains(search) || item.Slug.Contains(search));
+        }
 
-        var query = baseQuery
+        List<ProductTypeListRow> localRows = await baseQuery
+            .OrderBy(item => item.Name)
             .Include(item => item.Sizes)
-            .Select(item => new
+            .Select(item => new ProductTypeListRow
             {
-                item.Id,
-                item.Name,
-                item.Slug,
-                item.IsActive,
-                sizes = item.Sizes.OrderBy(size => size.SortOrder).Select(size => new { size.Id, size.Name, size.SortOrder }).ToList()
-            });
+                Id = item.Id,
+                Name = item.Name,
+                Slug = item.Slug,
+                IsActive = item.IsActive,
+                Sizes = item.Sizes
+                    .OrderBy(size => size.SortOrder)
+                    .Select(size => new { size.Id, size.Name, size.SortOrder })
+                    .ToList(),
+                Source = "mysql"
+            })
+            .ToListAsync();
 
-        return await PaginationHelper.CreateAsync(query, page, perPage);
+        if (!includeShopify)
+        {
+            return ToPagedResponse(localRows, page, perPage);
+        }
+
+        List<ProductTypeListRow> shopifyRows = (await _shopifyProductService.GetProductsAsync(search, 1, 250, "active"))
+            .Products
+            .Select(item => item.ProductType?.Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select((name, index) => new ProductTypeListRow
+            {
+                Id = -200000 - index,
+                Name = name!,
+                Slug = Slugify(name!),
+                IsActive = true,
+                Sizes = [],
+                Source = "shopify"
+            })
+            .ToList();
+
+        IEnumerable<ProductTypeListRow> combinedRows = localRows.Concat(shopifyRows);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string term = search.Trim();
+            combinedRows = combinedRows.Where(item =>
+                item.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                item.Slug.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        List<ProductTypeListRow> orderedRows = combinedRows
+            .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Source, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return ToPagedResponse(orderedRows, page, perPage);
     }
 
     public Task<ProductType?> GetByIdAsync(int id)
@@ -39,7 +88,7 @@ public sealed class ProductTypeService : IProductTypeService
 
     public async Task<ProductType> CreateAsync(ProductType request)
     {
-        request.Slug = string.IsNullOrWhiteSpace(request.Slug) ? request.Name.ToLower().Replace(' ', '-') : request.Slug;
+        request.Slug = string.IsNullOrWhiteSpace(request.Slug) ? Slugify(request.Name) : request.Slug;
         _context.ProductTypes.Add(request);
         await _context.SaveChangesAsync();
         return request;
@@ -79,11 +128,13 @@ public sealed class ProductTypeService : IProductTypeService
         }
 
         foreach (SizeRow row in request.Sizes ?? [])
+        {
             entity.Sizes.Add(new Size { Name = row.Name, SortOrder = row.SortOrder });
+        }
 
         await _context.SaveChangesAsync();
 
-        var sizes = entity.Sizes
+        List<object> sizes = entity.Sizes
             .OrderBy(item => item.SortOrder)
             .Select(item => new { item.Id, item.Name, item.SortOrder } as object)
             .ToList();
@@ -97,4 +148,41 @@ public sealed class ProductTypeService : IProductTypeService
         if (entity is null) throw new AppException("Tipo de producto no encontrado.", 404);
         return entity;
     }
+
+    private static string Slugify(string value)
+    {
+        return value.Trim().ToLowerInvariant().Replace(' ', '-');
+    }
+
+    private static PagedResponse<ProductTypeListRow> ToPagedResponse(IReadOnlyList<ProductTypeListRow> items, int page, int perPage)
+    {
+        int safePage = page < 1 ? 1 : page;
+        int safePerPage = perPage < 1 ? 15 : perPage;
+        int total = items.Count;
+        int lastPage = total == 0 ? 1 : (int)Math.Ceiling(total / (double)safePerPage);
+
+        List<ProductTypeListRow> data = items
+            .Skip((safePage - 1) * safePerPage)
+            .Take(safePerPage)
+            .ToList();
+
+        return new PagedResponse<ProductTypeListRow>
+        {
+            Data = data,
+            CurrentPage = safePage,
+            LastPage = lastPage,
+            PerPage = safePerPage,
+            Total = total
+        };
+    }
+}
+
+internal sealed class ProductTypeListRow
+{
+    public int Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Slug { get; init; } = string.Empty;
+    public bool IsActive { get; init; }
+    public IReadOnlyList<object> Sizes { get; init; } = [];
+    public string Source { get; init; } = "mysql";
 }

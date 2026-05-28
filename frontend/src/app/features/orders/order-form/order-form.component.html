@@ -39,7 +39,7 @@
 
       <div class="col-md-4">
         <label for="order_date" class="form-label">Fecha</label>
-        <input id="order_date" type="datetime-local" class="form-control" formControlName="order_date" />
+        <input id="order_date" type="datetime-local" class="form-control" formControlName="order_date" readonly />
       </div>
 
       <div class="col-md-4">
@@ -80,7 +80,7 @@
             <input type="radio" class="btn-check" id="src_shopify" name="stockSource"
                    [checked]="stockSource() === 'shopify'" (change)="setStockSource('shopify')">
             <label class="btn btn-outline-success" for="src_shopify">
-              <i class="bi bi-shop me-1"></i>Shopify
+              <i class="bi bi-globe me-1"></i>Web
             </label>
           }
         </div>
@@ -104,7 +104,7 @@
       } @else {
         <div class="col-md-4">
           <label for="shopify_location" class="form-label">
-            <i class="bi bi-shop me-1 text-success"></i>Ubicación Shopify *
+            <i class="bi bi-globe me-1 text-success"></i>Ubicación Web *
           </label>
           <select id="shopify_location" class="form-select"
                   [ngModel]="shopifyLocationId()" [ngModelOptions]="{standalone: true}"
@@ -141,19 +141,6 @@
             }
           </select>
         }
-      </div>
-
-      <!-- Clave de recojo y Tracking (nivel pedido) -->
-      <div class="col-md-4">
-        <label for="pickup_key" class="form-label">Clave de recojo</label>
-        <input id="pickup_key" type="text" class="form-control" formControlName="pickup_key"
-               placeholder="Opcional" maxlength="120" />
-      </div>
-
-      <div class="col-md-4">
-        <label for="tracking_number" class="form-label">Nro. Tracking</label>
-        <input id="tracking_number" type="text" class="form-control" formControlName="tracking_number"
-               placeholder="Opcional" maxlength="120" />
       </div>
 
       <!-- DNI -->
@@ -277,47 +264,36 @@
       </div>
     </div>
 
-    <!-- Almacen (contexto de stock) -->
-    <div class="d-flex flex-wrap align-items-center gap-3 mb-3 p-3 bg-light rounded-3 border">
-      <i class="bi bi-building-fill-gear text-primary fs-5"></i>
-      <div>
-        <label class="form-label fw-semibold mb-1 small">
-          Almacen del stock
-        </label>
-        <div class="form-control form-control-sm bg-white" style="max-width:260px">
-          {{ selectedWarehouseLabel() }}
+    <!-- Coleccion (filtro de productos) -->
+    @if (stockSource() === 'mysql') {
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-3 p-2 bg-light rounded-3 border">
+        <i class="bi bi-collection text-primary"></i>
+        <div>
+          <label class="form-label fw-semibold mb-1 small">
+            Colección
+            <span class="text-muted fw-normal">(opcional)</span>
+          </label>
+          <app-searchable-select
+            [(ngModel)]="filterCollectionId"
+            [ngModelOptions]="{standalone:true}"
+            [options]="collectionOptions()"
+            placeholder="Todas las colecciones"
+            searchPlaceholder="Buscar colección..."
+            style="display:block;max-width:260px"
+            [disabled]="isInvoiced()">
+          </app-searchable-select>
         </div>
-      </div>
-      <div>
-        <label class="form-label fw-semibold mb-1 small">
-          Coleccion
-          <span class="text-muted fw-normal">(opcional)</span>
-        </label>
-        <app-searchable-select
-          [(ngModel)]="filterCollectionId"
-          [ngModelOptions]="{standalone:true}"
-          [options]="collectionOptions()"
-          placeholder="Todas las colecciones"
-          searchPlaceholder="Buscar coleccion..."
-          style="display:block;max-width:260px"
-          [disabled]="isInvoiced()">
-        </app-searchable-select>
-      </div>
-      @if (warehouseId) {
-        <div class="d-flex flex-column gap-1 align-self-end mb-1">
-          <span class="badge bg-success-subtle text-success border border-success-subtle">
-            <i class="bi bi-check-circle me-1"></i>Stock filtrado y origen del pedido definido
+        @if (warehouseId) {
+          <span class="badge bg-success-subtle text-success border border-success-subtle align-self-end mb-1">
+            <i class="bi bi-check-circle me-1"></i>Solo variantes con stock disponible
           </span>
-          <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:.7rem">
-            <i class="bi bi-info-circle me-1"></i>Solo se muestran variantes con stock disponible
+        } @else {
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle align-self-end mb-1">
+            <i class="bi bi-exclamation-triangle me-1"></i>Selecciona un almacén en "Fuente de stock" para filtrar por stock
           </span>
-        </div>
-      } @else {
-        <span class="badge bg-warning-subtle text-warning border border-warning-subtle align-self-end mb-1">
-          <i class="bi bi-exclamation-triangle me-1"></i>Selecciona un almacen para ver solo variantes con stock
-        </span>
-      }
-    </div>
+        }
+      </div>
+    }
 
     @if (!lines().length) {
       <div class="text-center text-muted py-4 border rounded bg-light">
@@ -368,7 +344,7 @@
                       (mousedown)="selectProduct(line, item)">
                       <div class="fw-semibold small d-flex align-items-center gap-1">
                         @if (item.source === 'shopify') {
-                          <i class="bi bi-shop text-success" style="font-size:.78rem" title="Stock Shopify"></i>
+                          <i class="bi bi-globe text-success" style="font-size:.78rem" title="Stock Web"></i>
                         }
                         {{ item.product_name }}
                         @if (item.color_name) {

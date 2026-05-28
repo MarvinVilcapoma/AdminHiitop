@@ -1,4 +1,4 @@
-﻿using AdminHiitop.Api.Application.DTOs.Orders;
+using AdminHiitop.Api.Application.DTOs.Orders;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
@@ -38,12 +38,17 @@ public sealed class OrderService : IOrderService
 
         IQueryable<Order> query = _context.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(item => item.OrderStatus)
             .Include(item => item.DocumentType)
             .Include(item => item.DocumentPrintFormat)
             .Include(item => item.Customer)
             .Include(item => item.Invoices)
+            .Include(item => item.Items)
             .Include(item => item.Warehouse)
+            .Include(item => item.ShippingAgency)
+            .Include(item => item.Province)
+            .Include(item => item.District)
             .Include(item => item.User)
             .OrderByDescending(item => item.OrderDate)
             .ThenByDescending(item => item.Id);
@@ -101,11 +106,19 @@ public sealed class OrderService : IOrderService
     {
         return _context.Orders
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(item => item.OrderStatus)
             .Include(item => item.Customer)
             .Include(item => item.Items)
+            .ThenInclude(item => item.Color)
             .Include(item => item.Invoices)
             .Include(item => item.DocumentType)
+            .Include(item => item.DocumentPrintFormat)
+            .Include(item => item.ShippingAgency)
+            .Include(item => item.Warehouse)
+            .Include(item => item.Province)
+            .Include(item => item.District)
+            .Include(item => item.User)
             .FirstOrDefaultAsync(item => item.Id == id);
     }
 
@@ -149,11 +162,13 @@ public sealed class OrderService : IOrderService
             if (parts.Length < 4) continue;
 
             if (!long.TryParse(parts[2], out long inventoryItemId)) continue;
-            if (!long.TryParse(parts[3], out long locationId)) continue;
+            long.TryParse(parts[3], out long locationId);
+            long resolvedLocationId = locationId > 0 ? locationId : _shopifyOpts.DefaultLocationId;
+            if (resolvedLocationId <= 0) continue;
 
             try
             {
-                await _shopifyProducts.AdjustInventoryAsync(inventoryItemId, locationId, -item.Quantity);
+                await _shopifyProducts.AdjustInventoryAsync(inventoryItemId, resolvedLocationId, -item.Quantity);
             }
             catch
             {
@@ -268,7 +283,7 @@ public sealed class OrderService : IOrderService
         entity.Items = request.Items
             .Select((item, index) => new OrderItem
             {
-                ProductId = item.ProductId ?? 0,
+                ProductId = item.ProductId,
                 ColorId = item.ColorId,
                 CollectionId = item.CollectionId,
                 ProductDescription = item.ProductDescription,

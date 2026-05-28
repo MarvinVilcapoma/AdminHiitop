@@ -16,8 +16,9 @@ public sealed class WarehousesController : ControllerBase
     public async Task<IActionResult> Get(
         [FromQuery(Name = "per_page")] int? perPage,
         [FromQuery] int page = 1,
-        [FromQuery] string? search = null)
-        => Ok(await _warehouseService.GetAsync(perPage, page, search));
+        [FromQuery] string? search = null,
+        [FromQuery(Name = "include_shopify")] int? includeShopify = null)
+        => Ok(await _warehouseService.GetAsync(perPage, page, search, includeShopify == 1));
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)

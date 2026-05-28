@@ -6,6 +6,7 @@ using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Shared.Helpers;
 using Microsoft.EntityFrameworkCore;
+using InvoiceSeriesEntity = AdminHiitop.Api.Domain.Sales.Entities.InvoiceSeries;
 
 namespace AdminHiitop.Api.Application.Services.Invoices;
 
@@ -14,15 +15,18 @@ public sealed class InvoiceService : IInvoiceService
     private readonly AdminHiitopDbContext _context;
     private readonly IElectronicBillingProvider _billingProvider;
     private readonly IInvoiceElectronicBillingService _invoiceElectronicBillingService;
+    private readonly IInvoiceSeriesService _seriesService;
 
     public InvoiceService(
         AdminHiitopDbContext context,
         IElectronicBillingProvider billingProvider,
-        IInvoiceElectronicBillingService invoiceElectronicBillingService)
+        IInvoiceElectronicBillingService invoiceElectronicBillingService,
+        IInvoiceSeriesService seriesService)
     {
         _context = context;
         _billingProvider = billingProvider;
         _invoiceElectronicBillingService = invoiceElectronicBillingService;
+        _seriesService = seriesService;
     }
 
     public async Task<object> GetAsync(int perPage, int page)
@@ -43,52 +47,78 @@ public sealed class InvoiceService : IInvoiceService
 
     public async Task<object> CreateAsync(CreateInvoiceRequest request)
     {
-        var series = await _context.InvoiceSeries.FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId);
-        if (series is null) return new { error = true, message = "Serie no encontrada." };
+        InvoiceSeriesEntity? seriesMeta = await _context.InvoiceSeries
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId);
+
+        if (seriesMeta is null)
+            return new { error = true, message = "Serie no encontrada." };
 
         Order? order = request.OrderId.HasValue
-            ? await _context.Orders.Include(item => item.Customer).FirstOrDefaultAsync(item => item.Id == request.OrderId.Value)
+            ? await _context.Orders.AsNoTracking().Include(item => item.Customer)
+                .FirstOrDefaultAsync(item => item.Id == request.OrderId.Value)
             : null;
 
-        int correlativo = series.NextNumber;
-        series.NextNumber += 1;
+        // Atomic increment — never re-uses a number even under concurrent requests
+        (string serie, int correlativo) = await _seriesService.GetNextAsync(request.InvoiceSeriesId);
 
-        // Prices include IGV: order.Total = total con IGV
         decimal orderTotal = order?.Total ?? 0m;
         decimal orderIgv   = Math.Round(orderTotal * 0.18m / 1.18m, 2);
-        decimal orderBase  = Math.Round(orderTotal - orderIgv, 2);   // base gravada sin IGV
+        decimal orderBase  = Math.Round(orderTotal - orderIgv, 2);
 
         var invoice = new Invoice
         {
-            OrderId         = request.OrderId,
-            InvoiceSeriesId = series.Id,
-            DocType         = request.DocType ?? series.DocType,
-            Serie           = series.Serie,
-            Correlativo     = correlativo,
-            FullNumber      = $"{series.Serie}-{correlativo:00000000}",
-            Status          = request.AutoSend ? "sent" : "draft",
+            OrderId           = request.OrderId,
+            InvoiceSeriesId   = seriesMeta.Id,
+            DocType           = request.DocType ?? seriesMeta.DocType,
+            Serie             = serie,
+            Correlativo       = correlativo,
+            FullNumber        = $"{serie}-{correlativo:00000000}",
+            Status            = "draft",
             CustomerDocType   = request.CustomerDocType,
             CustomerDocNumber = request.CustomerDocNumber,
             CustomerName      = request.CustomerName ?? order?.CustomerName,
             Currency          = "PEN",
             FormOfPayment     = request.FormOfPayment ?? "contado",
             PaymentMethodId   = request.PaymentMethodId,
-            MtoOperGravadas   = orderBase,   // base sin IGV
-            MtoIgv            = orderIgv,    // IGV
-            ValorVenta        = orderBase,   // valor venta sin IGV
-            SubTotal          = orderBase,   // subtotal (base)
-            MtoImpVenta       = orderTotal,  // total con IGV
+            MtoOperGravadas   = orderBase,
+            MtoIgv            = orderIgv,
+            ValorVenta        = orderBase,
+            SubTotal          = orderBase,
+            MtoImpVenta       = orderTotal,
             IssuedAt          = PeruClock.Now,
-            SunatDescription  = request.AutoSend ? "Documento enviado al proveedor configurado." : "Documento generado en borrador."
+            SunatDescription  = "Documento generado en borrador."
         };
 
         _context.Invoices.Add(invoice);
         await _context.SaveChangesAsync();
 
+        if (!request.AutoSend)
+        {
+            return new
+            {
+                invoice,
+                sunat_result = new { success = true, code = 0, description = invoice.SunatDescription }
+            };
+        }
+
+        var sendResult = await _invoiceElectronicBillingService.SendInvoiceAsync(invoice.Id);
+        var updated = await _context.Invoices.AsNoTracking().FirstAsync(i => i.Id == invoice.Id);
         return new
         {
-            invoice,
-            sunat_result = new { success = true, code = 0, description = invoice.SunatDescription }
+            invoice = updated,
+            sunat_result = new
+            {
+                success     = sendResult.Success,
+                code        = 0,
+                description = sendResult.Response.SunatDescription ?? sendResult.Response.Errors,
+                errors      = sendResult.Response.Errors,
+                url         = sendResult.Response.Url,
+                accepted    = sendResult.Response.AceptadaPorSunat,
+                provider    = sendResult.ProviderName,
+                environment = sendResult.Environment,
+                result      = sendResult.Response
+            }
         };
     }
 

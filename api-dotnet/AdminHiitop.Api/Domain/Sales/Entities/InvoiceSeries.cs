@@ -6,6 +6,7 @@ public sealed class InvoiceSeries : AuditableEntity
 {
     public string DocType { get; set; } = string.Empty;
     public string Serie { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
     public int NextNumber { get; set; } = 1;
     public bool IsActive { get; set; } = true;
 

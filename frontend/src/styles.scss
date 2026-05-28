@@ -204,8 +204,16 @@ html, body {
   padding: 1.25rem 1.5rem;
   border: 1px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  min-width: 0;
   .stat-label { font-size: .78rem; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing:.04em; }
-  .stat-value { font-size: 1.7rem; font-weight: 700; color: #111; line-height: 1.2; }
+  .stat-value {
+    font-size: clamp(1.05rem, 2vw, 1.7rem);
+    font-weight: 700;
+    color: #111;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
   .stat-sub   { font-size: .78rem; color: #6b7280; margin-top: .2rem; }
 .stat-icon  { width:42px; height:42px; border-radius: 10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
   /* stat-icon color variants */
@@ -213,6 +221,28 @@ html, body {
   .stat-icon.icon-green  { background: #f0fdf4; color: #16a34a; }
   .stat-icon.icon-orange { background: #fff7ed; color: #ea580c; }
   .stat-icon.icon-purple { background: #fdf4ff; color: #9333ea; }
+}
+
+@media (max-width: 575.98px) {
+  .stat-card {
+    padding: 1rem;
+    align-items: flex-start !important;
+    gap: .75rem !important;
+
+    .stat-label {
+      font-size: .68rem;
+    }
+
+    .stat-value {
+      font-size: clamp(1rem, 5vw, 1.35rem);
+    }
+
+    .stat-icon {
+      width: 38px;
+      height: 38px;
+      font-size: 1rem;
+    }
+  }
 }
 
 /* ── Página content ─────────────────────────────────────── */

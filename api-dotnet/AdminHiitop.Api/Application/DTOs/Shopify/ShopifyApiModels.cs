@@ -259,7 +259,7 @@ public sealed class ShopifyGqlOrder
     [JsonPropertyName("fulfillments")]              public List<ShopifyGqlFulfillment>                        Fulfillments  { get; set; } = [];
     [JsonPropertyName("lineItems")]                 public ShopifyGqlConnection<ShopifyGqlLineItem>           LineItems     { get; set; } = new();
     [JsonPropertyName("shippingLines")]             public ShopifyGqlConnection<ShopifyGqlShippingLine>       ShippingLines { get; set; } = new();
-    [JsonPropertyName("discountCodes")]             public List<ShopifyGqlDiscountCode>                       DiscountCodes { get; set; } = [];
+    [JsonPropertyName("discountCodes")]             public List<string>                                       DiscountCodes { get; set; } = [];
 }
 
 public sealed class ShopifyGqlMoneySet
@@ -292,11 +292,16 @@ public sealed class ShopifyGqlAddress
     [JsonPropertyName("phone")]     public string? Phone     { get; set; }
 }
 
+public sealed class ShopifyGqlTrackingInfo
+{
+    [JsonPropertyName("number")]  public string? Number  { get; set; }
+    [JsonPropertyName("company")] public string? Company { get; set; }
+    [JsonPropertyName("url")]     public string? Url     { get; set; }
+}
+
 public sealed class ShopifyGqlFulfillment
 {
-    [JsonPropertyName("trackingNumber")]  public string? TrackingNumber  { get; set; }
-    [JsonPropertyName("trackingCompany")] public string? TrackingCompany { get; set; }
-    [JsonPropertyName("trackingUrl")]     public string? TrackingUrl     { get; set; }
+    [JsonPropertyName("trackingInfo")] public List<ShopifyGqlTrackingInfo> TrackingInfo { get; set; } = [];
 }
 
 public sealed class ShopifyGqlLineItem
@@ -317,10 +322,6 @@ public sealed class ShopifyGqlShippingLine
     [JsonPropertyName("discountedPriceSet")]  public ShopifyGqlMoneySet? DiscountedPriceSet { get; set; }
 }
 
-public sealed class ShopifyGqlDiscountCode
-{
-    [JsonPropertyName("code")] public string Code { get; set; } = "";
-}
 
 public sealed class ShopifyGqlProduct
 {
@@ -395,6 +396,12 @@ public sealed class ShopifyGqlProductLite
     [JsonPropertyName("variantsCount")]   public ShopifyGqlCount?    VariantsCount  { get; set; }
     [JsonPropertyName("priceRangeV2")]    public ShopifyGqlPriceRange? PriceRangeV2 { get; set; }
     [JsonPropertyName("totalInventory")]  public int                 TotalInventory { get; set; }
+    [JsonPropertyName("variants")]        public ShopifyGqlConnection<ShopifyGqlLiteVariant> Variants { get; set; } = new();
+}
+
+public sealed class ShopifyGqlLiteVariant
+{
+    [JsonPropertyName("inventoryItem")] public ShopifyGqlInventoryItem? InventoryItem { get; set; }
 }
 
 public sealed class ShopifyGqlCount

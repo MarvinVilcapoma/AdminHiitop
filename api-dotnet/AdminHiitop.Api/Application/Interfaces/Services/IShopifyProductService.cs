@@ -58,6 +58,8 @@ public interface IShopifyProductService
     /// <summary>Returns inventory levels for all variants of a product across all active locations.</summary>
     Task<List<ShopifyInventoryLevelResponse>> GetProductInventoryAsync(long productId);
 
+    Task<object> GetInventoryLevelAsync(long inventoryItemId, long locationId);
+
     /// <summary>Transfers inventory between two Shopify locations and records the transfer in the database.</summary>
     Task<ShopifyInventoryTransferResponse> TransferInventoryAsync(
         ShopifyInventoryTransferRequest request, string? performedBy = null);

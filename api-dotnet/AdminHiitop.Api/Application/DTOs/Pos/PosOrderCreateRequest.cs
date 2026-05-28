@@ -22,6 +22,7 @@ public sealed class PosOrderCreateRequest
     public string? CustomerEmail { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
+    public int? UserId { get; set; }
     public bool PrintAfterSave { get; set; }
     public List<OrderItemUpsertRequest> Items { get; set; } = new();
 }

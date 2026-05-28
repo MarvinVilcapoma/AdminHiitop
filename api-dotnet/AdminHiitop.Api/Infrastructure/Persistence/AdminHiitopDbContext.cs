@@ -54,7 +54,8 @@ public sealed class AdminHiitopDbContext : DbContext
     public DbSet<ModelHasRole> ModelHasRoles => Set<ModelHasRole>();
     public DbSet<ProductColor> ProductColors => Set<ProductColor>();
     public DbSet<DocumentTypePrintFormat> DocumentTypePrintFormats => Set<DocumentTypePrintFormat>();
-    public DbSet<ShopifyTransfer> ShopifyTransfers => Set<ShopifyTransfer>();
+    public DbSet<ShopifyTransfer>        ShopifyTransfers        => Set<ShopifyTransfer>();
+    public DbSet<ShopifyStoreConnection> ShopifyStoreConnections => Set<ShopifyStoreConnection>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -80,6 +81,11 @@ public sealed class AdminHiitopDbContext : DbContext
         modelBuilder.Entity<ShopifyTransfer>().ToTable("shopify_transfers");
         modelBuilder.Entity<ShopifyTransfer>().HasKey(t => t.Id);
         modelBuilder.Entity<ShopifyTransfer>().Property(t => t.Id).ValueGeneratedOnAdd();
+
+        modelBuilder.Entity<ShopifyStoreConnection>().ToTable("shopify_store_connections");
+        modelBuilder.Entity<ShopifyStoreConnection>().HasKey(t => t.Id);
+        modelBuilder.Entity<ShopifyStoreConnection>().Property(t => t.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<ShopifyStoreConnection>().HasIndex(t => t.ShopDomain).IsUnique();
 
         modelBuilder.Entity<Setting>().HasKey(item => item.Key);
         modelBuilder.Entity<Setting>().Property(item => item.Key).HasMaxLength(200);

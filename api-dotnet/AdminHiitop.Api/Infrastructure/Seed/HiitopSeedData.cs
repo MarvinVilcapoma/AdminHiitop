@@ -29,6 +29,7 @@ public static class HiitopSeedData
     [
         new() { Code = "BOLETA", Name = "Boleta", SortOrder = 10, IsProtected = true, IsSunatDocument = true, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
         new() { Code = "FACTURA", Name = "Factura", SortOrder = 20, IsProtected = true, IsSunatDocument = true, RequiresCustomer = true, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        new() { Code = "TICKET", Name = "Ticket", SortOrder = 25, IsProtected = true, IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = true, IsActive = true },
         new() { Code = "NOTA_CREDITO", Name = "Nota de Credito", SortOrder = 30, IsProtected = true, IsSunatDocument = true, RequiresCustomer = true, RequiresRelatedDocument = true, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
         new() { Code = "NOTA_DEBITO", Name = "Nota de Debito", SortOrder = 40, IsProtected = true, IsSunatDocument = true, RequiresCustomer = true, RequiresRelatedDocument = true, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
         new() { Code = "GUIA_REMISION", Name = "Guia de remision", SortOrder = 50, IsProtected = true, IsSunatDocument = true, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
@@ -97,12 +98,15 @@ public static class HiitopSeedData
         ("Tarjeta", "CARD")
     ];
 
-    public static IReadOnlyList<(string DocType, string Serie, int NextNumber)> InvoiceSeries { get; } =
+    public static IReadOnlyList<(string DocType, string Serie, string Name, int NextNumber)> InvoiceSeries { get; } =
     [
-        ("01", "F001", 1),
-        ("03", "B001", 1),
-        ("07", "FC01", 1),
-        ("08", "BC01", 1)
+        ("01", "F001", "Facturas Electronicas",    1),
+        ("03", "B001", "Boletas de Venta",         1),
+        ("07", "FC01", "Notas de Credito Factura", 1),
+        ("07", "BC01", "Notas de Credito Boleta",  1),
+        ("08", "FD01", "Notas de Debito Factura",  1),
+        ("08", "BD01", "Notas de Debito Boleta",   1),
+        ("09", "T001", "Guias de Remision",        1),
     ];
 
     public static IReadOnlyList<(string Key, string Value, string Label, string Type, string Group)> Settings { get; } =

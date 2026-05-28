@@ -83,7 +83,9 @@
       "Bash(node -e \"const j=require\\('./angular.json'\\); console.log\\(JSON.stringify\\(j.projects[Object.keys\\(j.projects\\)[0]].architect.build.options.styles\\)\\)\")",
       "Bash(node -e ' *)",
       "Bash(Select-String -Path \"c:\\\\Users\\\\marvin.vilcapoma\\\\source\\\\repos\\\\Marvin\\\\AdminHiitop\\\\frontend\\\\src\\\\app\\\\features\\\\shopify\\\\shopify-inventory\\\\shopify-inventory.component.html\" -Pattern \"productTypeList|vendorList|tagsList\")",
-      "Bash(Select-Object LineNumber, Line)"
+      "Bash(Select-Object LineNumber, Line)",
+      "Bash(powershell -command \"\\(Get-Content 'C:\\\\Users\\\\marvin.vilcapoma\\\\source\\\\repos\\\\Marvin\\\\AdminHiitop\\\\api-dotnet\\\\AdminHiitop.Api\\\\Infrastructure\\\\Seed\\\\UbigeoSeedData.cs' | Measure-Object -Line\\).Lines\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\marvin.vilcapoma\\\\source\\\\repos\\\\Marvin\\\\AdminHiitop\\\\frontend\\\\src\\\\app\\\\features\\\\orders\" -Recurse)"
     ],
     "additionalDirectories": [
       "\\dev",

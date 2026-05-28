@@ -26,4 +26,12 @@ public sealed class ShopifyOptions
     //   - local stock/product CRUD views are hidden in the frontend
     //   - orders are still saved to the local DB
     public bool   UseShopifyMode { get; set; } = false;
+
+    // OAuth flow settings — only needed when using authorization_code flow (no static AccessToken).
+    // PublicApiBaseUrl: publicly reachable URL of this API (e.g. https://api.hiitop.com)
+    // FrontendRedirectUrl: page in the Angular app to land on after successful OAuth install
+    // Scopes: comma-separated list of Shopify API scopes to request
+    public string PublicApiBaseUrl     { get; set; } = string.Empty;
+    public string FrontendRedirectUrl  { get; set; } = string.Empty;
+    public string Scopes               { get; set; } = "read_products,write_products,read_inventory,write_inventory,read_orders,write_orders";
 }

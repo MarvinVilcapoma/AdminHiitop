@@ -7,4 +7,5 @@ public interface IElectronicBillingProvider
     string ProviderName { get; }
     Task<bool> ValidateConfigurationAsync();
     Task<NubeFactSubmitResult> SendDocumentAsync(NubeFactDocumentRequest request);
+    Task<NubeFactSubmitResult> SendGuideDocumentAsync(NubeFactGuideDocumentRequest request);
 }

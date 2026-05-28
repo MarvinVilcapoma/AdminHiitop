@@ -4,6 +4,7 @@ using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Shopify.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Infrastructure.Shopify;
+using AdminHiitop.Api.Shared.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -66,7 +67,7 @@ public sealed class ShopifyProductService : IShopifyProductService
 
             foreach (ShopifyApiVariant variant in product.Variants)
             {
-                int qty = levelMap.GetValueOrDefault(variant.InventoryItemId, variant.InventoryQuantity);
+                int qty = levelMap.GetValueOrDefault(variant.InventoryItemId, 0);
 
                 string? colorName = GetOption(variant, colorPos);
                 string? size      = GetOption(variant, sizePos);
@@ -115,17 +116,28 @@ public sealed class ShopifyProductService : IShopifyProductService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            // Lite GraphQL: server-side full-text, returns up to 50 products without fetching variants
+            // Lite GraphQL: server-side full-text, returns up to 50 products
             string gqlQuery = BuildProductGqlQuery(search, status);
             List<ShopifyGqlProductLite> liteAll = await _client.SearchProductsLiteGraphQlAsync(gqlQuery, 50);
 
-            List<ShopifyProductSummary> litePaged = liteAll
-                .Skip((page - 1) * perPage)
-                .Take(perPage)
-                .Select(MapGqlLiteSummary)
+            // Fetch per-location inventory for the paged slice
+            var pagedLite = liteAll.Skip((page - 1) * perPage).Take(perPage).ToList();
+            var liteItemIds = pagedLite
+                .SelectMany(p => p.Variants.Edges)
+                .Select(e => ParseGidLong(e.Node.InventoryItem?.Id))
+                .Where(id => id > 0)
+                .Distinct()
                 .ToList();
+            var liteLevelMap = liteItemIds.Count > 0
+                ? (await _client.GetInventoryLevelsAsync(liteItemIds, resolvedLocationId))
+                    .ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0)
+                : new Dictionary<long, int>();
 
-            return new ShopifyProductListResponse { Total = liteAll.Count, Products = litePaged };
+            return new ShopifyProductListResponse
+            {
+                Total    = liteAll.Count,
+                Products = pagedLite.Select(p => MapGqlLiteSummary(p, liteLevelMap)).ToList(),
+            };
         }
 
         // Browse without search: REST, fetch up to 250 products
@@ -185,7 +197,7 @@ public sealed class ShopifyProductService : IShopifyProductService
 
         ShopifyApiProduct? updated = await _client.UpdateProductAsync(productId, payload);
         if (updated is null)
-            throw new InvalidOperationException("Shopify no devolvió el producto actualizado.");
+            throw new AppException("Shopify no devolvió el producto actualizado.", 502);
 
         return MapDetail(updated, new Dictionary<long, int>());
     }
@@ -206,7 +218,7 @@ public sealed class ShopifyProductService : IShopifyProductService
 
         ShopifyApiVariant? updated = await _client.UpdateVariantAsync(variantId, payload);
         if (updated is null)
-            throw new InvalidOperationException("Shopify no devolvió la variante actualizada.");
+            throw new AppException("Shopify no devolvió la variante actualizada.", 502);
 
         return MapVariant(updated, 0);
     }
@@ -336,7 +348,7 @@ public sealed class ShopifyProductService : IShopifyProductService
             payloadDict["images"] = new[] { new { src = request.ImageUrl } };
 
         ShopifyApiProduct? created = await _client.CreateProductAsync(payloadDict);
-        if (created is null) throw new InvalidOperationException("Shopify no retornó el producto creado.");
+        if (created is null) throw new AppException("Shopify no retornó el producto creado.", 502);
 
         // Set initial inventory for each variant
         for (int i = 0; i < request.Variants.Count && i < created.Variants.Count; i++)
@@ -459,15 +471,26 @@ public sealed class ShopifyProductService : IShopifyProductService
         }).ToList();
     }
 
+    public async Task<object> GetInventoryLevelAsync(long inventoryItemId, long locationId)
+    {
+        List<ShopifyApiInventoryLevel> levels = await _client.GetInventoryLevelsAsync(
+            new[] { inventoryItemId }, locationId);
+
+        int available = levels.FirstOrDefault(l =>
+            l.InventoryItemId == inventoryItemId && l.LocationId == locationId)?.Available ?? 0;
+
+        return new { inventory_item_id = inventoryItemId, location_id = locationId, available };
+    }
+
     // ── Inventory transfer ────────────────────────────────────────────────────
 
     public async Task<ShopifyInventoryTransferResponse> TransferInventoryAsync(
         ShopifyInventoryTransferRequest req, string? performedBy = null)
     {
         if (req.FromLocationId == req.ToLocationId)
-            throw new InvalidOperationException("La sucursal de origen y destino deben ser distintas.");
+            throw new AppException("La sucursal de origen y destino deben ser distintas.", 422);
         if (req.Quantity <= 0)
-            throw new InvalidOperationException("La cantidad debe ser mayor a cero.");
+            throw new AppException("La cantidad debe ser mayor a cero.", 422);
 
         // Resolve location names for the record
         List<ShopifyApiLocation> locations = await _client.GetLocationsAsync();
@@ -476,18 +499,18 @@ public sealed class ShopifyProductService : IShopifyProductService
         string fromName = locationMap.GetValueOrDefault(req.FromLocationId, req.FromLocationId.ToString());
         string toName   = locationMap.GetValueOrDefault(req.ToLocationId,   req.ToLocationId.ToString());
 
-        // Deduct from source
-        bool deducted = await _client.AdjustInventoryQuantityAsync(req.InventoryItemId, req.FromLocationId, -req.Quantity);
-        if (!deducted)
-            throw new InvalidOperationException($"No se pudo descontar el inventario en {fromName}.");
+        // Deduct from source — throws AppException with Shopify error details on failure
+        await _client.AdjustInventoryQuantityAsync(req.InventoryItemId, req.FromLocationId, -req.Quantity);
 
-        // Add to destination
-        bool added = await _client.AdjustInventoryQuantityAsync(req.InventoryItemId, req.ToLocationId, +req.Quantity);
-        if (!added)
+        // Add to destination — rollback source deduction if this fails
+        try
         {
-            // Attempt to rollback the deduction
+            await _client.AdjustInventoryQuantityAsync(req.InventoryItemId, req.ToLocationId, +req.Quantity);
+        }
+        catch (AppException ex)
+        {
             await _client.AdjustInventoryQuantityAsync(req.InventoryItemId, req.FromLocationId, +req.Quantity);
-            throw new InvalidOperationException($"No se pudo agregar el inventario en {toName}. Se revirtió el descuento.");
+            throw new AppException($"No se pudo agregar el inventario en {toName} (se revirtió el descuento). {ex.Message}", 502);
         }
 
         // Record in database
@@ -540,7 +563,7 @@ public sealed class ShopifyProductService : IShopifyProductService
     {
         ShopifyApiImage? img = await _client.AddProductImageAsync(productId, base64Data, filename);
         if (img is null)
-            throw new InvalidOperationException("Shopify no retornó la imagen creada.");
+            throw new AppException("Shopify no retornó la imagen creada.", 502);
 
         return new ShopifyImageResponse { Id = img.Id, Src = img.Src, Alt = img.Alt };
     }
@@ -560,10 +583,13 @@ public sealed class ShopifyProductService : IShopifyProductService
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static ShopifyProductSummary MapGqlLiteSummary(ShopifyGqlProductLite p)
+    private static ShopifyProductSummary MapGqlLiteSummary(
+        ShopifyGqlProductLite p, Dictionary<long, int>? levelMap = null)
     {
-        int slash = p.Id.LastIndexOf('/');
-        long id   = slash >= 0 && long.TryParse(p.Id[(slash + 1)..], out long n) ? n : 0;
+        long id = ParseGidLong(p.Id);
+        int totalStock = levelMap is not null
+            ? p.Variants.Edges.Sum(e => levelMap.GetValueOrDefault(ParseGidLong(e.Node.InventoryItem?.Id), 0))
+            : p.TotalInventory;
         return new ShopifyProductSummary
         {
             Id           = id,
@@ -576,8 +602,15 @@ public sealed class ShopifyProductService : IShopifyProductService
             VariantCount = p.VariantsCount?.Count ?? 1,
             MinPrice     = ParseDecimal(p.PriceRangeV2?.MinVariantPrice.Amount),
             MaxPrice     = ParseDecimal(p.PriceRangeV2?.MaxVariantPrice.Amount),
-            TotalStock   = p.TotalInventory,
+            TotalStock   = totalStock,
         };
+    }
+
+    private static long ParseGidLong(string? gid)
+    {
+        if (string.IsNullOrEmpty(gid)) return 0;
+        int slash = gid.LastIndexOf('/');
+        return slash >= 0 && long.TryParse(gid[(slash + 1)..], out long n) ? n : 0;
     }
 
     private static string BuildProductGqlQuery(string search, string status)
@@ -625,7 +658,7 @@ public sealed class ShopifyProductService : IShopifyProductService
     {
         decimal minPrice = p.Variants.Count > 0 ? p.Variants.Min(v => ParseDecimal(v.Price)) : 0m;
         decimal maxPrice = p.Variants.Count > 0 ? p.Variants.Max(v => ParseDecimal(v.Price)) : 0m;
-        int totalStock   = p.Variants.Sum(v => levelMap.GetValueOrDefault(v.InventoryItemId, v.InventoryQuantity));
+        int totalStock   = p.Variants.Sum(v => levelMap.GetValueOrDefault(v.InventoryItemId, 0));
 
         return new ShopifyProductSummary
         {

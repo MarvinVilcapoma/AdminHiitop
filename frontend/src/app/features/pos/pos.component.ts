@@ -18,6 +18,7 @@ import {
   Warehouse,
 } from '../../core/models';
 import { AppConfigService } from '../../core/services/app-config.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { formatPeruDateTimeLabel, formatPeruDateTimeLocal } from '../../core/utils/peru-date.util';
@@ -76,6 +77,13 @@ interface PosPrintPayload {
   storeName: string;
 }
 
+interface InvoiceSeries {
+  id: number;
+  doc_type: string;
+  serie: string;
+  next_number: number;
+}
+
 @Component({
   selector: 'app-pos',
   standalone: true,
@@ -85,6 +93,7 @@ interface PosPrintPayload {
 })
 export class PosComponent implements OnInit {
   private readonly api       = inject(ApiService);
+  private readonly auth      = inject(AuthService);
   private readonly toast     = inject(ToastService);
   readonly appConfig         = inject(AppConfigService);
   private lastErrorMessage = '';
@@ -109,6 +118,8 @@ export class PosComponent implements OnInit {
 
   selectedWarehouseId: number | null = null;
 
+  invoiceSeries = signal<InvoiceSeries[]>([]);
+
   // Shopify stock source
   stockSource       = signal<'mysql' | 'shopify'>('mysql');
   shopifyLocations  = signal<ShopifyLocation[]>([]);
@@ -120,7 +131,7 @@ export class PosComponent implements OnInit {
     this.stockSource.set(source);
     if (source === 'shopify') {
       const locs = this.shopifyLocations();
-      this.shopifyLocationId.set(locs.length === 1 ? locs[0].id : null);
+      this.shopifyLocationId.set(locs.length ? locs[0].id : null);
       this.lines.set([]);
     } else {
       this.shopifyLocationId.set(null);
@@ -303,7 +314,18 @@ export class PosComponent implements OnInit {
     });
 
     this.api.get<ShopifyLocation[]>('shopify/locations').subscribe({
-      next: locs => this.shopifyLocations.set(locs.filter(l => l.active)),
+      next: locs => {
+        const active = locs.filter(l => l.active);
+        this.shopifyLocations.set(active);
+        if (this.isShopifyMode && active.length && !this.shopifyLocationId()) {
+          this.shopifyLocationId.set(active[0].id);
+        }
+      },
+      error: () => {},
+    });
+
+    this.api.get<InvoiceSeries[]>('invoices/series').subscribe({
+      next: series => this.invoiceSeries.set(series ?? []),
       error: () => {},
     });
   }
@@ -811,6 +833,7 @@ export class PosComponent implements OnInit {
         customer_email: needsCustomerPayload ? (this.customerEmail || null) : null,
         phone: needsCustomerPayload ? (this.customerPhone || null) : null,
         address: needsCustomerPayload ? (this.customerAddress || null) : null,
+        user_id: this.auth.currentUser()?.id ?? null,
         print_after_save: this.printAfterSave,
         items: validLines,
       };
@@ -836,8 +859,16 @@ export class PosComponent implements OnInit {
             });
           }
 
+          // Capture billing data before cart reset clears customer fields
+          const billingOrderId   = created?.id ?? null;
+          const billingDocType   = this.customerDocumentType === 'RUC' ? '01' : '03';
+          const billingSunatDoc  = this.customerDocumentType === 'RUC' ? '6' : '1';
+          const billingDocNumber = this.customerDni || null;
+          const billingName      = this.customerName || null;
+
+          this.toast.success(`Venta registrada (${orderNumber})`);
           this.resetAfterSale();
-          this.toast.success(`Venta registrada correctamente (${orderNumber}).`);
+          this.autoSendInvoice(billingOrderId, billingDocType, billingSunatDoc, billingDocNumber, billingName);
         },
         error: (errorResponse) => {
           this.saving.set(false);
@@ -976,6 +1007,41 @@ export class PosComponent implements OnInit {
     line.discount_value = +discountValue.toFixed(2);
     line.discount_amount = +discountAmount.toFixed(2);
     line.subtotal = +Math.max(0, baseSubtotal - discountAmount).toFixed(2);
+  }
+
+  private autoSendInvoice(
+    orderId: number | null,
+    docType: '01' | '03',
+    sunatDocType: string,
+    docNumber: string | null,
+    customerName: string | null,
+  ): void {
+    const series = this.invoiceSeries().find(s => s.doc_type === docType);
+    if (!series) return;
+
+    this.api.post<any>('invoices', {
+      order_id:            orderId,
+      invoice_series_id:   series.id,
+      doc_type:            docType,
+      customer_doc_type:   sunatDocType,
+      customer_doc_number: docNumber,
+      customer_name:       customerName,
+      auto_send:           true,
+    }).subscribe({
+      next: (res) => {
+        const sr         = res?.sunat_result;
+        const fullNumber = res?.invoice?.full_number ?? '';
+        if (sr?.success) {
+          this.toast.success(`Comprobante emitido: ${fullNumber}`);
+        } else {
+          const errMsg = sr?.errors ?? sr?.result?.errors ?? sr?.description ?? 'Error al emitir comprobante.';
+          this.toast.error(`Error SUNAT: ${errMsg}`);
+        }
+      },
+      error: () => {
+        this.toast.error('No se pudo enviar el comprobante electrónico a SUNAT.');
+      },
+    });
   }
 
   private resetAfterSale(): void {
