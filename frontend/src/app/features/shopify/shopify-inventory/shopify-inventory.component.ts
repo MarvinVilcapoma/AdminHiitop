@@ -376,9 +376,12 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
     }
     product.loadingVariants = true;
     product.expanded = true;
-    this.api.get<{ variants: ShopifyVariant[] }>(`shopify/products/${product.id}`).subscribe({
+    const locationId = this.activeLocationId();
+    const url = locationId
+      ? `shopify/products/${product.id}?location_id=${locationId}`
+      : `shopify/products/${product.id}`;
+    this.api.get<{ variants: ShopifyVariant[] }>(url).subscribe({
       next: detail => {
-        const locationId = this.activeLocationId();
         product.variants = (detail as any).variants ?? [];
         product.loadingVariants = false;
         this.products.update(ps => [...ps]);

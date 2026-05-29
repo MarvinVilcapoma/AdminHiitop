@@ -108,9 +108,9 @@ public sealed class ShopifyController : ControllerBase
 
     /// <summary>Detalle completo de un producto con todas sus variantes e inventario.</summary>
     [HttpGet("products/{id:long}")]
-    public async Task<IActionResult> GetProduct(long id)
+    public async Task<IActionResult> GetProduct(long id, [FromQuery] long? location_id = null)
     {
-        var product = await _products.GetProductAsync(id);
+        var product = await _products.GetProductAsync(id, location_id);
         return product is null
             ? NotFound(new { message = "Producto no encontrado en Shopify." })
             : Ok(product);

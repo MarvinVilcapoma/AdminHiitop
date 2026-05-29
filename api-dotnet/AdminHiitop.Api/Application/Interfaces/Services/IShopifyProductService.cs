@@ -16,7 +16,7 @@ public interface IShopifyProductService
         string? search, int page, int perPage, string status = "active", long? locationId = null);
 
     /// <summary>Returns full product detail with all variants and inventory quantities.</summary>
-    Task<ShopifyProductDetailResponse?> GetProductAsync(long productId);
+    Task<ShopifyProductDetailResponse?> GetProductAsync(long productId, long? locationId = null);
 
     /// <summary>Updates product metadata (title, description, tags, status).</summary>
     Task<ShopifyProductDetailResponse> UpdateProductAsync(long productId, ShopifyProductUpdateRequest request);

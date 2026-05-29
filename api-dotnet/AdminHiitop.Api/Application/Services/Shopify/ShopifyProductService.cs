@@ -165,15 +165,15 @@ public sealed class ShopifyProductService : IShopifyProductService
 
     // ── Product detail ────────────────────────────────────────────────────────
 
-    public async Task<ShopifyProductDetailResponse?> GetProductAsync(long productId)
+    public async Task<ShopifyProductDetailResponse?> GetProductAsync(long productId, long? locationId = null)
     {
         ShopifyApiProduct? product = await _client.GetProductAsync(productId);
         if (product is null) return null;
 
-        long locationId = await ResolveLocationIdAsync();
+        long resolvedLocationId = locationId > 0 ? locationId!.Value : await ResolveLocationIdAsync();
         var inventoryItemIds = product.Variants.Select(v => v.InventoryItemId).Distinct().ToList();
         var levelMap = inventoryItemIds.Count > 0
-            ? (await _client.GetInventoryLevelsAsync(inventoryItemIds, locationId))
+            ? (await _client.GetInventoryLevelsAsync(inventoryItemIds, resolvedLocationId))
                 .ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0)
             : new Dictionary<long, int>();
 
