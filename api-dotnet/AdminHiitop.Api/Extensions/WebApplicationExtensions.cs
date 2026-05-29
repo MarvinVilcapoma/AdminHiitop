@@ -100,7 +100,8 @@ public static class WebApplicationExtensions
     private static async Task ApplyMySqlSchemaPatchesAsync(
         AdminHiitop.Api.Infrastructure.Persistence.AdminHiitopDbContext context)
     {
-        // invoice_series.name — MySQL 5.7: TEXT can't have DEFAULT, add nullable then fix.
+        // ── invoice_series.name ──────────────────────────────────────────────
+        // MySQL 5.7: TEXT can't have DEFAULT, add nullable then fix.
         bool nameExists = await ColumnExistsAsync(context, "invoice_series", "name");
         if (!nameExists)
         {
@@ -111,6 +112,20 @@ public static class WebApplicationExtensions
             await context.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE `invoice_series` MODIFY COLUMN `name` longtext NOT NULL");
         }
+
+        // ── Rename old series to match Nubefact-registered series ───────────
+        // These old names (F001, B001, etc.) were never registered in Nubefact.
+        // Nubefact requires FFF1, BBB1, TTT1, VVV1. Rename and remove duplicates.
+        await context.Database.ExecuteSqlRawAsync(
+            "DELETE FROM `invoice_series` WHERE `serie` IN ('FC01','BC01','FD01','BD01')");
+        await context.Database.ExecuteSqlRawAsync(
+            "UPDATE `invoice_series` SET `serie`='FFF1', `name`='Facturas Electronicas'           WHERE `serie`='F001'");
+        await context.Database.ExecuteSqlRawAsync(
+            "UPDATE `invoice_series` SET `serie`='BBB1', `name`='Boletas de Venta'                WHERE `serie`='B001'");
+        await context.Database.ExecuteSqlRawAsync(
+            "UPDATE `invoice_series` SET `serie`='TTT1', `name`='Guias de Remision Remitente'     WHERE `serie`='T001'");
+        await context.Database.ExecuteSqlRawAsync(
+            "UPDATE `invoice_series` SET `serie`='VVV1', `name`='Guias de Remision Transportista' WHERE `serie`='V001'");
     }
 
     private static async Task<bool> ColumnExistsAsync(

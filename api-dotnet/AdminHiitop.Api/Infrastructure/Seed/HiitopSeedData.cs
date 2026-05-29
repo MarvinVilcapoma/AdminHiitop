@@ -107,16 +107,16 @@ public static class HiitopSeedData
         ("Tarjeta", "CARD")
     ];
 
+    // Series match exactly what is registered in the Nubefact account.
+    // FFF1 covers Facturas + their NC/ND.  BBB1 covers Boletas + their NC/ND.
+    // NC/ND series are omitted here — they share the base serie (FFF1 / BBB1)
+    // and the correlativo counter of the base document.
     public static IReadOnlyList<(string DocType, string Serie, string Name, int NextNumber)> InvoiceSeries { get; } =
     [
-        ("01", "F001", "Facturas Electronicas",    1),
-        ("03", "B001", "Boletas de Venta",         1),
-        ("07", "FC01", "Notas de Credito Factura", 1),
-        ("07", "BC01", "Notas de Credito Boleta",  1),
-        ("08", "FD01", "Notas de Debito Factura",  1),
-        ("08", "BD01", "Notas de Debito Boleta",   1),
-        ("09", "T001", "Guias de Remision Remitente",        1),
-        ("31", "V001", "Guias de Remision Transportista",    1),
+        ("01", "FFF1", "Facturas Electronicas",              1),
+        ("03", "BBB1", "Boletas de Venta",                   1),
+        ("09", "TTT1", "Guias de Remision Remitente",        1),
+        ("31", "VVV1", "Guias de Remision Transportista",    1),
     ];
 
     public static IReadOnlyList<(string Key, string Value, string Label, string Type, string Group)> Settings { get; } =
