@@ -94,27 +94,9 @@ public sealed class NubeFactClient
     }
 
     private string ResolveApiUrl()
-    {
-        // Demo environment always uses DemoApiUrl
-        if (string.Equals(_options.Environment, "Demo", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(_options.DemoApiUrl))
-        {
-            return _options.DemoApiUrl.Trim();
-        }
+        => !string.IsNullOrWhiteSpace(_options.ProductionApiUrl)
+            ? _options.ProductionApiUrl.Trim()
+            : _options.ApiUrl.Trim();
 
-        // Production: prefer explicit ProductionApiUrl, fallback to ApiUrl
-        if (!string.IsNullOrWhiteSpace(_options.ProductionApiUrl))
-        {
-            return _options.ProductionApiUrl.Trim();
-        }
-
-        return _options.ApiUrl.Trim();
-    }
-
-    private string ResolveEnvironmentName()
-    {
-        return string.Equals(_options.Environment, "Production", StringComparison.OrdinalIgnoreCase)
-            ? "Production"
-            : "Demo";
-    }
+    private string ResolveEnvironmentName() => "Production";
 }
