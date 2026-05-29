@@ -257,8 +257,10 @@ export class OrdersListComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    // Default to 'pos' (Ventas y Pedidos) — shows all local orders.
+    // Only override to 'shopify' when explicitly requested via URL param.
     const source = this.route.snapshot.queryParamMap.get('source');
-    this.filterSource = ['pos', 'shopify'].includes(source ?? '') ? source! : '';
+    this.filterSource = source === 'shopify' ? 'shopify' : 'pos';
 
     const searchParam = this.route.snapshot.queryParamMap.get('search');
     if (searchParam) this.search = searchParam;

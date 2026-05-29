@@ -69,14 +69,10 @@ public sealed class OrderService : IOrderService
         if (userId.HasValue)
             query = query.Where(item => item.UserId == userId.Value);
 
-        if (!string.IsNullOrWhiteSpace(source))
-        {
-            string normalizedSource = source.Trim().ToLowerInvariant();
-            if (normalizedSource == "pos")
-            {
-                query = query.Where(item => item.Warehouse != null && item.Warehouse.IsPos);
-            }
-        }
+        // source=pos means "all local orders" (both POS and form-created).
+        // source=shopify is handled separately (loadShopifyOrders in frontend).
+        // No additional filter needed for "pos" — all local orders are already
+        // excluded from the Shopify channel by virtue of being in the local DB.
 
         var paged = await PaginationHelper.CreateAsync(query, page, perPage.Value);
         if (!withSummary)
