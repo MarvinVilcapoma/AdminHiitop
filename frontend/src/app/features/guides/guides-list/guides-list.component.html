@@ -127,6 +127,10 @@
                     </button>
                   }
 
+                  <button class="btn btn-xs btn-outline-primary" title="Imprimir guía" (click)="printGuide(row)">
+                    <i class="bi bi-printer"></i>
+                  </button>
+
                   @if (row.guide_status) {
                     <button class="btn btn-xs btn-outline-secondary" title="Descargar XML" (click)="downloadXml(row)">
                       <i class="bi bi-file-earmark-code"></i>

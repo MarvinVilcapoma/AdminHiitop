@@ -204,6 +204,112 @@ export class InvoicesListComponent implements OnInit {
     this.api.downloadFile(`invoices/${inv.id}/pdf`, inv.full_number + '.pdf');
   }
 
+  printInvoice(inv: Invoice): void {
+    const docLabel = inv.doc_type === '01' ? 'FACTURA ELECTRÓNICA'
+                   : inv.doc_type === '03' ? 'BOLETA DE VENTA'
+                   : inv.doc_type === '07' ? 'NOTA DE CRÉDITO'
+                   : inv.doc_type === '08' ? 'NOTA DE DÉBITO'
+                   : 'COMPROBANTE';
+
+    const issued = inv.issued_at
+      ? new Date(inv.issued_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : '—';
+
+    const base   = (inv.mto_oper_gravadas ?? 0).toFixed(2);
+    const igv    = (inv.mto_igv ?? 0).toFixed(2);
+    const total  = (inv.mto_imp_venta ?? 0).toFixed(2);
+
+    const docTypeLabel = inv.customer_doc_type === '1' ? 'DNI'
+                       : inv.customer_doc_type === '6' ? 'RUC'
+                       : inv.customer_doc_type ?? '';
+
+    // Load order items if available, then print
+    const orderId = (inv as any).order_id ?? inv.order?.id;
+    const doRender = (itemsHtml: string) => {
+      const win = window.open('', '_blank', 'width=900,height=760');
+      if (!win) { this.toast.error('El navegador bloqueó la ventana de impresión.'); return; }
+      win.document.write(this.buildInvoiceHtml(docLabel, inv.full_number, issued, docTypeLabel, inv.customer_doc_number ?? '', inv.customer_name ?? '', base, igv, total, itemsHtml));
+      win.document.close();
+      setTimeout(() => { win.focus(); win.print(); }, 400);
+    };
+
+    if (orderId) {
+      this.api.get<any>(`orders/${orderId}`).subscribe({
+        next: (order) => {
+          const items: any[] = order?.items ?? [];
+          const rows = items.map((it: any) => `
+            <tr>
+              <td>${it.quantity}</td>
+              <td>${it.product_description ?? '—'}</td>
+              <td class="num">S/ ${(+it.unit_price).toFixed(2)}</td>
+              <td class="num">S/ ${(+it.subtotal).toFixed(2)}</td>
+            </tr>`).join('');
+          doRender(rows || '<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>');
+        },
+        error: () => doRender('<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>'),
+      });
+    } else {
+      doRender('<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>');
+    }
+  }
+
+  private buildInvoiceHtml(docLabel: string, fullNumber: string, issued: string, docTypeLabel: string, docNum: string, customer: string, base: string, igv: string, total: string, itemsHtml: string): string {
+    return `<!doctype html><html><head><meta charset="utf-8">
+<title>${fullNumber}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .brand { font-size: 22px; font-weight: 800; color: #f97316; }
+  .doc-box { border: 2px solid #111; padding: 8px 14px; text-align: center; min-width: 200px; }
+  .doc-box .type { font-size: 13px; font-weight: 700; text-transform: uppercase; }
+  .doc-box .num  { font-size: 14px; font-weight: 800; margin-top: 4px; }
+  .sep { border: none; border-top: 1px solid #ddd; margin: 10px 0; }
+  .row2 { display: flex; gap: 16px; margin-bottom: 10px; }
+  .field { flex: 1; }
+  .field label { display: block; font-size: 9px; text-transform: uppercase; color: #888; margin-bottom: 2px; font-weight: 600; }
+  .field span  { font-size: 11px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10.5px; }
+  thead tr { background: #f3f4f6; }
+  th, td { padding: 5px 7px; border: 1px solid #e5e7eb; }
+  th { font-weight: 700; text-align: left; }
+  .num { text-align: right; }
+  .totals { margin-left: auto; width: 280px; border-collapse: collapse; font-size: 11px; }
+  .totals td { padding: 4px 8px; border-bottom: 1px solid #f3f4f6; }
+  .totals .lbl { color: #555; }
+  .totals .total-row td { font-weight: 800; font-size: 13px; border-top: 2px solid #111; }
+  .foot { margin-top: 20px; text-align: center; font-size: 9px; color: #888; }
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="brand">HIITOP</div>
+    <div style="font-size:9px;color:#888;margin-top:4px">Comprobante electrónico</div>
+  </div>
+  <div class="doc-box">
+    <div class="type">${docLabel}</div>
+    <div class="num">${fullNumber}</div>
+    <div style="font-size:9px;color:#555;margin-top:4px">Fecha: ${issued}</div>
+  </div>
+</div>
+<hr class="sep">
+<div class="row2">
+  <div class="field"><label>Cliente</label><span>${customer}</span></div>
+  <div class="field"><label>${docTypeLabel}</label><span>${docNum}</span></div>
+</div>
+<table>
+  <thead><tr><th>Cant.</th><th>Descripción</th><th class="num">P. Unit.</th><th class="num">Total</th></tr></thead>
+  <tbody>${itemsHtml}</tbody>
+</table>
+<table class="totals">
+  <tr><td class="lbl">Base imponible</td><td class="num">S/ ${base}</td></tr>
+  <tr><td class="lbl">IGV (18%)</td><td class="num">S/ ${igv}</td></tr>
+  <tr class="total-row"><td>TOTAL</td><td class="num">S/ ${total}</td></tr>
+</table>
+<div class="foot">Representación impresa del comprobante electrónico</div>
+</body></html>`;
+  }
+
   downloadCdr(inv: Invoice): void {
     this.api.downloadFile(`invoices/${inv.id}/cdr`, 'R-' + inv.full_number + '.zip');
   }

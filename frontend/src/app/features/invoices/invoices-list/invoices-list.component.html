@@ -107,7 +107,11 @@
                     </button>
                   }
 
-                  <button class="btn btn-xs btn-outline-danger me-1" (click)="downloadPdf(inv)">
+                  <button class="btn btn-xs btn-outline-secondary me-1" title="Imprimir comprobante" (click)="printInvoice(inv)">
+                    <i class="bi bi-printer"></i>
+                  </button>
+
+                  <button class="btn btn-xs btn-outline-danger me-1" title="Descargar PDF Nubefact" (click)="downloadPdf(inv)">
                     <i class="bi bi-file-earmark-pdf"></i>
                   </button>
 
