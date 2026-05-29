@@ -47,9 +47,18 @@ public sealed class InvoiceService : IInvoiceService
 
     public async Task<object> CreateAsync(CreateInvoiceRequest request)
     {
-        InvoiceSeriesEntity? seriesMeta = await _context.InvoiceSeries
-            .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId);
+        InvoiceSeriesEntity? seriesMeta;
+        try
+        {
+            seriesMeta = await _context.InvoiceSeries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == request.InvoiceSeriesId);
+        }
+        catch (Exception ex)
+        {
+            throw new AdminHiitop.Api.Shared.Exceptions.AppException(
+                $"Error al cargar la serie de comprobante: {ex.InnerException?.Message ?? ex.Message}", 500);
+        }
 
         if (seriesMeta is null)
             return new { error = true, message = "Serie no encontrada." };
@@ -60,7 +69,18 @@ public sealed class InvoiceService : IInvoiceService
             : null;
 
         // Atomic increment — never re-uses a number even under concurrent requests
-        (string serie, int correlativo) = await _seriesService.GetNextAsync(request.InvoiceSeriesId);
+        string serie;
+        int correlativo;
+        try
+        {
+            (serie, correlativo) = await _seriesService.GetNextAsync(request.InvoiceSeriesId);
+        }
+        catch (AdminHiitop.Api.Shared.Exceptions.AppException) { throw; }
+        catch (Exception ex)
+        {
+            throw new AdminHiitop.Api.Shared.Exceptions.AppException(
+                $"Error al reservar correlativo para la serie (id={request.InvoiceSeriesId}): {ex.Message}", 422);
+        }
 
         decimal orderTotal = order?.Total ?? 0m;
         decimal orderIgv   = Math.Round(orderTotal * 0.18m / 1.18m, 2);
@@ -144,15 +164,24 @@ public sealed class InvoiceService : IInvoiceService
 
     public async Task<object> SendAsync(int id)
     {
-        var result = await _invoiceElectronicBillingService.SendInvoiceAsync(id);
-        return new
+        try
         {
-            success = result.Success,
-            provider = result.ProviderName,
-            environment = result.Environment,
-            endpoint = result.Endpoint,
-            result = result.Response
-        };
+            var result = await _invoiceElectronicBillingService.SendInvoiceAsync(id);
+            return new
+            {
+                success = result.Success,
+                provider = result.ProviderName,
+                environment = result.Environment,
+                endpoint = result.Endpoint,
+                result = result.Response
+            };
+        }
+        catch (AdminHiitop.Api.Shared.Exceptions.AppException) { throw; }
+        catch (Exception ex)
+        {
+            throw new AdminHiitop.Api.Shared.Exceptions.AppException(
+                $"Error al enviar a Nubefact: {ex.InnerException?.Message ?? ex.Message}", 500);
+        }
     }
 
     public async Task<object> VoidAsync(int id)
