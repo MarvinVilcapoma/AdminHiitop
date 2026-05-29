@@ -558,11 +558,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+        plugins: { legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 14, padding: 16 } } },
         scales: {
-          y:  { position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v: any) => 'S/' + v } },
-          y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }, stepSize: 1 } },
-          x:  { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+          y:  { position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 12 }, callback: (v: any) => 'S/' + v } },
+          y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 12 }, stepSize: 1 } },
+          x:  { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 45 } },
         },
       },
     });

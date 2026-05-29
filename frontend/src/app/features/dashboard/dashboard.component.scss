@@ -128,6 +128,14 @@
     min-height: 200px;
     canvas { width: 100% !important; }
   }
+
+  // Main daily-revenue chart — tall enough to be readable
+  .chart-area--main {
+    height: 340px;
+
+    @media (max-width: 991.98px) { height: 280px; }
+    @media (max-width: 575.98px) { height: 220px; }
+  }
 }
 
 // ── Donut legend ─────────────────────────────────────────────────────────────
