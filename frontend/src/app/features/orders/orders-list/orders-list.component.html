@@ -158,10 +158,10 @@
     <div class="col-6 col-md-2">
       <label class="form-label small text-muted mb-1">Canal</label>
       <select class="form-select form-select-sm" [(ngModel)]="filterSource" (change)="onFilterChange()">
-        <option value="">Todos</option>
-        <option value="pos">Solo POS</option>
+        <!-- <option value="">Todos</option> -->
+        <option value="pos">Ventas y Pedidos</option>
         <option value="shopify">
-          <i class="bi bi-shop"></i> Shopify
+          <i class="bi bi-shop"></i> Página web (Shopify)
         </option>
       </select>
     </div>
@@ -821,18 +821,15 @@
                   <option value="03">Boleta (03)</option>
                 </select>
               </div>
-              <!-- Series -->
+              <!-- Series — auto-calculated, read-only -->
               <div class="col-md-4">
                 <label class="form-label fw-semibold">Serie</label>
-                @if (filteredSeries().length > 0) {
-                  <select class="form-select form-select-sm" [(ngModel)]="emitForm.invoice_series_id">
-                    @for (series of filteredSeries(); track series.id) {
-                      <option [ngValue]="series.id">{{ series.serie }} · Siguiente {{ series.next_number }}</option>
-                    }
-                  </select>
-                  <small class="text-muted">Puedes elegir la serie con la que deseas emitir.</small>
+                <input type="text" class="form-control form-control-sm bg-light"
+                  [value]="selectedSeriesLabel || '—'"
+                  readonly />
+                @if (selectedSeriesLabel) {
+                  <small class="text-muted"><i class="bi bi-lock-fill me-1"></i>Consecutivo automático</small>
                 } @else {
-                  <div class="form-control form-control-sm bg-light">—</div>
                   <small class="text-danger">No hay series activas para este tipo.</small>
                 }
               </div>

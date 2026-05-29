@@ -800,6 +800,13 @@ export class OrdersListComponent implements OnInit {
     if (matching) this.emitForm.invoice_series_id = matching.id;
   }
 
+  /** Display text for the auto-selected serie (read-only input). */
+  get selectedSeriesLabel(): string {
+    if (!this.emitForm.invoice_series_id) return '';
+    const s = this.invoiceSeries().find(series => series.id === this.emitForm.invoice_series_id);
+    return s ? `${s.serie}  ·  Siguiente: ${s.next_number}` : '';
+  }
+
   /** True when the emit form passes basic SUNAT rules */
   get emitFormValid(): boolean {
     if (this.emitForm.doc_type === '01') {
