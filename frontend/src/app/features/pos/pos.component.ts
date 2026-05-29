@@ -277,8 +277,16 @@ export class PosComponent implements OnInit {
         const colorRows = Array.isArray(payload?.colors) ? payload.colors : [];
         const settings = payload?.settings ?? {};
 
+        // Exclude document types that don't belong in POS:
+        // - TICKET: it's a print format, not a SUNAT doc type
+        // - GUIA_REMISION / GUIA_REMISION_TRANSP: managed in the Guides module
+        const POS_EXCLUDED = ['TICKET','GUIA_REMISION','GUIA_REMISION_TRANSP'];
+        const posDocumentRows = documentRows.filter(
+            (dt: any) => !POS_EXCLUDED.includes(String(dt.code ?? '').toUpperCase())
+        );
+
         this.warehouses.set(warehouseRows);
-        this.documentTypes.set(documentRows);
+        this.documentTypes.set(posDocumentRows);
         this.paymentMethods.set(paymentRows);
         this.colors.set(colorRows);
 

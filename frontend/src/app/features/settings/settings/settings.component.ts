@@ -25,7 +25,8 @@ export class SettingsComponent {
     { title: 'Colecciones',         description: 'Líneas o colecciones',                     path: '/dashboard/settings/collections',      icon: 'bi-collection'    },
     { title: 'Unidades de medida',  description: 'NIU, KGM, LTR y códigos SUNAT',            path: '/dashboard/settings/unit-measures',    icon: 'bi-rulers'        },
     { title: 'Provincias y distritos', description: 'Ubicación geográfica',                  path: '/dashboard/settings/provinces',        icon: 'bi-geo-alt'       },
-    { title: 'Parámetros fiscales', description: 'IGV, RUC, moneda y datos de empresa',      path: '/dashboard/settings/fiscal',           icon: 'bi-percent'       },
+    { title: 'Parámetros fiscales', description: 'IGV, RUC, moneda, empresa y series de comprobantes', path: '/dashboard/settings/fiscal', icon: 'bi-percent' },
+    { title: 'Series y correlativos', description: 'FFF1, BBB1, TTT1 — siguiente número de cada serie', path: '/dashboard/settings/fiscal', icon: 'bi-receipt'       },
     { title: 'Métodos de pago',     description: 'Efectivo, Yape, Plin, Transferencia...',   path: '/dashboard/settings/payment-methods',  icon: 'bi-credit-card'   },
   ];
 }

@@ -227,7 +227,10 @@ export class OrderFormComponent implements OnInit {
         this.form.patchValue({ document_type_id: guideDoc?.id ?? null }, { emitEvent: false });
         this.form.get('document_type_id')?.disable({ emitEvent: false });
       } else {
-        const nonGuideDocs = docs.filter((d: any) => String(d.code ?? '').toUpperCase() !== 'GUIA_REMISION');
+        const ORDERS_EXCLUDED = ['TICKET', 'GUIA_REMISION', 'GUIA_REMISION_TRANSP'];
+        const nonGuideDocs = docs.filter(
+            (d: any) => !ORDERS_EXCLUDED.includes(String(d.code ?? '').toUpperCase())
+        );
         const availableDocs = nonGuideDocs.length ? nonGuideDocs : docs;
         this.documentTypes.set(availableDocs);
         this.form.get('document_type_id')?.enable({ emitEvent: false });
