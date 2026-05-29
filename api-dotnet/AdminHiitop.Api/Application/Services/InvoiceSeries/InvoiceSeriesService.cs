@@ -51,18 +51,23 @@ public sealed class InvoiceSeriesService(AdminHiitopDbContext context) : IInvoic
 
     private async Task<(string Serie, int Correlativo)> ReserveNextAsync(InvoiceSeriesEntity series)
     {
-        // Raw SQL must use actual DB column names (snake_case), not C# property names.
-        // LAST_INSERT_ID(expr): captures the old value atomically, then DB stores +1.
-        // LAST_INSERT_ID() afterwards returns the captured old value = correlativo to use.
-        await context.Database.ExecuteSqlRawAsync(
-            "UPDATE `invoice_series` SET `next_number` = LAST_INSERT_ID(`next_number`) + 1 WHERE `id` = {0}",
-            series.Id);
+        // LAST_INSERT_ID() is per-session. With connection pooling the two calls may land
+        // on different connections, causing the second query to return 0.
+        // Using the raw ADO.NET connection directly guarantees both statements share the same session.
+        var conn = context.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open)
+            await conn.OpenAsync();
 
-        long correlativo = await context.Database
-            .SqlQueryRaw<long>("SELECT LAST_INSERT_ID() AS `Value`")
-            .SingleAsync();
+        await using var cmd1 = conn.CreateCommand();
+        cmd1.CommandText = $"UPDATE `invoice_series` SET `next_number` = LAST_INSERT_ID(`next_number`) + 1 WHERE `id` = {series.Id}";
+        await cmd1.ExecuteNonQueryAsync();
 
-        return (series.Serie, (int)correlativo);
+        await using var cmd2 = conn.CreateCommand();
+        cmd2.CommandText = "SELECT LAST_INSERT_ID()";
+        object? scalar = await cmd2.ExecuteScalarAsync();
+        int correlativo = Convert.ToInt32(scalar ?? 0);
+
+        return (series.Serie, correlativo);
     }
 
     private async Task<InvoiceSeriesEntity> FindAsync(int id)

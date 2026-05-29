@@ -7,6 +7,7 @@ using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Shared.Exceptions;
 using AdminHiitop.Api.Shared.Helpers;
+using Microsoft.EntityFrameworkCore;
 
 namespace AdminHiitop.Api.Application.Services.Invoices;
 
@@ -42,7 +43,16 @@ public sealed class InvoiceElectronicBillingService : IInvoiceElectronicBillingS
 
         ApplyResponse(invoice, submitResult);
         await RegisterSendLogAsync(invoice, submitResult);
-        await _invoiceRepository.SaveChangesAsync();
+
+        try
+        {
+            await _invoiceRepository.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            string inner = ex.InnerException?.Message ?? ex.Message;
+            throw new AppException($"Error al guardar el resultado del envio: {inner}", 422);
+        }
 
         return submitResult;
     }
