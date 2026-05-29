@@ -1163,72 +1163,75 @@ export class PosComponent implements OnInit {
     const now = formatPeruDateTimeLabel();
     const ticketWidth = widthMm <= 58 ? 58 : 80;
 
+    // Standard thermal layout: description row + qty×price=sub row
     const linesHtml = data.lines
       .map((line) => {
-        const detail = [line.product_name, line.variant_label].filter(Boolean).join(' · ');
+        // Avoid showing the product name twice when variant_label already contains it
+        const nameOnly  = line.product_name ?? '';
+        const variantOnly = (line.variant_label ?? '').replace(nameOnly, '').replace(/^[\s·—]+/, '').trim();
+        const desc = variantOnly ? `${nameOnly} — ${variantOnly}` : nameOnly;
+        const sub  = line.subtotal.toFixed(2);
+        const pu   = line.unit_price.toFixed(2);
         return `
-        <tr>
-          <td>${this.escapeHtml(detail)}</td>
-          <td class="num">${line.quantity}</td>
-          <td class="num">${line.unit_price.toFixed(2)}</td>
-          <td class="num">${line.subtotal.toFixed(2)}</td>
-        </tr>
-      `;
+          <tr class="prod-row">
+            <td colspan="2">${this.escapeHtml(desc)}</td>
+          </tr>
+          <tr class="qty-row">
+            <td class="qty-cell">${line.quantity} x S/${pu}</td>
+            <td class="sub-cell">S/${sub}</td>
+          </tr>`;
       })
       .join('');
 
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Ticket ${this.escapeHtml(data.orderNumber)}</title>
-        <style>
-          @page { size: ${ticketWidth}mm auto; margin: 4mm; }
-          body { font-family: Arial, sans-serif; margin: 0; padding: 0; font-size: 12px; }
-          .ticket { width: ${ticketWidth}mm; margin: 0 auto; padding: 6px; }
-          h2 { margin: 0 0 4px; font-size: 16px; text-align: center; }
-          .muted { color: #666; font-size: 11px; text-align: center; margin-bottom: 8px; }
-          .meta { margin: 6px 0; font-size: 11px; }
-          table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          th, td { border-bottom: 1px dashed #ccc; padding: 4px 0; vertical-align: top; }
-          .num { text-align: right; white-space: nowrap; }
-          .total { margin-top: 8px; font-size: 14px; font-weight: bold; text-align: right; }
-          .discount { margin-top: 4px; font-size: 12px; text-align: right; color: #e00; }
-          .foot { margin-top: 10px; text-align: center; font-size: 10px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="ticket">
-          <h2>HIITOP</h2>
-          <div class="muted">${this.escapeHtml(data.printFormat.label)} · ${ticketWidth}mm</div>
-          <div class="meta">Documento: ${this.escapeHtml(data.documentType)}</div>
-          <div class="meta">Numero: ${this.escapeHtml(data.orderNumber)}</div>
-          <div class="meta">Fecha: ${this.escapeHtml(now)}</div>
-          <div class="meta">Tienda: ${this.escapeHtml(data.storeName)}</div>
-          <div class="meta">Pago: ${this.escapeHtml(data.paymentMethod)}</div>
-          ${data.customerName ? `<div class="meta">Cliente: ${this.escapeHtml(data.customerName)}</div>` : ''}
-          ${data.customerDoc ? `<div class="meta">Doc: ${this.escapeHtml(data.customerDoc)}</div>` : ''}
+    const divider = `<tr><td colspan="2" class="divider"></td></tr>`;
 
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th class="num">Cant.</th>
-                <th class="num">P/U</th>
-                <th class="num">Sub</th>
-              </tr>
-            </thead>
-            <tbody>${linesHtml}</tbody>
-          </table>
-
-          ${data.discountAmount > 0 ? `<div class="discount">Descuento: -S/ ${data.discountAmount.toFixed(2)}</div>` : ''}
-          <div class="total">TOTAL: S/ ${data.total.toFixed(2)}</div>
-          <div class="foot">Gracias por tu compra</div>
-        </div>
-      </body>
-      </html>
-    `;
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Ticket ${this.escapeHtml(data.orderNumber)}</title>
+  <style>
+    @page { size: ${ticketWidth}mm auto; margin: 3mm 4mm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Courier New', monospace; font-size: 11px; margin: 0; padding: 0; color: #000; }
+    .ticket { width: 100%; max-width: ${ticketWidth}mm; }
+    .center  { text-align: center; }
+    .right   { text-align: right; }
+    .bold    { font-weight: bold; }
+    .store   { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
+    .sep     { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+    .meta-row { display: flex; justify-content: space-between; margin: 1px 0; font-size: 10px; }
+    table    { width: 100%; border-collapse: collapse; }
+    .prod-row td { padding-top: 5px; font-size: 10px; word-break: break-word; }
+    .qty-row  td { padding-bottom: 4px; font-size: 10px; }
+    .qty-cell { color: #333; }
+    .sub-cell { text-align: right; font-weight: bold; }
+    .divider td { border-top: 1px dashed #ccc; padding: 0; height: 1px; }
+    .total-row { margin-top: 6px; display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; }
+    .discount  { text-align: right; font-size: 11px; color: #c00; margin: 2px 0; }
+    .foot      { text-align: center; font-size: 9px; color: #555; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="ticket">
+    <p class="center store">HIITOP</p>
+    <hr class="sep">
+    <div class="meta-row"><span>Documento:</span><span>${this.escapeHtml(data.documentType)}</span></div>
+    <div class="meta-row"><span>Numero:</span><span>${this.escapeHtml(data.orderNumber)}</span></div>
+    <div class="meta-row"><span>Fecha:</span><span>${this.escapeHtml(now)}</span></div>
+    <div class="meta-row"><span>Tienda:</span><span>${this.escapeHtml(data.storeName)}</span></div>
+    <div class="meta-row"><span>Pago:</span><span>${this.escapeHtml(data.paymentMethod)}</span></div>
+    ${data.customerName ? `<div class="meta-row"><span>Cliente:</span><span>${this.escapeHtml(data.customerName)}</span></div>` : ''}
+    ${data.customerDoc  ? `<div class="meta-row"><span>Doc:</span><span>${this.escapeHtml(data.customerDoc)}</span></div>` : ''}
+    <hr class="sep">
+    <table><tbody>${linesHtml}${divider}</tbody></table>
+    ${data.discountAmount > 0 ? `<div class="discount">Descuento: -S/ ${data.discountAmount.toFixed(2)}</div>` : ''}
+    <div class="total-row"><span>TOTAL</span><span>S/ ${data.total.toFixed(2)}</span></div>
+    <hr class="sep">
+    <p class="foot">Gracias por tu compra</p>
+  </div>
+</body>
+</html>`;
 
     printWindow.document.open();
     printWindow.document.write(html);
@@ -1237,8 +1240,11 @@ export class PosComponent implements OnInit {
     setTimeout(() => {
       printWindow.focus();
       printWindow.print();
-      printWindow.close();
-    }, 250);
+      // For PDF/A4 don't auto-close — user needs to dismiss the print dialog first
+      if (data.printFormat.mode === 'ticket') {
+        setTimeout(() => printWindow.close(), 500);
+      }
+    }, 300);
   }
 
   private renderA4Document(printWindow: Window, data: PosPrintPayload): void {

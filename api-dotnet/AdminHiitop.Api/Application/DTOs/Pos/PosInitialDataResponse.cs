@@ -33,6 +33,8 @@ public sealed class PosDocumentTypeResponse
     public bool IsCommercialDocument { get; init; }
     public int SortOrder { get; init; }
     public IReadOnlyList<PosPrintFormatResponse> PrintFormats { get; init; } = [];
+    /// <summary>Active invoice series ID for this document type. Null if not a SUNAT document or no series configured.</summary>
+    public int? InvoiceSeriesId { get; init; }
 }
 
 public sealed class PosPrintFormatResponse

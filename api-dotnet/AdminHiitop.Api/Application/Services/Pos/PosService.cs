@@ -43,6 +43,12 @@ public sealed class PosService : IPosService
             .OrderBy(item => item.Name)
             .ToListAsync();
 
+        // Map DocType code → active invoice series ID so POS can auto-create invoices
+        Dictionary<string, int> seriesIdByDocType = await _context.InvoiceSeries
+            .AsNoTracking()
+            .Where(s => s.IsActive)
+            .ToDictionaryAsync(s => s.DocType, s => s.Id, StringComparer.OrdinalIgnoreCase);
+
         List<PaymentMethod> paymentMethods = await _context.PaymentMethods
             .AsNoTracking()
             .Where(item => item.IsActive)
@@ -90,7 +96,8 @@ public sealed class PosService : IPosService
                 CanBeConverted = item.CanBeConverted,
                 IsCommercialDocument = item.IsCommercialDocument,
                 SortOrder = item.SortOrder,
-                PrintFormats = ResolvePrintFormats(item, activePrintFormats)
+                PrintFormats = ResolvePrintFormats(item, activePrintFormats),
+                InvoiceSeriesId = item.IsSunatDocument && seriesIdByDocType.TryGetValue(item.Code ?? "", out int sid) ? sid : null
             }).ToList(),
             PaymentMethods = paymentMethods.Select(item => new PosPaymentMethodResponse
             {

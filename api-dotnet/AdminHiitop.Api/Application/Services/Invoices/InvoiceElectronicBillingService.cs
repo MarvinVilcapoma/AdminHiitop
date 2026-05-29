@@ -42,8 +42,8 @@ public sealed class InvoiceElectronicBillingService : IInvoiceElectronicBillingS
         NubeFactSubmitResult submitResult = await _electronicBillingProvider.SendDocumentAsync(request);
 
         ApplyResponse(invoice, submitResult);
-        await RegisterSendLogAsync(invoice, submitResult);
 
+        // Save the invoice status update first — this is critical.
         try
         {
             await _invoiceRepository.SaveChangesAsync();
@@ -51,8 +51,16 @@ public sealed class InvoiceElectronicBillingService : IInvoiceElectronicBillingS
         catch (DbUpdateException ex)
         {
             string inner = ex.InnerException?.Message ?? ex.Message;
-            throw new AppException($"Error al guardar el resultado del envio: {inner}", 422);
+            throw new AppException($"Error al actualizar el comprobante tras el envio: {inner}", 422);
         }
+
+        // Save the send log separately — failure here does NOT block the response.
+        try
+        {
+            await RegisterSendLogAsync(invoice, submitResult);
+            await _invoiceRepository.SaveChangesAsync();
+        }
+        catch { /* log in monitoring — do not surface to caller */ }
 
         return submitResult;
     }
