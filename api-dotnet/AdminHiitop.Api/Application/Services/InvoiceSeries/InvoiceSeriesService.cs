@@ -51,10 +51,11 @@ public sealed class InvoiceSeriesService(AdminHiitopDbContext context) : IInvoic
 
     private async Task<(string Serie, int Correlativo)> ReserveNextAsync(InvoiceSeriesEntity series)
     {
-        // Atomic increment: LAST_INSERT_ID(expr) sets and returns expr before +1 takes effect,
-        // so LAST_INSERT_ID() after the UPDATE holds the old NextNumber (= the correlativo to use).
+        // Raw SQL must use actual DB column names (snake_case), not C# property names.
+        // LAST_INSERT_ID(expr): captures the old value atomically, then DB stores +1.
+        // LAST_INSERT_ID() afterwards returns the captured old value = correlativo to use.
         await context.Database.ExecuteSqlRawAsync(
-            "UPDATE `InvoiceSeries` SET `NextNumber` = LAST_INSERT_ID(`NextNumber`) + 1 WHERE `Id` = {0}",
+            "UPDATE `invoice_series` SET `next_number` = LAST_INSERT_ID(`next_number`) + 1 WHERE `id` = {0}",
             series.Id);
 
         long correlativo = await context.Database
