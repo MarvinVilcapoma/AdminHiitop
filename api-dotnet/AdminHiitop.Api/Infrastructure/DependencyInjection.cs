@@ -48,7 +48,6 @@ public static class DependencyInjection
         services.Configure<PaginationOptions>(configuration.GetSection(PaginationOptions.SectionName));
         services.Configure<SwaggerOptions>(configuration.GetSection(SwaggerOptions.SectionName));
         services.Configure<NubeFactOptions>(configuration.GetSection("ElectronicBilling:NubeFact"));
-        services.Configure<DocumentDefaultsOptions>(configuration.GetSection(DocumentDefaultsOptions.SectionName));
         services.Configure<PosOptions>(configuration.GetSection(PosOptions.SectionName));
         services.Configure<ShopifyOptions>(configuration.GetSection(ShopifyOptions.SectionName));
 
