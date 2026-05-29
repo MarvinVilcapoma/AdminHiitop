@@ -135,23 +135,35 @@ public sealed class InvoiceService : IInvoiceService
             };
         }
 
-        var sendResult = await _invoiceElectronicBillingService.SendInvoiceAsync(invoice.Id);
+        // Invoice is saved — now attempt auto-send. Any exception (network, DNS, etc.)
+        // is surfaced as a readable message instead of a generic 500.
+        AdminHiitop.Api.Application.DTOs.ElectronicBilling.NubeFactSubmitResult? sendResult = null;
+        string? sendError = null;
+        try
+        {
+            sendResult = await _invoiceElectronicBillingService.SendInvoiceAsync(invoice.Id);
+        }
+        catch (AdminHiitop.Api.Shared.Exceptions.AppException ex) { sendError = ex.Message; }
+        catch (Exception ex) { sendError = ex.InnerException?.Message ?? ex.Message; }
+
         var updated = await _context.Invoices.AsNoTracking().FirstAsync(i => i.Id == invoice.Id);
         return new
         {
             invoice = updated,
-            sunat_result = new
-            {
-                success     = sendResult.Success,
-                code        = 0,
-                description = sendResult.Response.SunatDescription ?? sendResult.Response.Errors,
-                errors      = sendResult.Response.Errors,
-                url         = sendResult.Response.Url,
-                accepted    = sendResult.Response.AceptadaPorSunat,
-                provider    = sendResult.ProviderName,
-                environment = sendResult.Environment,
-                result      = sendResult.Response
-            }
+            sunat_result = sendResult is null
+                ? new { success = false, code = 0, description = sendError ?? "No se pudo enviar a Nubefact.", errors = sendError, url = (string?)null, accepted = (bool?)null, provider = "NubeFact", environment = "", result = (object?)null }
+                : (object)new
+                {
+                    success     = sendResult.Success,
+                    code        = 0,
+                    description = sendResult.Response.SunatDescription ?? sendResult.Response.Errors,
+                    errors      = sendResult.Response.Errors,
+                    url         = sendResult.Response.Url,
+                    accepted    = sendResult.Response.AceptadaPorSunat,
+                    provider    = sendResult.ProviderName,
+                    environment = sendResult.Environment,
+                    result      = sendResult.Response
+                }
         };
     }
 
