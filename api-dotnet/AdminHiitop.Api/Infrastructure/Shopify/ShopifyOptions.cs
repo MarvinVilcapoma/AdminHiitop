@@ -21,6 +21,10 @@ public sealed class ShopifyOptions
     // Leave 0 to auto-detect the first active location.
     public long   DefaultLocationId { get; set; } = 0;
 
+    // When false the "Fuente de stock" toggle (Mis almacenes / Web) is hidden across
+    // orders, stock forms, etc. — stock source is always treated as Shopify (Web).
+    public bool   ShowStockSourceSelector { get; set; } = true;
+
     // When true the entire app runs in "Shopify mode":
     //   - products, warehouses and inventory come from Shopify
     //   - local stock/product CRUD views are hidden in the frontend

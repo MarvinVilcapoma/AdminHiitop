@@ -67,24 +67,26 @@
         />
       </div>
 
-      <!-- Stock source: mis almacenes ↔ Shopify -->
-      <div class="col-12">
-        <label class="form-label d-block mb-1">Fuente de stock *</label>
-        <div class="btn-group btn-group-sm" role="group">
-          <input type="radio" class="btn-check" id="src_mysql" name="stockSource"
-                 [checked]="stockSource() === 'mysql'" (change)="setStockSource('mysql')">
-          <label class="btn btn-outline-secondary" for="src_mysql">
-            <i class="bi bi-archive me-1"></i>Mis almacenes
-          </label>
-          @if (shopifyLocations().length) {
-            <input type="radio" class="btn-check" id="src_shopify" name="stockSource"
-                   [checked]="stockSource() === 'shopify'" (change)="setStockSource('shopify')">
-            <label class="btn btn-outline-success" for="src_shopify">
-              <i class="bi bi-globe me-1"></i>Web
+      <!-- Stock source: hidden when ShowStockSourceSelector = false in appsettings.json -->
+      @if (appConfig.showStockSourceSelector()) {
+        <div class="col-12">
+          <label class="form-label d-block mb-1">Fuente de stock *</label>
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" id="src_mysql" name="stockSource"
+                   [checked]="stockSource() === 'mysql'" (change)="setStockSource('mysql')">
+            <label class="btn btn-outline-secondary" for="src_mysql">
+              <i class="bi bi-archive me-1"></i>Mis almacenes
             </label>
-          }
+            @if (shopifyLocations().length) {
+              <input type="radio" class="btn-check" id="src_shopify" name="stockSource"
+                     [checked]="stockSource() === 'shopify'" (change)="setStockSource('shopify')">
+              <label class="btn btn-outline-success" for="src_shopify">
+                <i class="bi bi-globe me-1"></i>Web
+              </label>
+            }
+          </div>
         </div>
-      </div>
+      }
 
       @if (stockSource() === 'mysql') {
         <div class="col-md-4">

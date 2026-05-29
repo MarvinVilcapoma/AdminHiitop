@@ -4,24 +4,27 @@ import { firstValueFrom, catchError, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface AppConfig {
-  shopify_mode:       boolean;
-  use_shopify_stock:  boolean;
-  sync_inventory:     boolean;
-  shop_domain:        string;
-  store_name:         string;
-  shopify_configured: boolean;
+  shopify_mode:                boolean;
+  use_shopify_stock:           boolean;
+  sync_inventory:              boolean;
+  show_stock_source_selector:  boolean;
+  shop_domain:                 string;
+  store_name:                  string;
+  shopify_configured:          boolean;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AppConfigService {
   private readonly http = inject(HttpClient);
 
-  readonly shopifyMode       = signal(false);
-  readonly useShopifyStock   = signal(false);
-  readonly syncInventory     = signal(false);
-  readonly shopDomain        = signal('');
-  readonly storeName         = signal('');
-  readonly shopifyConfigured = signal(false);
+  readonly shopifyMode              = signal(false);
+  readonly useShopifyStock          = signal(false);
+  readonly syncInventory            = signal(false);
+  /** When false the "Fuente de stock" toggle is hidden and Web/Shopify is always used. */
+  readonly showStockSourceSelector  = signal(true);
+  readonly shopDomain               = signal('');
+  readonly storeName                = signal('');
+  readonly shopifyConfigured        = signal(false);
 
   /** Called once before the app starts via APP_INITIALIZER. */
   async loadConfig(): Promise<void> {
@@ -34,6 +37,7 @@ export class AppConfigService {
     this.shopifyMode.set(config.shopify_mode ?? false);
     this.useShopifyStock.set(config.use_shopify_stock ?? false);
     this.syncInventory.set(config.sync_inventory ?? false);
+    this.showStockSourceSelector.set(config.show_stock_source_selector ?? true);
     this.shopDomain.set(config.shop_domain ?? '');
     this.storeName.set(config.store_name ?? '');
     this.shopifyConfigured.set(config.shopify_configured ?? false);

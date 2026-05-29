@@ -723,6 +723,28 @@
     grid-template-columns: 116px minmax(160px, 1fr) 120px 150px 110px 40px;
     gap: 0.5rem;
   }
+
+  // Wrap footer content on narrow screens so buttons don't get hidden
+  .pos-sale__footer {
+    flex-wrap: wrap;
+    gap: 0.7rem;
+  }
+
+  .pos-sale__checkout {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .pos-sale__document {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pos-sale__summary {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 @media (max-width: 991.98px) {

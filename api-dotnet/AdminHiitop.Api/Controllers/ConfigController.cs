@@ -28,14 +28,15 @@ public sealed class ConfigController : ControllerBase
     [HttpGet("app")]
     public IActionResult GetAppConfig() => Ok(new
     {
-        shopify_mode       = _shopify.UseShopifyMode,
-        use_shopify_stock  = _shopify.UseShopifyStock,
-        sync_inventory     = _shopify.SyncInventory,
-        shop_domain        = _shopify.ShopDomain,
-        store_name         = ExtractStoreName(_shopify.ShopDomain),
-        shopify_configured = !string.IsNullOrWhiteSpace(_shopify.ShopDomain)
-                             && (!string.IsNullOrWhiteSpace(_shopify.AccessToken)
-                                 || !string.IsNullOrWhiteSpace(_shopify.ClientId)),
+        shopify_mode                = _shopify.UseShopifyMode,
+        use_shopify_stock           = _shopify.UseShopifyStock,
+        sync_inventory              = _shopify.SyncInventory,
+        show_stock_source_selector  = _shopify.ShowStockSourceSelector,
+        shop_domain                 = _shopify.ShopDomain,
+        store_name                  = ExtractStoreName(_shopify.ShopDomain),
+        shopify_configured          = !string.IsNullOrWhiteSpace(_shopify.ShopDomain)
+                                      && (!string.IsNullOrWhiteSpace(_shopify.AccessToken)
+                                          || !string.IsNullOrWhiteSpace(_shopify.ClientId)),
     });
 
     private static string ExtractStoreName(string domain)
