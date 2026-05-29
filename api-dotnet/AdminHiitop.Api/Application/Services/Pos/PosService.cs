@@ -185,17 +185,11 @@ public sealed class PosService : IPosService
             resolvedStatusId = await ResolveDefaultPosStatusIdAsync();
         }
 
-        string paymentMethodName = await _context.PaymentMethods
-            .AsNoTracking()
-            .Where(item => item.Id == request.PaymentMethodId)
-            .Select(item => item.Name)
-            .FirstAsync();
-
-        string? mergedObservations = string.Join(" | ", new[]
-        {
-            $"POS · Metodo de pago: {paymentMethodName}",
-            request.Observations?.Trim()
-        }.Where(item => !string.IsNullOrWhiteSpace(item)));
+        // The frontend already includes "POS · Metodo de pago: X" in the observations field.
+        // Using it directly avoids the duplicate that was appearing previously.
+        string? mergedObservations = string.IsNullOrWhiteSpace(request.Observations)
+            ? null
+            : request.Observations.Trim();
 
         OrderUpsertRequest orderRequest = new()
         {
