@@ -843,21 +843,6 @@ export class PosComponent implements OnInit {
           this.saving.set(false);
 
           const orderNumber = String(created?.order_number ?? `#${created?.id ?? '-'}`);
-          if (printWindow && this.printAfterSave && selectedPrintFormat) {
-            this.renderPrintDocument(printWindow, {
-              orderNumber,
-              paymentMethod: paymentMethod?.name ?? 'No especificado',
-              documentType: this.selectedDocumentType()?.name ?? 'Documento',
-              subtotal: this.total(),
-              discountAmount: this.discountAmount(),
-              total: this.finalTotal(),
-              lines: ticketLines,
-              customerName: this.customerName || null,
-              customerDoc: this.customerDni || null,
-              printFormat: selectedPrintFormat,
-              storeName: this.selectedWarehouseName(),
-            });
-          }
 
           // Capture billing data before cart reset clears customer fields
           const billingOrderId   = created?.id ?? null;
@@ -865,10 +850,41 @@ export class PosComponent implements OnInit {
           const billingSunatDoc  = this.customerDocumentType === 'RUC' ? '6' : '1';
           const billingDocNumber = this.customerDni || null;
           const billingName      = this.customerName || null;
+          const docTypeObj       = this.selectedDocumentType();
+          const isSunat          = docTypeObj?.is_sunat_document === true;
+
+          const doPrint = (displayNumber: string) => {
+            if (printWindow && this.printAfterSave && selectedPrintFormat) {
+              this.renderPrintDocument(printWindow, {
+                orderNumber: displayNumber,
+                paymentMethod: paymentMethod?.name ?? 'No especificado',
+                documentType: docTypeObj?.name ?? 'Documento',
+                subtotal: this.total(),
+                discountAmount: this.discountAmount(),
+                total: this.finalTotal(),
+                lines: ticketLines,
+                customerName: billingName,
+                customerDoc: billingDocNumber,
+                printFormat: selectedPrintFormat,
+                storeName: this.selectedWarehouseName(),
+              });
+            }
+          };
 
           this.toast.success(`Venta registrada (${orderNumber})`);
           this.resetAfterSale();
-          this.autoSendInvoice(billingOrderId, billingDocType, billingSunatDoc, billingDocNumber, billingName);
+
+          if (isSunat) {
+            // For SUNAT documents: create invoice first to get the correlativo,
+            // then print the ticket showing that correlativo, then send to Nubefact.
+            this.createInvoiceAndPrint(
+              billingOrderId, billingDocType, billingSunatDoc, billingDocNumber, billingName,
+              doPrint, printWindow,
+            );
+          } else {
+            // Non-SUNAT (e.g. internal TICKET): print immediately with order number.
+            doPrint(orderNumber);
+          }
         },
         error: (errorResponse) => {
           this.saving.set(false);
@@ -1009,16 +1025,23 @@ export class PosComponent implements OnInit {
     line.subtotal = +Math.max(0, baseSubtotal - discountAmount).toFixed(2);
   }
 
-  private autoSendInvoice(
+  private createInvoiceAndPrint(
     orderId: number | null,
     docType: '01' | '03',
     sunatDocType: string,
     docNumber: string | null,
     customerName: string | null,
+    doPrint: (correlativo: string) => void,
+    printWindow: Window | null,
   ): void {
     const series = this.invoiceSeries().find(s => s.doc_type === docType);
-    if (!series) return;
+    if (!series) {
+      // No series configured — print with order number fallback
+      doPrint('');
+      return;
+    }
 
+    // Step 1: create invoice draft to reserve the correlativo
     this.api.post<any>('invoices', {
       order_id:            orderId,
       invoice_series_id:   series.id,
@@ -1026,20 +1049,36 @@ export class PosComponent implements OnInit {
       customer_doc_type:   sunatDocType,
       customer_doc_number: docNumber,
       customer_name:       customerName,
-      auto_send:           true,
+      auto_send:           false,
     }).subscribe({
-      next: (res) => {
-        const sr         = res?.sunat_result;
-        const fullNumber = res?.invoice?.full_number ?? '';
-        if (sr?.success) {
-          this.toast.success(`Comprobante emitido: ${fullNumber}`);
-        } else {
-          const errMsg = sr?.errors ?? sr?.result?.errors ?? sr?.description ?? 'Error al emitir comprobante.';
-          this.toast.error(`Error SUNAT: ${errMsg}`);
+      next: (draftRes) => {
+        const fullNumber  = draftRes?.invoice?.full_number ?? '';
+        const invoiceId   = draftRes?.invoice?.id ?? null;
+
+        // Step 2: print ticket showing the real correlativo
+        doPrint(fullNumber);
+
+        // Step 3: send to Nubefact in background (non-blocking)
+        if (invoiceId) {
+          this.api.post<any>(`invoices/${invoiceId}/send`, {}).subscribe({
+            next: (sendRes) => {
+              const sr = sendRes?.sunat_result ?? sendRes;
+              if (sr?.success || sendRes?.success) {
+                this.toast.success(`Comprobante enviado: ${fullNumber}`);
+              } else {
+                const msg = sr?.errors ?? sr?.description ?? sendRes?.message ?? 'Error Nubefact.';
+                this.toast.warning(`${fullNumber} guardado. SUNAT: ${msg}`);
+              }
+            },
+            error: () => this.toast.warning(`${fullNumber} guardado. No se pudo enviar a SUNAT.`),
+          });
         }
       },
       error: () => {
-        this.toast.error('No se pudo enviar el comprobante electrónico a SUNAT.');
+        // Invoice creation failed — still print (with empty correlativo) and notify
+        doPrint('');
+        if (printWindow) printWindow.close();
+        this.toast.error('No se pudo crear el comprobante.');
       },
     });
   }
