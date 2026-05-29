@@ -308,34 +308,32 @@ public sealed class PosService : IPosService
 
         List<(DocumentPrintFormat Format, bool IsDefault)> fallbackFormats = new();
 
-        if (documentCode == "TICKET")
+        if (documentCode is "TICKET" or "COTIZACION" or "ORDEN_VENTA")
         {
-            if (ticketFormat is not null)
-            {
-                fallbackFormats.Add((ticketFormat, true));
-            }
-
-            if (pdfFormat is not null && (ticketFormat is null || pdfFormat.Id != ticketFormat.Id))
-            {
-                fallbackFormats.Add((pdfFormat, false));
-            }
+            // Internal documents — thermal ticket is natural default
+            if (ticketFormat is not null) fallbackFormats.Add((ticketFormat, true));
+            if (pdfFormat    is not null) fallbackFormats.Add((pdfFormat,    false));
+            if (a4Format     is not null) fallbackFormats.Add((a4Format,     false));
         }
-        else if (documentCode is "BOLETA" or "FACTURA" or "NOTA_CREDITO" or "NOTA_DEBITO")
+        else if (documentCode is "BOLETA" or "FACTURA")
         {
-            if (ticketFormat is not null)
-            {
-                fallbackFormats.Add((ticketFormat, true));
-            }
-
-            if (pdfFormat is not null)
-            {
-                fallbackFormats.Add((pdfFormat, false));
-            }
-
-            if (a4Format is not null)
-            {
-                fallbackFormats.Add((a4Format, false));
-            }
+            // Point-of-sale tax documents — TICKET default for quick thermal print
+            if (ticketFormat is not null) fallbackFormats.Add((ticketFormat, true));
+            if (pdfFormat    is not null) fallbackFormats.Add((pdfFormat,    false));
+            if (a4Format     is not null) fallbackFormats.Add((a4Format,     false));
+        }
+        else if (documentCode is "NOTA_CREDITO" or "NOTA_DEBITO")
+        {
+            // Credit/debit notes — formal documents, A4 is standard
+            if (a4Format     is not null) fallbackFormats.Add((a4Format,     true));
+            if (pdfFormat    is not null) fallbackFormats.Add((pdfFormat,    false));
+            if (ticketFormat is not null) fallbackFormats.Add((ticketFormat, false));
+        }
+        else if (documentCode is "GUIA_REMISION" or "GUIA_REMISION_TRANSP")
+        {
+            // Transport guides — A4 for the physical document
+            if (a4Format     is not null) fallbackFormats.Add((a4Format,     true));
+            if (pdfFormat    is not null) fallbackFormats.Add((pdfFormat,    false));
         }
         else
         {

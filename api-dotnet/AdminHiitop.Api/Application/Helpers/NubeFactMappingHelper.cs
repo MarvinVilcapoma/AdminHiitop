@@ -130,7 +130,11 @@ public static class NubeFactMappingHelper
         return mappedItems;
     }
 
-    public static NubeFactGuideDocumentRequest MapGuide(Order order, string serie, int correlativo)
+    /// <param name="guideDocType">
+    /// SUNAT guide type: "09" = remitente (TipoDeComprobante=31), "31" = transportista (TipoDeComprobante=32).
+    /// Defaults to remitente.
+    /// </param>
+    public static NubeFactGuideDocumentRequest MapGuide(Order order, string serie, int correlativo, string guideDocType = "09")
     {
         var items = order.Items?
             .OrderBy(i => i.SortOrder).ThenBy(i => i.Id)
@@ -149,9 +153,12 @@ public static class NubeFactMappingHelper
 
         string today = PeruClock.Now.ToString("dd-MM-yyyy");
 
+        // 09 = remitente → Nubefact tipo 31 | 31 = transportista → Nubefact tipo 32
+        int tipoComprobante = guideDocType == "31" ? 32 : 31;
+
         return new NubeFactGuideDocumentRequest
         {
-            TipoDeComprobante          = 31,
+            TipoDeComprobante          = tipoComprobante,
             Serie                      = serie,
             Numero                     = correlativo,
             FechaDeEmision             = today,

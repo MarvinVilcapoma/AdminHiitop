@@ -27,14 +27,23 @@ public static class HiitopSeedData
 
     public static IReadOnlyList<DocumentType> DocumentTypes { get; } =
     [
-        new() { Code = "BOLETA", Name = "Boleta", SortOrder = 10, IsProtected = true, IsSunatDocument = true, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
-        new() { Code = "FACTURA", Name = "Factura", SortOrder = 20, IsProtected = true, IsSunatDocument = true, RequiresCustomer = true, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
-        new() { Code = "TICKET", Name = "Ticket", SortOrder = 25, IsProtected = true, IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = true, IsActive = true },
-        new() { Code = "NOTA_CREDITO", Name = "Nota de Credito", SortOrder = 30, IsProtected = true, IsSunatDocument = true, RequiresCustomer = true, RequiresRelatedDocument = true, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
-        new() { Code = "NOTA_DEBITO", Name = "Nota de Debito", SortOrder = 40, IsProtected = true, IsSunatDocument = true, RequiresCustomer = true, RequiresRelatedDocument = true, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
-        new() { Code = "GUIA_REMISION", Name = "Guia de remision", SortOrder = 50, IsProtected = true, IsSunatDocument = true, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
-        new() { Code = "COTIZACION", Name = "Cotizacion", SortOrder = 60, IsProtected = true, IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = true, IsCommercialDocument = true, IsActive = true },
-        new() { Code = "ORDEN_VENTA", Name = "Orden de venta", SortOrder = 70, IsProtected = true, IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = true, IsCommercialDocument = true, IsActive = true }
+        // SUNAT numeric: 03
+        new() { Code = "BOLETA",                    Name = "Boleta",                         SortOrder = 10, IsProtected = true,  IsSunatDocument = true,  RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        // SUNAT numeric: 01
+        new() { Code = "FACTURA",                   Name = "Factura",                        SortOrder = 20, IsProtected = true,  IsSunatDocument = true,  RequiresCustomer = true,  RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        // Internal only
+        new() { Code = "TICKET",                    Name = "Ticket",                         SortOrder = 25, IsProtected = true,  IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = true,  IsActive = true },
+        // SUNAT numeric: 07
+        new() { Code = "NOTA_CREDITO",              Name = "Nota de Credito",                SortOrder = 30, IsProtected = true,  IsSunatDocument = true,  RequiresCustomer = true,  RequiresRelatedDocument = true,  CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        // SUNAT numeric: 08
+        new() { Code = "NOTA_DEBITO",               Name = "Nota de Debito",                 SortOrder = 40, IsProtected = true,  IsSunatDocument = true,  RequiresCustomer = true,  RequiresRelatedDocument = true,  CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        // SUNAT numeric: 09 — Guía de remisión remitente
+        new() { Code = "GUIA_REMISION",             Name = "Guia de remision remitente",     SortOrder = 50, IsProtected = true,  IsSunatDocument = true,  RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        // SUNAT numeric: 31 — Guía de remisión transportista
+        new() { Code = "GUIA_REMISION_TRANSP",      Name = "Guia de remision transportista", SortOrder = 55, IsProtected = true,  IsSunatDocument = true,  RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = false, IsCommercialDocument = false, IsActive = true },
+        // Internal
+        new() { Code = "COTIZACION",                Name = "Cotizacion",                     SortOrder = 60, IsProtected = true,  IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = true,  IsCommercialDocument = true,  IsActive = true },
+        new() { Code = "ORDEN_VENTA",               Name = "Orden de venta",                 SortOrder = 70, IsProtected = true,  IsSunatDocument = false, RequiresCustomer = false, RequiresRelatedDocument = false, CanBeConverted = true,  IsCommercialDocument = true,  IsActive = true }
     ];
 
     public static IReadOnlyList<DocumentPrintFormat> DocumentPrintFormats { get; } =
@@ -106,7 +115,8 @@ public static class HiitopSeedData
         ("07", "BC01", "Notas de Credito Boleta",  1),
         ("08", "FD01", "Notas de Debito Factura",  1),
         ("08", "BD01", "Notas de Debito Boleta",   1),
-        ("09", "T001", "Guias de Remision",        1),
+        ("09", "T001", "Guias de Remision Remitente",        1),
+        ("31", "V001", "Guias de Remision Transportista",    1),
     ];
 
     public static IReadOnlyList<(string Key, string Value, string Label, string Type, string Group)> Settings { get; } =
