@@ -103,6 +103,8 @@ export class PosComponent implements OnInit {
   saving = signal(false);
   btTesting = signal(false);
   activeRightPanel = signal<'products' | 'customer' | 'customerForm' | 'document'>('products');
+  /** Controls which panel is visible on mobile: cart (left) or catalog (right side). */
+  mobilePanel = signal<'cart' | 'catalog'>('catalog');
   customerSearchLoading = signal(false);
   customerSearchResults = signal<Customer[]>([]);
   customerSearchAttempted = signal(false);
@@ -497,6 +499,7 @@ export class PosComponent implements OnInit {
     });
 
     this.activeRightPanel.set('products');
+    this.mobilePanel.set('cart');  // On mobile, jump to cart after adding
   }
 
   cancelSale(): void {

@@ -66,7 +66,7 @@
     </header>
 
     <div class="pos-layout">
-      <section class="pos-sale">
+      <section class="pos-sale" [class.mob-hidden]="mobilePanel() === 'catalog'">
         <!-- Simple search — results appear ONLY in the right panel, no dropdown here -->
         <div class="pos-sale__search">
           <div class="input-group">
@@ -250,7 +250,7 @@
         </div>
       </section>
 
-      <aside class="pos-side">
+      <aside class="pos-side" [class.mob-hidden]="mobilePanel() === 'cart'">
         <div class="pos-side__panel">
           @if (activeRightPanel() === 'products') {
             <div class="pos-side__head">
@@ -458,5 +458,35 @@
         </div>
       </aside>
     </div>
+
+    <!-- ── Mobile bottom navigation bar (hidden on desktop) ──────────────── -->
+    <nav class="pos-mob-nav">
+      <button class="pos-mob-nav__tab" [class.is-active]="mobilePanel() === 'cart'"
+              (click)="mobilePanel.set('cart')">
+        <span class="pos-mob-nav__icon-wrap">
+          <i class="bi bi-cart3"></i>
+          @if (lineCount() > 0) {
+            <span class="pos-mob-nav__badge">{{ lineCount() }}</span>
+          }
+        </span>
+        <span>Carrito</span>
+      </button>
+
+      <button class="pos-mob-nav__pay" (click)="saveSale()"
+              [disabled]="saving() || !hasCartLines()">
+        @if (saving()) {
+          <span class="spinner-border spinner-border-sm"></span>
+        } @else {
+          <i class="bi bi-cash-coin"></i>
+        }
+        <span>S/ {{ finalTotal() | number:'1.2-2' }}</span>
+      </button>
+
+      <button class="pos-mob-nav__tab" [class.is-active]="mobilePanel() === 'catalog'"
+              (click)="mobilePanel.set('catalog')">
+        <i class="bi bi-grid"></i>
+        <span>Catálogo</span>
+      </button>
+    </nav>
   }
 </section>

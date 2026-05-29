@@ -961,6 +961,208 @@
   }
 }
 
+// ── Mobile bottom navigation (hidden on desktop) ─────────────────────────
+
+.pos-mob-nav {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  // ── Full-screen shell ──────────────────────────────────────────────────
+  :host {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pos-shell {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  // ── Layout: panels switch via JS (mob-hidden) ──────────────────────────
+  .mob-hidden { display: none !important; }
+
+  .pos-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    // Reserve space for bottom nav (64px)
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .pos-sale,
+  .pos-side {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.6rem 0.6rem calc(64px + 0.6rem);
+    border: none;
+    border-radius: 0;
+    background: var(--pos-surface);
+  }
+
+  .pos-side {
+    background: rgba(255, 252, 247, 0.96);
+  }
+
+  // ── Header compact on mobile ───────────────────────────────────────────
+  .pos-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    flex: 0 0 auto;
+  }
+
+  .pos-header__left { flex: 1 1 auto; min-width: 0; }
+  .pos-header__brand { flex: 0 0 auto; order: -1; align-self: center; }
+  .pos-header__brand span { font-size: 1.1rem; }
+  .pos-header__brand small { display: none; } // hide "Boleta · Ticket" on mobile header
+  .pos-header__right { flex: 0 0 auto; }
+  .pos-header__select { min-height: 36px; font-size: 0.85rem; }
+
+  // ── Compact sale rows ──────────────────────────────────────────────────
+  .sale-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "prod prod prod  del"
+      "qty  price disc sub";
+    gap: 0.45rem 0.5rem;
+    padding: 0.7rem 0.65rem;
+    border-radius: 16px;
+  }
+
+  .sale-row__qty      { grid-area: qty;   align-self: center; min-width: 0; max-width: none; }
+  .sale-row__product  { grid-area: prod;  align-self: center; }
+  .sale-row__price    { grid-area: price; min-width: 0; }
+  .sale-row__discount { grid-area: disc;  min-width: 0; }
+  .sale-row__subtotal { grid-area: sub;   align-items: flex-end; text-align: right; }
+  .sale-row__remove   { grid-area: del;   align-self: center; }
+
+  .sale-row__qty {
+    grid-template-columns: 38px 46px 38px;
+    min-width: 122px;
+    max-width: 122px;
+  }
+
+  .sale-row__product strong { font-size: 0.9rem; }
+
+  // ── Footer: stack cleanly ──────────────────────────────────────────────
+  .pos-sale__footer {
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.7rem;
+  }
+
+  .pos-sale__checkout { flex-direction: column; gap: 0.6rem; }
+  .pos-sale__summary  { justify-content: space-between; align-items: center; }
+  .pos-sale__total    { align-items: flex-start; }
+  .pos-sale__document { grid-template-columns: 1fr 1fr; gap: 0.45rem; width: 100%; }
+  .pos-sale__buttons  { display: none; } // PAY button is in mobile nav bar
+
+  // ── Side panel: full width ─────────────────────────────────────────────
+  .pos-side__panel {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pos-side__nav { display: none; } // Nav is replaced by mobile bottom bar
+
+  // ── Mobile bottom navigation bar ──────────────────────────────────────
+  .pos-mob-nav {
+    display: flex;
+    align-items: stretch;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: #fff;
+    border-top: 1px solid var(--pos-border);
+    box-shadow: 0 -4px 18px rgba(46, 35, 24, 0.1);
+    z-index: 200;
+  }
+
+  .pos-mob-nav__tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    color: var(--pos-muted);
+    font-size: 0.7rem;
+    border: none;
+    background: none;
+    padding: 0.3rem 0.5rem;
+    transition: color 0.15s;
+  }
+
+  .pos-mob-nav__tab i { font-size: 1.35rem; }
+
+  .pos-mob-nav__tab.is-active {
+    color: var(--pos-accent);
+  }
+
+  .pos-mob-nav__icon-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .pos-mob-nav__badge {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: var(--pos-warm);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    padding: 0 3px;
+    line-height: 1;
+  }
+
+  .pos-mob-nav__pay {
+    flex: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    background: var(--pos-accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.78rem;
+    border: none;
+    border-radius: 0;
+    transition: background 0.15s;
+  }
+
+  .pos-mob-nav__pay:disabled {
+    background: #a8c9c5;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .pos-mob-nav__pay i { font-size: 1.2rem; }
+}
+
 @keyframes pos-spin {
   to {
     transform: rotate(360deg);
