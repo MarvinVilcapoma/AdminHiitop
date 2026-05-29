@@ -15,6 +15,17 @@ public sealed class PosService : IPosService
     private readonly AdminHiitopDbContext _context;
     private readonly IOrderService _orderService;
 
+    // DocumentType.Code (display) → SUNAT numeric code used in InvoiceSeries.DocType
+    private static readonly Dictionary<string, string> SunatCodeMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["BOLETA"]               = "03",
+        ["FACTURA"]              = "01",
+        ["NOTA_CREDITO"]         = "07",
+        ["NOTA_DEBITO"]          = "08",
+        ["GUIA_REMISION"]        = "09",
+        ["GUIA_REMISION_TRANSP"] = "31",
+    };
+
     public PosService(AdminHiitopDbContext context, IOrderService orderService)
     {
         _context = context;
@@ -43,11 +54,14 @@ public sealed class PosService : IPosService
             .OrderBy(item => item.Name)
             .ToListAsync();
 
-        // Map DocType code → active invoice series ID so POS can auto-create invoices
-        Dictionary<string, int> seriesIdByDocType = await _context.InvoiceSeries
+        // Map SUNAT numeric code → first active invoice series ID (GroupBy avoids duplicate-key when
+        // multiple series share the same DocType, e.g. FC01 and BC01 both use "07").
+        Dictionary<string, int> seriesIdBySunatCode = (await _context.InvoiceSeries
             .AsNoTracking()
             .Where(s => s.IsActive)
-            .ToDictionaryAsync(s => s.DocType, s => s.Id, StringComparer.OrdinalIgnoreCase);
+            .ToListAsync())
+            .GroupBy(s => s.DocType, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
 
         List<PaymentMethod> paymentMethods = await _context.PaymentMethods
             .AsNoTracking()
@@ -97,7 +111,10 @@ public sealed class PosService : IPosService
                 IsCommercialDocument = item.IsCommercialDocument,
                 SortOrder = item.SortOrder,
                 PrintFormats = ResolvePrintFormats(item, activePrintFormats),
-                InvoiceSeriesId = item.IsSunatDocument && seriesIdByDocType.TryGetValue(item.Code ?? "", out int sid) ? sid : null
+                InvoiceSeriesId = item.IsSunatDocument
+                    && SunatCodeMap.TryGetValue(item.Code ?? "", out string? sunatCode)
+                    && seriesIdBySunatCode.TryGetValue(sunatCode, out int sid)
+                        ? sid : null
             }).ToList(),
             PaymentMethods = paymentMethods.Select(item => new PosPaymentMethodResponse
             {
