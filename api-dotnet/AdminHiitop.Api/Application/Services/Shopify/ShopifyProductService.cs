@@ -696,7 +696,7 @@ public sealed class ShopifyProductService : IShopifyProductService
                 Values   = o.Values,
             }).ToList(),
             Variants    = p.Variants.Select(v => MapVariant(v,
-                levelMap.GetValueOrDefault(v.InventoryItemId, v.InventoryQuantity))).ToList(),
+                levelMap.GetValueOrDefault(v.InventoryItemId, 0))).ToList(),
             Images      = p.Images.Select(i => new ShopifyImageResponse
             {
                 Id  = i.Id,

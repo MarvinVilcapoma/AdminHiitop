@@ -91,7 +91,20 @@ public sealed class InvoiceService : IInvoiceService
         };
 
         _context.Invoices.Add(invoice);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            string inner = ex.InnerException?.Message ?? ex.Message;
+            // Surface duplicate full_number as a user-facing error, not a generic 500
+            throw new AdminHiitop.Api.Shared.Exceptions.AppException(
+                inner.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) || inner.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+                    ? $"Ya existe un comprobante con el numero {invoice.FullNumber}. Verifica el correlativo de la serie."
+                    : $"Error al guardar el comprobante: {inner}",
+                422);
+        }
 
         if (!request.AutoSend)
         {
