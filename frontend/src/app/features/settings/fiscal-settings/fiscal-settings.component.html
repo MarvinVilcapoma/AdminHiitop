@@ -86,85 +86,14 @@
         <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
           <i class="bi bi-shield-check text-success"></i>
           <span class="fw-600">Configuracion SUNAT</span>
-          <span class="badge ms-auto" [class.text-bg-warning]="environment === 'beta'" [class.text-bg-danger]="environment === 'produccion'">
-            {{ environment === 'beta' ? 'Activo: Beta' : 'Activo: Produccion' }}
-          </span>
+          <span class="badge text-bg-success ms-auto">Activo: Produccion</span>
         </div>
         <div class="card-body">
-          <div class="mb-4 p-3 rounded border bg-light">
-            <p class="fw-semibold mb-2 small text-muted text-uppercase">Ambiente activo para facturacion</p>
-            <div class="d-flex gap-4">
-              <div class="form-check">
-                <input class="form-check-input" type="radio" id="envBeta" name="sunat_env" value="beta" [(ngModel)]="environment" />
-                <label class="form-check-label" for="envBeta">Beta</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" id="envProd" name="sunat_env" value="produccion" [(ngModel)]="environment" />
-                <label class="form-check-label" for="envProd">Produccion</label>
-              </div>
-            </div>
-          </div>
-
-          <ul class="nav nav-tabs mb-3">
-            <li class="nav-item">
-              <button class="nav-link" [class.active]="activeTab === 'beta'" (click)="activeTab = 'beta'">Beta</button>
-            </li>
-            <li class="nav-item">
-              <button class="nav-link" [class.active]="activeTab === 'prod'" (click)="activeTab = 'prod'">Produccion</button>
-            </li>
-          </ul>
-
           <div class="alert alert-info py-2 small mb-3">
-            La gestión de credenciales SOL, certificados y firma digital debe resolverse del lado servidor. Aquí solo definimos datos fiscales, ambiente y series operativas.
+            La gestión de credenciales SOL, certificados y firma digital debe resolverse del lado servidor. Aquí solo definimos datos fiscales y series operativas.
           </div>
 
-          @if (activeTab === 'beta') {
-            <div class="row g-3 mb-3">
-              <div class="col-md-4">
-                <label class="form-label fw-500">RUC</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.ruc" maxlength="11" />
-              </div>
-              <div class="col-md-8">
-                <label class="form-label fw-500">Razon Social</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.razon_social" maxlength="100" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-500">Nombre Comercial</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.nombre_comercial" maxlength="100" />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-500">Ubigeo</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.ubigueo" maxlength="6" />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-500">Cod. local</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.codigo_local" maxlength="4" />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label fw-500">Departamento</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.departamento" maxlength="50" />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label fw-500">Provincia</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.provincia" maxlength="50" />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label fw-500">Distrito</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.distrito" maxlength="50" />
-              </div>
-              <div class="col-md-5">
-                <label class="form-label fw-500">Urbanizacion</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.urbanizacion" maxlength="100" />
-              </div>
-              <div class="col-md-7">
-                <label class="form-label fw-500">Direccion</label>
-                <input class="form-control form-control-sm" [(ngModel)]="sunatBeta.direccion" maxlength="200" />
-              </div>
-            </div>
-
-          }
-
-          @if (activeTab === 'prod') {
+          @if (true) {
             <div class="row g-3 mb-3">
               <div class="col-md-4">
                 <label class="form-label fw-500">RUC</label>
@@ -225,12 +154,13 @@
             @for (doc of seriesDocTypes; track doc.code) {
               <div class="col-md-6">
                 <label class="form-label fw-500">Serie predeterminada - {{ doc.label }}</label>
-                <select class="form-select form-select-sm" [(ngModel)]="defaultSeries[doc.defaultKey]">
-                  <option [ngValue]="null">Seleccion manual al emitir</option>
-                  @for (series of seriesFor(doc.code); track series.local_key) {
-                    <option [ngValue]="series.id || null">{{ series.serie }} · siguiente {{ series.next_number }}</option>
-                  }
-                </select>
+                <!-- Read-only: series is auto-assigned by doc type, not manually picked -->
+                <input class="form-control form-control-sm bg-light"
+                  [value]="seriesFor(doc.code)[0]?.serie
+                    ? (seriesFor(doc.code)[0].serie + '  ·  Siguiente: ' + seriesFor(doc.code)[0].next_number)
+                    : 'Sin serie configurada'"
+                  readonly />
+                <small class="text-muted"><i class="bi bi-lock-fill me-1"></i>Asignada automáticamente</small>
               </div>
             }
           </div>

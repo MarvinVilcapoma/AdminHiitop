@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { ToastService } from './toast.service';
 
@@ -14,9 +16,23 @@ export interface PaginatedResponse<T> {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private readonly http = inject(HttpClient);
-  private readonly toast = inject(ToastService);
-  private readonly base = environment.apiUrl;
+  private readonly http   = inject(HttpClient);
+  private readonly toast  = inject(ToastService);
+  private readonly router = inject(Router);
+  private readonly base   = environment.apiUrl;
+
+  /** Redirects to /login when the server returns 401 (expired/invalid token). */
+  private handle401<T>(source$: Observable<T>): Observable<T> {
+    return source$.pipe(
+      catchError(err => {
+        if (err?.status === 401) {
+          this.toast.error('Tu sesión ha expirado. Inicia sesión nuevamente.');
+          this.router.navigate(['/login']);
+        }
+        return throwError(() => err);
+      })
+    );
+  }
 
   get<T>(path: string, params?: Record<string, string | number | boolean>): Observable<T> {
     let httpParams = new HttpParams();
@@ -25,27 +41,27 @@ export class ApiService {
         if (v !== undefined && v !== null) httpParams = httpParams.set(k, String(v));
       });
     }
-    return this.http.get<T>(`${this.base}/${path}`, { params: httpParams });
+    return this.handle401(this.http.get<T>(`${this.base}/${path}`, { params: httpParams }));
   }
 
   post<T>(path: string, body: unknown): Observable<T> {
-    return this.http.post<T>(`${this.base}/${path}`, body);
+    return this.handle401(this.http.post<T>(`${this.base}/${path}`, body));
   }
 
   postForm<T>(path: string, formData: FormData): Observable<T> {
-    return this.http.post<T>(`${this.base}/${path}`, formData);
+    return this.handle401(this.http.post<T>(`${this.base}/${path}`, formData));
   }
 
   put<T>(path: string, body: unknown): Observable<T> {
-    return this.http.put<T>(`${this.base}/${path}`, body);
+    return this.handle401(this.http.put<T>(`${this.base}/${path}`, body));
   }
 
   patch<T>(path: string, body: unknown): Observable<T> {
-    return this.http.patch<T>(`${this.base}/${path}`, body);
+    return this.handle401(this.http.patch<T>(`${this.base}/${path}`, body));
   }
 
   delete<T>(path: string): Observable<T> {
-    return this.http.delete<T>(`${this.base}/${path}`);
+    return this.handle401(this.http.delete<T>(`${this.base}/${path}`));
   }
 
   /** Expose base URL (e.g. for building file download links) */

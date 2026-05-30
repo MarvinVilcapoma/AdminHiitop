@@ -53,10 +53,10 @@
           @for (row of rows(); track row.id) {
             <tr>
               <td>
-                <div class="d-flex align-items-center gap-2">
+                <a [routerLink]="[row.id]" class="d-flex align-items-center gap-2 text-decoration-none text-reset" style="cursor:pointer">
                   <div class="customer-avatar">{{ initials(row.full_name) }}</div>
                   <span class="fw-500">{{ row.full_name }}</span>
-                </div>
+                </a>
               </td>
               <td class="text-muted">{{ row.dni ?? '—' }}</td>
               <td class="text-muted">{{ row.phone ?? '—' }}</td>
