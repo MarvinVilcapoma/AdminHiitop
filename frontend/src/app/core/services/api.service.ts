@@ -21,10 +21,12 @@ export class ApiService {
   private readonly router = inject(Router);
   private readonly base   = environment.apiUrl;
 
-  /** Redirects to /login when the server returns 401 (expired/invalid token). */
+  /** Redirects to /login when the API returns 401 (expired/invalid session token). */
   private handle401<T>(source$: Observable<T>): Observable<T> {
     return source$.pipe(
       catchError(err => {
+        // Only redirect on 401 from our own API — not from embedded Shopify/Nubefact calls
+        // (those return 502 on the backend when their tokens fail).
         if (err?.status === 401) {
           this.toast.error('Tu sesión ha expirado. Inicia sesión nuevamente.');
           this.router.navigate(['/login']);

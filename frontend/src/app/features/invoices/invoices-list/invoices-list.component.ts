@@ -201,7 +201,11 @@ export class InvoicesListComponent implements OnInit {
   }
 
   downloadPdf(inv: Invoice): void {
-    this.api.downloadFile(`invoices/${inv.id}/pdf`, inv.full_number + '.pdf');
+    // If Nubefact PDF not available yet, fall back to local A4 print
+    this.api.downloadFile(`invoices/${inv.id}/pdf`, inv.full_number + '.pdf', () => {
+      this.toast.warning('PDF de SUNAT no disponible. Mostrando representación local.');
+      this.printInvoice(inv);
+    });
   }
 
   printInvoice(inv: Invoice): void {
@@ -237,13 +241,21 @@ export class InvoicesListComponent implements OnInit {
       this.api.get<any>(`orders/${orderId}`).subscribe({
         next: (order) => {
           const items: any[] = order?.items ?? [];
-          const rows = items.map((it: any) => `
+          const rows = items.map((it: any) => {
+            const raw = it.product_description ?? '—';
+            // Remove duplicated product name: "Name · Name — L" → "Name — L"
+            const parts = raw.split(' · ');
+            const desc = (parts.length >= 2 && parts[1].startsWith(parts[0]))
+              ? parts[1]   // "Name — L"
+              : raw;
+            return `
             <tr>
-              <td>${it.quantity}</td>
-              <td>${it.product_description ?? '—'}</td>
+              <td class="qty">${it.quantity}</td>
+              <td class="desc">${this.escHtml(desc)}</td>
               <td class="num">S/ ${(+it.unit_price).toFixed(2)}</td>
               <td class="num">S/ ${(+it.subtotal).toFixed(2)}</td>
-            </tr>`).join('');
+            </tr>`;
+          }).join('');
           doRender(rows || '<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>');
         },
         error: () => doRender('<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>'),
@@ -253,60 +265,114 @@ export class InvoicesListComponent implements OnInit {
     }
   }
 
-  private buildInvoiceHtml(docLabel: string, fullNumber: string, issued: string, docTypeLabel: string, docNum: string, customer: string, base: string, igv: string, total: string, itemsHtml: string): string {
+  private escHtml(s: string): string {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  private buildInvoiceHtml(
+    docLabel: string, fullNumber: string, issued: string,
+    docTypeLabel: string, docNum: string, customer: string,
+    base: string, igv: string, total: string, itemsHtml: string
+  ): string {
+    // Company data from SUNAT settings (update with your real data in appsettings)
+    const co = {
+      name:    'HIITOP',
+      ruc:     '',      // filled from settings if available
+      address: '',
+      phone:   '',
+    };
+
     return `<!doctype html><html><head><meta charset="utf-8">
 <title>${fullNumber}</title>
 <style>
-  @page { size: A4 portrait; margin: 14mm; }
+  @page { size: A4 portrait; margin: 12mm 14mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
-  .brand { font-size: 22px; font-weight: 800; color: #f97316; }
-  .doc-box { border: 2px solid #111; padding: 8px 14px; text-align: center; min-width: 200px; }
-  .doc-box .type { font-size: 13px; font-weight: 700; text-transform: uppercase; }
-  .doc-box .num  { font-size: 14px; font-weight: 800; margin-top: 4px; }
-  .sep { border: none; border-top: 1px solid #ddd; margin: 10px 0; }
-  .row2 { display: flex; gap: 16px; margin-bottom: 10px; }
-  .field { flex: 1; }
-  .field label { display: block; font-size: 9px; text-transform: uppercase; color: #888; margin-bottom: 2px; font-weight: 600; }
-  .field span  { font-size: 11px; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10.5px; }
-  thead tr { background: #f3f4f6; }
-  th, td { padding: 5px 7px; border: 1px solid #e5e7eb; }
-  th { font-weight: 700; text-align: left; }
-  .num { text-align: right; }
-  .totals { margin-left: auto; width: 280px; border-collapse: collapse; font-size: 11px; }
-  .totals td { padding: 4px 8px; border-bottom: 1px solid #f3f4f6; }
+
+  /* Header */
+  .hdr   { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .co    { flex: 1; padding-right: 12px; }
+  .co-name { font-size: 20px; font-weight: 900; color: #f97316; letter-spacing: .5px; margin-bottom: 2px; }
+  .co-sub  { font-size: 9px; color: #888; }
+  .doc-box { border: 2px solid #111; padding: 9px 16px; text-align: center; min-width: 210px; }
+  .doc-type { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; }
+  .doc-num  { font-size: 15px; font-weight: 900; margin: 3px 0; }
+  .doc-date { font-size: 9px; color: #555; }
+
+  /* Section labels */
+  .sec { background: #f3f4f6; font-size: 9px; font-weight: 700; text-transform: uppercase;
+         color: #555; letter-spacing: .08em; padding: 3px 6px; margin: 10px 0 5px; }
+
+  /* Client row */
+  .cli-row  { display: flex; gap: 12px; margin-bottom: 4px; }
+  .cli-field { flex: 1; }
+  .cli-label { font-size: 9px; text-transform: uppercase; color: #888; font-weight: 600; }
+  .cli-val   { font-size: 11px; font-weight: 600; }
+
+  /* Items */
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 10.5px; }
+  thead tr { background: #1e293b; color: #fff; }
+  th { padding: 5px 7px; font-weight: 700; text-align: left; }
+  td { padding: 5px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  .qty  { width: 36px; text-align: center; }
+  .desc { }
+  .num  { text-align: right; white-space: nowrap; }
+
+  /* Totals */
+  .totals { margin-left: auto; width: 260px; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+  .totals td { padding: 4px 8px; }
   .totals .lbl { color: #555; }
-  .totals .total-row td { font-weight: 800; font-size: 13px; border-top: 2px solid #111; }
-  .foot { margin-top: 20px; text-align: center; font-size: 9px; color: #888; }
+  .totals .tot td { font-weight: 900; font-size: 13px; border-top: 2px solid #111; padding-top: 6px; }
+
+  hr { border: none; border-top: 1px solid #ddd; margin: 8px 0; }
+  .foot { margin-top: 22px; text-align: center; font-size: 8.5px; color: #aaa; border-top: 1px dashed #ddd; padding-top: 8px; }
 </style></head><body>
-<div class="header">
-  <div>
-    <div class="brand">HIITOP</div>
-    <div style="font-size:9px;color:#888;margin-top:4px">Comprobante electrónico</div>
+
+<div class="hdr">
+  <div class="co">
+    <div class="co-name">${co.name}</div>
+    ${co.ruc    ? `<div class="co-sub">RUC: ${co.ruc}</div>` : ''}
+    ${co.address? `<div class="co-sub">${this.escHtml(co.address)}</div>` : ''}
   </div>
   <div class="doc-box">
-    <div class="type">${docLabel}</div>
-    <div class="num">${fullNumber}</div>
-    <div style="font-size:9px;color:#555;margin-top:4px">Fecha: ${issued}</div>
+    <div class="doc-type">${docLabel}</div>
+    <div class="doc-num">${fullNumber}</div>
+    <div class="doc-date">Fecha: ${issued}</div>
   </div>
 </div>
-<hr class="sep">
-<div class="row2">
-  <div class="field"><label>Cliente</label><span>${customer}</span></div>
-  <div class="field"><label>${docTypeLabel}</label><span>${docNum}</span></div>
+
+<div class="sec">Datos del cliente</div>
+<div class="cli-row">
+  <div class="cli-field">
+    <div class="cli-label">Cliente</div>
+    <div class="cli-val">${this.escHtml(customer)}</div>
+  </div>
+  <div class="cli-field" style="max-width:160px">
+    <div class="cli-label">${docTypeLabel}</div>
+    <div class="cli-val">${this.escHtml(docNum)}</div>
+  </div>
 </div>
+
+<div class="sec">Detalle</div>
 <table>
-  <thead><tr><th>Cant.</th><th>Descripción</th><th class="num">P. Unit.</th><th class="num">Total</th></tr></thead>
+  <thead>
+    <tr>
+      <th class="qty">Cant.</th>
+      <th class="desc">Descripción</th>
+      <th class="num">P. Unit.</th>
+      <th class="num">Total</th>
+    </tr>
+  </thead>
   <tbody>${itemsHtml}</tbody>
 </table>
+
 <table class="totals">
   <tr><td class="lbl">Base imponible</td><td class="num">S/ ${base}</td></tr>
   <tr><td class="lbl">IGV (18%)</td><td class="num">S/ ${igv}</td></tr>
-  <tr class="total-row"><td>TOTAL</td><td class="num">S/ ${total}</td></tr>
+  <tr class="tot"><td><strong>TOTAL A PAGAR</strong></td><td class="num"><strong>S/ ${total}</strong></td></tr>
 </table>
-<div class="foot">Representación impresa del comprobante electrónico</div>
+
+<div class="foot">Representación impresa del comprobante electrónico · ${fullNumber}</div>
 </body></html>`;
   }
 
