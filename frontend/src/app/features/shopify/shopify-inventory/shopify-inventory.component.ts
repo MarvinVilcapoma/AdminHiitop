@@ -912,10 +912,32 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
   private loadEditInventory(state: EditProductState): void {
     this.api.get<ShopifyInventoryLevel[]>(`shopify/products/${state.id}/inventory`).subscribe({
       next: levels => {
+        const merged: ShopifyInventoryLevel[] = levels.map(l => ({ ...l, new_available: null }));
+
+        // Add zero-level rows for location+variant combinations not returned by Shopify
+        // (items not yet connected to a location). This makes ALL sucursales visible.
+        for (const loc of this.locations()) {
+          for (const variant of state.variants) {
+            const exists = merged.some(
+              l => l.location_id === loc.id && l.variant_id === variant.id
+            );
+            if (!exists) {
+              merged.push({
+                inventory_item_id: variant.inventory_item_id,
+                variant_id:        variant.id,
+                location_id:       loc.id,
+                location_name:     loc.name,
+                available:         0,
+                new_available:     null,
+              });
+            }
+          }
+        }
+
         this.editState.update(s => s ? {
           ...s,
           loading_inventory: false,
-          inventory_levels: levels.map(l => ({ ...l, new_available: null })),
+          inventory_levels: merged,
         } : null);
       },
       error: () => this.editState.update(s => s ? { ...s, loading_inventory: false } : null),

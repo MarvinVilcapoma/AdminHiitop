@@ -311,6 +311,16 @@ public sealed class ShopifyAdminClient
         string json = JsonSerializer.Serialize(new { inventory_level = payload }, JsonOpts);
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post, BuildUrl("inventory_levels/set.json"), json);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Item not connected to this location — connect first, then retry set.
+            await ConnectInventoryLevelAsync(inventoryItemId, locationId);
+            using HttpResponseMessage retry = await SendAsync(
+                HttpMethod.Post, BuildUrl("inventory_levels/set.json"), json);
+            return retry.IsSuccessStatusCode;
+        }
+
         return response.IsSuccessStatusCode;
     }
 
