@@ -243,11 +243,16 @@ export class InvoicesListComponent implements OnInit {
           const items: any[] = order?.items ?? [];
           const rows = items.map((it: any) => {
             const raw = it.product_description ?? '—';
-            // Remove duplicated product name: "Name · Name — L" → "Name — L"
+            // Description format: "ProductName · ProductName — Size"
+            // Use parts[0] (full product name) + size extracted from parts[1].
             const parts = raw.split(' · ');
-            const desc = (parts.length >= 2 && parts[1].startsWith(parts[0]))
-              ? parts[1]   // "Name — L"
-              : raw;
+            let desc = raw;
+            if (parts.length >= 2) {
+              const name = parts[0];                      // full product name
+              const varParts = parts[1].split(' — ');
+              const size = varParts.length >= 2 ? varParts[varParts.length - 1] : '';
+              desc = size ? `${name} — ${size}` : name;
+            }
             return `
             <tr>
               <td class="qty">${it.quantity}</td>
