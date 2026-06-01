@@ -154,8 +154,35 @@ public static class HiitopSeedData
         "users.view", "users.create", "users.update", "users.delete",
         "config.order-statuses", "config.shipping-agencies", "config.document-types",
         "config.purchase-types", "config.product-types", "config.colors",
-        "config.warehouses", "config.provinces", "config.districts", "config.collections"
+        "config.warehouses", "config.provinces", "config.districts", "config.collections",
+        // Finance module
+        "finance.view",
+        "finance.expenses.create", "finance.expenses.update", "finance.expenses.delete",
+        "finance.incomes.create",  "finance.incomes.update",  "finance.incomes.delete",
+        "finance.fixed.manage",
+        "finance.categories.manage",
+        "finance.dashboard.view"
     ];
 
     public static IReadOnlyList<string> Roles { get; } = ["admin", "manager", "vendedor"];
+
+    // (code, name, type, color, icon)
+    public static IReadOnlyList<(string Code, string Name, string Type, string Color, string Icon)> FinancialCategories { get; } =
+    [
+        // Expenses
+        ("ALQUILER",       "Alquiler",              "EXPENSE", "#ef4444", "bi-house"),
+        ("SERVICIOS",      "Servicios",             "EXPENSE", "#f97316", "bi-lightning"),
+        ("INTERNET",       "Internet",              "EXPENSE", "#3b82f6", "bi-wifi"),
+        ("SUELDOS",        "Sueldos",               "EXPENSE", "#8b5cf6", "bi-people"),
+        ("PUBLICIDAD",     "Publicidad",            "EXPENSE", "#ec4899", "bi-megaphone"),
+        ("MERCADERIA",     "Compra de mercadería",  "EXPENSE", "#0ea5e9", "bi-cart"),
+        ("TRANSPORTE",     "Transporte",            "EXPENSE", "#f59e0b", "bi-truck"),
+        ("COMISIONES",     "Comisiones",            "EXPENSE", "#10b981", "bi-percent"),
+        ("OTROS_GASTOS",   "Otros gastos",          "EXPENSE", "#6b7280", "bi-three-dots"),
+        // Incomes
+        ("VENTAS",         "Ventas",                "INCOME",  "#22c55e", "bi-bag-check"),
+        ("SERVICIOS_ING",  "Servicios prestados",   "INCOME",  "#0d9488", "bi-briefcase"),
+        ("REEMBOLSOS",     "Reembolsos",            "INCOME",  "#6366f1", "bi-arrow-counterclockwise"),
+        ("OTROS_INGRESOS", "Otros ingresos",        "INCOME",  "#84cc16", "bi-plus-circle"),
+    ];
 }

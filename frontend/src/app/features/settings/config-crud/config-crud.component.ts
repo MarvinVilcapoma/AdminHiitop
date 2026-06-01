@@ -144,6 +144,10 @@ export class ConfigCrudComponent implements OnInit {
     if (nameKey && !this.newRow['name']?.trim()) {
       this.formError.set('El nombre es requerido.'); return;
     }
+    if (this.isWarehouseEndpoint() && this.newRow['is_pos'] && this.posLimitReached()) {
+      this.formError.set(`Solo se permite ${this.maxPosWarehouses()} almacén como punto de venta (POS). Desactiva el POS del almacén actual antes de asignar otro.`);
+      return;
+    }
     this.saving.set(true);
     this.api.post(this.endpoint(), this.normalizePayload(this.newRow)).subscribe({
       next: () => {
@@ -180,6 +184,13 @@ export class ConfigCrudComponent implements OnInit {
     this.editError.set('');
     const row = this.editRow();
     if (!row) return;
+    if (this.isWarehouseEndpoint() && row['is_pos']) {
+      const otherPosExists = this.rows().some(r => r.is_pos && r.id !== row['id']);
+      if (otherPosExists && this.posLimitReached()) {
+        this.editError.set(`Solo se permite ${this.maxPosWarehouses()} almacén como punto de venta (POS). Desactiva el POS del almacén actual antes de asignar otro.`);
+        return;
+      }
+    }
     this.saving.set(true);
     this.api.put(`${this.endpoint()}/${row.id}`, this.normalizePayload(row)).subscribe({
       next: () => {
@@ -200,6 +211,10 @@ export class ConfigCrudComponent implements OnInit {
 
   delete(row: any): void {
     if (this.isProtectedRow(row)) {
+      return;
+    }
+    if (this.isEditableShopifyRow(row)) {
+      this.toast.error('Las ubicaciones de Shopify no se pueden eliminar. Usa el botón Sync para gestionar su ciclo de vida.');
       return;
     }
 
@@ -301,7 +316,16 @@ export class ConfigCrudComponent implements OnInit {
     });
   }
 
+  /** Shopify location rows synced to DB (id >= 100000) — can toggle is_pos but not delete. */
+  isEditableShopifyRow(row: any): boolean {
+    return this.isWarehouseEndpoint() && this.isShopifyRow(row) && typeof row?.id === 'number' && row.id >= 100_000;
+  }
+
   isProtectedRow(row: any): boolean {
+    // Synced Shopify location rows in the warehouse settings are editable (is_pos toggle)
+    if (this.isEditableShopifyRow(row)) {
+      return false;
+    }
     if (this.isShopifyRow(row)) {
       return true;
     }
@@ -339,6 +363,31 @@ export class ConfigCrudComponent implements OnInit {
   provinces           = signal<Province[]>([]);
   warehouseDistricts  = signal<District[]>([]);
   warehouseTypes      = signal<{ id: number; name: string; code: string }[]>([]);
+  maxPosWarehouses    = signal(1);
+
+  // Only local (non-Shopify) rows count against the MaxPosWarehouses limit
+  posWarehouseCount = computed(() => this.rows().filter(r => r.is_pos && !this.isShopifyRow(r)).length);
+  posLimitReached   = computed(() => this.isWarehouseEndpoint() && this.posWarehouseCount() >= this.maxPosWarehouses());
+
+  syncingShopify = signal(false);
+  hasUnsyncedShopifyRows = computed(() =>
+    this.isWarehouseEndpoint() && this.rows().some(r => this.isShopifyRow(r) && typeof r?.id === 'number' && r.id < 0)
+  );
+
+  syncShopifyLocations(): void {
+    this.syncingShopify.set(true);
+    this.api.post('warehouses/shopify-sync', {}).subscribe({
+      next: () => {
+        this.syncingShopify.set(false);
+        this.toast.success('Ubicaciones de Shopify sincronizadas correctamente.');
+        this.load();
+      },
+      error: (e) => {
+        this.syncingShopify.set(false);
+        this.toast.error(e?.error?.message ?? 'No se pudo sincronizar las ubicaciones de Shopify.');
+      },
+    });
+  }
 
   loadProvinces(): void {
     if (!this.isWarehouseEndpoint()) return;
@@ -352,6 +401,9 @@ export class ConfigCrudComponent implements OnInit {
         next: r => this.warehouseTypes.set(Array.isArray(r) ? r : (r?.data ?? [])),
       });
     }
+    this.api.get<any>('pos/initial-data').subscribe({
+      next: r => this.maxPosWarehouses.set(Number(r?.max_pos_warehouses ?? 1) || 1),
+    });
   }
 
   onWarehouseProvinceChange(provinceId: string | number | null, row: Record<string, any>): void {

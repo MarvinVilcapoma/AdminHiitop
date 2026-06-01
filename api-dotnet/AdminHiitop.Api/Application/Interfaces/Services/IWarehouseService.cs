@@ -9,4 +9,5 @@ public interface IWarehouseService
     Task<Warehouse> CreateAsync(Warehouse request);
     Task<Warehouse> UpdateAsync(int id, Warehouse request);
     Task DeleteAsync(int id);
+    Task SyncShopifyLocationsAsync();
 }

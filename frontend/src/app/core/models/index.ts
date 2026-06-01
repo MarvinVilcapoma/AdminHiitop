@@ -513,6 +513,12 @@ export interface PosInitialData {
   payment_methods: PaymentMethod[];
   colors: Color[];
   settings: Record<string, Setting>;
+  /** Shopify location ID to lock to; 0 = auto-select first active. */
+  default_shopify_location_id?: number;
+  /** Max simultaneous POS warehouses allowed by backend config. */
+  max_pos_warehouses?: number;
+  /** Shopify locations marked as IsPos in the local DB. Non-empty only after a Shopify sync. */
+  shopify_pos_locations?: { id: number; name: string; is_active: boolean }[];
 }
 
 // ── Pagination ───────────────────────────────────────────────────────────────
@@ -587,4 +593,119 @@ export interface ShopifyOrderListResponse {
   count: number;
   next_page_info?: string | null;
   prev_page_info?: string | null;
+}
+
+// ── Finance / Control financiero ─────────────────────────────────────────────
+
+export interface FinancialCategory {
+  id: number;
+  name: string;
+  code: string;
+  type: 'EXPENSE' | 'INCOME';
+  description?: string;
+  color?: string;
+  icon?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FinancialMovement {
+  id: number;
+  type: 'EXPENSE' | 'INCOME';
+  category_id: number;
+  category_name?: string;
+  category_color?: string;
+  category_icon?: string;
+  description: string;
+  amount: number;
+  movement_date: string;
+  payment_method?: string;
+  reference?: string;
+  notes?: string;
+  source_type?: string;
+  source_id?: number;
+  is_fixed_generated?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FinancialMovementRequest {
+  type: 'EXPENSE' | 'INCOME';
+  category_id: number;
+  description: string;
+  amount: number;
+  movement_date: string;
+  payment_method?: string;
+  reference?: string;
+  notes?: string;
+}
+
+export interface FixedFinancialMovement {
+  id: number;
+  type: 'EXPENSE' | 'INCOME';
+  category_id: number;
+  category_name?: string;
+  category_color?: string;
+  category_icon?: string;
+  description: string;
+  amount: number;
+  frequency: 'MONTHLY' | 'WEEKLY' | 'YEARLY';
+  day_of_month?: number;
+  start_date: string;
+  end_date?: string;
+  payment_method?: string;
+  auto_generate: boolean;
+  is_active: boolean;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FixedFinancialMovementRequest {
+  type: 'EXPENSE' | 'INCOME';
+  category_id: number;
+  description: string;
+  amount: number;
+  frequency: 'MONTHLY' | 'WEEKLY' | 'YEARLY';
+  day_of_month?: number;
+  start_date: string;
+  end_date?: string;
+  payment_method?: string;
+  auto_generate: boolean;
+  is_active: boolean;
+  notes?: string;
+}
+
+export interface MonthlySummaryItem {
+  year: number;
+  month: number;
+  label: string;
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export interface CategorySummaryItem {
+  category_id: number;
+  category_name: string;
+  category_color?: string;
+  category_icon?: string;
+  total: number;
+  count: number;
+}
+
+export interface FinancialDashboard {
+  year: number;
+  month: number;
+  total_income: number;
+  total_expense: number;
+  net_profit: number;
+  prev_month_income: number;
+  prev_month_expense: number;
+  prev_month_net_profit: number;
+  monthly_series: MonthlySummaryItem[];
+  expenses_by_category: CategorySummaryItem[];
+  incomes_by_category: CategorySummaryItem[];
+  recent_movements: FinancialMovement[];
 }

@@ -1,4 +1,5 @@
 using AdminHiitop.Api.Domain.Catalog.Entities;
+using AdminHiitop.Api.Domain.Finance.Entities;
 using AdminHiitop.Api.Domain.Identity.Entities;
 using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
@@ -38,6 +39,7 @@ public sealed class AdminHiitopDbSeeder
         await SeedAdminUserAsync();
         await SeedProvincesAsync();
         await SeedDistrictsAsync();
+        await SeedFinancialCategoriesAsync();
     }
 
     /// <summary>
@@ -105,6 +107,9 @@ public sealed class AdminHiitopDbSeeder
         // Patch: normalize order_status slug "pending" -> "pendiente" (2026-05-19)
         cmd.CommandText = "UPDATE `order_statuses` SET `slug` = 'pendiente' WHERE `slug` = 'pending'";
         await cmd.ExecuteNonQueryAsync();
+
+        // Patch: create finance tables if missing (2026-06-01)
+        await EnsureFinanceTablesAsync(cmd);
 
         // Patch: make order_items.product_id nullable to support Web/Shopify-only items (2026-05-24)
         cmd.CommandText = """
@@ -548,6 +553,130 @@ public sealed class AdminHiitopDbSeeder
             if (existingCodes.Contains(code)) continue;
             if (!provinceIdByCode.TryGetValue(provinceCode, out int provinceId)) continue;
             _context.Districts.Add(new District { Code = code, Name = name, ProvinceId = provinceId, IsActive = true });
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    // ── Finance tables schema patch ───────────────────────────────────────────
+
+    private async Task EnsureFinanceTablesAsync(System.Data.Common.DbCommand cmd)
+    {
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_categories'
+            """;
+        if (Convert.ToInt32(await cmd.ExecuteScalarAsync()) == 0)
+        {
+            cmd.CommandText = """
+                CREATE TABLE `financial_categories` (
+                    `id`          INT          NOT NULL AUTO_INCREMENT,
+                    `name`        VARCHAR(150) NOT NULL,
+                    `code`        VARCHAR(80)  NOT NULL,
+                    `type`        VARCHAR(20)  NOT NULL,
+                    `description` TEXT         NULL,
+                    `color`       VARCHAR(20)  NULL,
+                    `icon`        VARCHAR(50)  NULL,
+                    `is_active`   TINYINT(1)   NOT NULL DEFAULT 1,
+                    `created_at`  DATETIME(6)  NOT NULL,
+                    `updated_at`  DATETIME(6)  NOT NULL,
+                    `deleted_at`  DATETIME(6)  NULL,
+                    PRIMARY KEY (`id`),
+                    UNIQUE KEY `IX_financial_categories_code` (`code`)
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_movements'
+            """;
+        if (Convert.ToInt32(await cmd.ExecuteScalarAsync()) == 0)
+        {
+            cmd.CommandText = """
+                CREATE TABLE `financial_movements` (
+                    `id`                INT            NOT NULL AUTO_INCREMENT,
+                    `type`              VARCHAR(20)    NOT NULL,
+                    `category_id`       INT            NOT NULL,
+                    `description`       VARCHAR(255)   NOT NULL,
+                    `amount`            DECIMAL(12,2)  NOT NULL,
+                    `movement_date`     DATETIME(6)    NOT NULL,
+                    `payment_method`    VARCHAR(60)    NULL,
+                    `reference`         VARCHAR(120)   NULL,
+                    `notes`             TEXT           NULL,
+                    `source_type`       VARCHAR(40)    NULL,
+                    `source_id`         INT            NULL,
+                    `is_fixed_generated` TINYINT(1)   NOT NULL DEFAULT 0,
+                    `created_by`        INT            NULL,
+                    `updated_by`        INT            NULL,
+                    `created_at`        DATETIME(6)    NOT NULL,
+                    `updated_at`        DATETIME(6)    NOT NULL,
+                    `deleted_at`        DATETIME(6)    NULL,
+                    PRIMARY KEY (`id`),
+                    KEY `IX_financial_movements_category_id` (`category_id`),
+                    KEY `IX_financial_movements_type`        (`type`),
+                    KEY `IX_financial_movements_date`        (`movement_date`),
+                    CONSTRAINT `FK_financial_movements_categories`
+                        FOREIGN KEY (`category_id`) REFERENCES `financial_categories` (`id`)
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fixed_financial_movements'
+            """;
+        if (Convert.ToInt32(await cmd.ExecuteScalarAsync()) == 0)
+        {
+            cmd.CommandText = """
+                CREATE TABLE `fixed_financial_movements` (
+                    `id`            INT            NOT NULL AUTO_INCREMENT,
+                    `type`          VARCHAR(20)    NOT NULL,
+                    `category_id`   INT            NOT NULL,
+                    `description`   VARCHAR(255)   NOT NULL,
+                    `amount`        DECIMAL(12,2)  NOT NULL,
+                    `frequency`     VARCHAR(20)    NOT NULL DEFAULT 'MONTHLY',
+                    `day_of_month`  INT            NULL,
+                    `start_date`    DATETIME(6)    NOT NULL,
+                    `end_date`      DATETIME(6)    NULL,
+                    `payment_method` VARCHAR(60)   NULL,
+                    `auto_generate` TINYINT(1)     NOT NULL DEFAULT 1,
+                    `is_active`     TINYINT(1)     NOT NULL DEFAULT 1,
+                    `notes`         TEXT           NULL,
+                    `created_by`    INT            NULL,
+                    `updated_by`    INT            NULL,
+                    `created_at`    DATETIME(6)    NOT NULL,
+                    `updated_at`    DATETIME(6)    NOT NULL,
+                    `deleted_at`    DATETIME(6)    NULL,
+                    PRIMARY KEY (`id`),
+                    KEY `IX_fixed_financial_movements_category_id` (`category_id`),
+                    CONSTRAINT `FK_fixed_financial_movements_categories`
+                        FOREIGN KEY (`category_id`) REFERENCES `financial_categories` (`id`)
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
+
+    private async Task SeedFinancialCategoriesAsync()
+    {
+        foreach ((string code, string name, string type, string color, string icon) in HiitopSeedData.FinancialCategories)
+        {
+            bool exists = await _context.FinancialCategories.AnyAsync(x => x.Code == code);
+            if (!exists)
+            {
+                _context.FinancialCategories.Add(new FinancialCategory
+                {
+                    Code    = code,
+                    Name    = name,
+                    Type    = type,
+                    Color   = color,
+                    Icon    = icon,
+                    IsActive = true
+                });
+            }
         }
 
         await _context.SaveChangesAsync();

@@ -120,6 +120,10 @@ export class PosComponent implements OnInit {
 
   selectedWarehouseId: number | null = null;
 
+  /** When true, only 1 POS warehouse exists — no selector is shown, just a label. */
+  singlePosWarehouse = signal(true);
+
+
   invoiceSeries = signal<InvoiceSeries[]>([]);
 
   // Shopify stock source
@@ -275,7 +279,7 @@ export class PosComponent implements OnInit {
         const documentRows = Array.isArray(payload?.document_types) ? payload.document_types : [];
         const paymentRows = Array.isArray(payload?.payment_methods) ? payload.payment_methods : [];
         const colorRows = Array.isArray(payload?.colors) ? payload.colors : [];
-        const settings = payload?.settings ?? {};
+        const maxPosWarehouses = payload?.max_pos_warehouses ?? 1;
 
         // Exclude document types that don't belong in POS:
         // - TICKET: it's a print format, not a SUNAT doc type
@@ -285,12 +289,33 @@ export class PosComponent implements OnInit {
             (dt: any) => !POS_EXCLUDED.includes(String(dt.code ?? '').toUpperCase())
         );
 
+        // Backend already filters to is_pos=true only; show selector only when >1 POS warehouse allowed.
         this.warehouses.set(warehouseRows);
+        this.singlePosWarehouse.set(maxPosWarehouses <= 1 || warehouseRows.length <= 1);
         this.documentTypes.set(posDocumentRows);
         this.paymentMethods.set(paymentRows);
         this.colors.set(colorRows);
 
-        this.selectedWarehouseId = this.resolveDefaultWarehouseId(warehouseRows, settings);
+        // Auto-select the single POS warehouse (no user choice needed when singlePosWarehouse=true).
+        this.selectedWarehouseId = warehouseRows[0]?.id ?? null;
+
+        // Shopify POS locations: if the admin has synced and marked locations as POS,
+        // use only those for the sucursal selector. Falls back to full list if none are marked.
+        const shopifyPosLocs = Array.isArray(payload?.shopify_pos_locations) ? payload.shopify_pos_locations : [];
+        if (shopifyPosLocs.length > 0) {
+          const mapped: ShopifyLocation[] = shopifyPosLocs.map((loc: any) => ({
+            id: loc.id,
+            name: loc.name,
+            active: loc.is_active ?? true,
+          }));
+          this.shopifyLocations.set(mapped);
+          if (this.isShopifyMode && !this.shopifyLocationId()) {
+            this.shopifyLocationId.set(mapped[0]?.id ?? null);
+          }
+        } else {
+          // No POS locations configured in DB — load all active Shopify locations as fallback
+          this.loadAllShopifyLocations();
+        }
 
         const boleta = documentRows.find((doc) => String(doc.code ?? '').toUpperCase() === 'BOLETA');
         const factura = documentRows.find((doc) => String(doc.code ?? '').toUpperCase() === 'FACTURA');
@@ -323,6 +348,14 @@ export class PosComponent implements OnInit {
       error: () => { this.orderStatuses.set([]); },
     });
 
+
+    this.api.get<InvoiceSeries[]>('invoices/series').subscribe({
+      next: series => this.invoiceSeries.set(series ?? []),
+      error: () => {},
+    });
+  }
+
+  private loadAllShopifyLocations(): void {
     this.api.get<ShopifyLocation[]>('shopify/locations').subscribe({
       next: locs => {
         const active = locs.filter(l => l.active);
@@ -333,33 +366,6 @@ export class PosComponent implements OnInit {
       },
       error: () => {},
     });
-
-    this.api.get<InvoiceSeries[]>('invoices/series').subscribe({
-      next: series => this.invoiceSeries.set(series ?? []),
-      error: () => {},
-    });
-  }
-
-  private resolveDefaultWarehouseId(rows: Warehouse[], settings: PosInitialData['settings']): number | null {
-    const configuredId = Number(settings?.['pos_default_warehouse_id']?.value ?? 0);
-    if (configuredId > 0 && rows.some((warehouse) => warehouse.id === configuredId)) {
-      return configuredId;
-    }
-
-    const firstStore = rows.find((warehouse) => {
-      const directType = String((warehouse as any).type ?? '').toLowerCase();
-      const typeCode = String(warehouse.warehouse_type?.code ?? '').toLowerCase();
-      const typeName = String(warehouse.warehouse_type?.name ?? '').toLowerCase();
-
-      return (
-        directType === 'store' ||
-        typeCode.includes('store') ||
-        typeCode.includes('tienda') ||
-        typeName.includes('tienda')
-      );
-    });
-
-    return firstStore?.id ?? rows[0]?.id ?? null;
   }
 
   onColorFilterChange(): void {
@@ -1212,12 +1218,15 @@ export class PosComponent implements OnInit {
   private renderTicket(printWindow: Window, data: PosPrintPayload, widthMm: number): void {
     const now = formatPeruDateTimeLabel();
     const ticketWidth = widthMm <= 58 ? 58 : 80;
+    const logoUrl = `${window.location.origin}/assets/img/iso-black-.png`;
 
-    // Standard thermal layout: description row + qty×price=sub row
+    // Internal TICKET: not a SUNAT document
+    const isInternalTicket = data.documentType?.toUpperCase() === 'TICKET';
+    const docLabel = isInternalTicket ? 'TICKET' : (data.documentType?.toUpperCase() ?? 'DOCUMENTO');
+
     const linesHtml = data.lines
       .map((line) => {
-        // Avoid showing the product name twice when variant_label already contains it
-        const nameOnly  = line.product_name ?? '';
+        const nameOnly    = line.product_name ?? '';
         const variantOnly = (line.variant_label ?? '').replace(nameOnly, '').replace(/^[\s·—]+/, '').trim();
         const desc = variantOnly ? `${nameOnly} — ${variantOnly}` : nameOnly;
         const sub  = line.subtotal.toFixed(2);
@@ -1234,21 +1243,27 @@ export class PosComponent implements OnInit {
       .join('');
 
     const divider = `<tr><td colspan="2" class="divider"></td></tr>`;
+    const sunatNotice = isInternalTicket
+      ? `<hr class="sep"><p class="sunat-notice">DOCUMENTO NO VÁLIDO PARA SUNAT</p>`
+      : '';
 
     const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Ticket ${this.escapeHtml(data.orderNumber)}</title>
+  <title>${this.escapeHtml(docLabel)} ${this.escapeHtml(data.orderNumber)}</title>
   <style>
     @page { size: ${ticketWidth}mm auto; margin: 3mm 4mm; }
     * { box-sizing: border-box; }
     body { font-family: 'Courier New', monospace; font-size: 11px; margin: 0; padding: 0; color: #000; }
     .ticket { width: 100%; max-width: ${ticketWidth}mm; }
     .center  { text-align: center; }
-    .right   { text-align: right; }
     .bold    { font-weight: bold; }
-    .store   { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
+    .logo-wrap { text-align: center; margin-bottom: 4px; }
+    .logo-wrap img { height: 36px; width: auto; }
+    .brand-name { font-size: 15px; font-weight: bold; text-align: center; margin: 0 0 1px; letter-spacing: 1px; }
+    .doc-type { font-size: 12px; font-weight: bold; text-align: center; margin: 0 0 2px; }
+    .doc-num  { font-size: 10px; text-align: center; margin: 0; }
     .sep     { border: none; border-top: 1px dashed #000; margin: 4px 0; }
     .meta-row { display: flex; justify-content: space-between; margin: 1px 0; font-size: 10px; }
     table    { width: 100%; border-collapse: collapse; }
@@ -1257,28 +1272,33 @@ export class PosComponent implements OnInit {
     .qty-cell { color: #333; }
     .sub-cell { text-align: right; font-weight: bold; }
     .divider td { border-top: 1px dashed #ccc; padding: 0; height: 1px; }
-    .total-row { margin-top: 6px; display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; }
+    .total-row { margin-top: 6px; display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; }
     .discount  { text-align: right; font-size: 11px; color: #c00; margin: 2px 0; }
-    .foot      { text-align: center; font-size: 9px; color: #555; margin-top: 8px; }
+    .foot      { text-align: center; font-size: 9px; color: #555; margin-top: 6px; }
+    .sunat-notice { text-align: center; font-size: 9px; font-weight: bold; color: #000; margin: 4px 0 2px; }
   </style>
 </head>
 <body>
   <div class="ticket">
-    <p class="center store">HIITOP</p>
+    <div class="logo-wrap"><img src="${logoUrl}" alt="Hiitop" onerror="this.style.display='none'" /></div>
+    <p class="brand-name">HIITOP</p>
+    <p class="doc-type">${this.escapeHtml(docLabel)}</p>
+    <p class="doc-num">N° ${this.escapeHtml(data.orderNumber)}</p>
     <hr class="sep">
-    <div class="meta-row"><span>Documento:</span><span>${this.escapeHtml(data.documentType)}</span></div>
-    <div class="meta-row"><span>Numero:</span><span>${this.escapeHtml(data.orderNumber)}</span></div>
     <div class="meta-row"><span>Fecha:</span><span>${this.escapeHtml(now)}</span></div>
-    <div class="meta-row"><span>Tienda:</span><span>${this.escapeHtml(data.storeName)}</span></div>
     <div class="meta-row"><span>Pago:</span><span>${this.escapeHtml(data.paymentMethod)}</span></div>
+    <div class="meta-row"><span>Cond. pago:</span><span>AL CONTADO</span></div>
     ${data.customerName ? `<div class="meta-row"><span>Cliente:</span><span>${this.escapeHtml(data.customerName)}</span></div>` : ''}
-    ${data.customerDoc  ? `<div class="meta-row"><span>Doc:</span><span>${this.escapeHtml(data.customerDoc)}</span></div>` : ''}
+    ${data.customerDoc  ? `<div class="meta-row"><span>DNI/RUC:</span><span>${this.escapeHtml(data.customerDoc)}</span></div>` : ''}
     <hr class="sep">
     <table><tbody>${linesHtml}${divider}</tbody></table>
     ${data.discountAmount > 0 ? `<div class="discount">Descuento: -S/ ${data.discountAmount.toFixed(2)}</div>` : ''}
     <div class="total-row"><span>TOTAL</span><span>S/ ${data.total.toFixed(2)}</span></div>
+    <div class="meta-row" style="margin-top:4px"><span>Total pagado:</span><span>S/ ${data.total.toFixed(2)}</span></div>
+    <div class="meta-row"><span>Vuelto:</span><span>S/ 0.00</span></div>
+    ${sunatNotice}
     <hr class="sep">
-    <p class="foot">Gracias por tu compra</p>
+    <p class="foot">MUCHAS GRACIAS POR TU COMPRA</p>
   </div>
 </body>
 </html>`;
@@ -1299,6 +1319,10 @@ export class PosComponent implements OnInit {
 
   private renderA4Document(printWindow: Window, data: PosPrintPayload): void {
     const now = formatPeruDateTimeLabel();
+    const logoUrl = `${window.location.origin}/assets/img/iso-black-.png`;
+
+    const isInternalTicket = data.documentType?.toUpperCase() === 'TICKET';
+    const docTypeLabel = isInternalTicket ? 'TICKET' : (data.documentType?.toUpperCase() ?? 'DOCUMENTO');
 
     const rowsHtml = data.lines
       .map((line, index) => {
@@ -1308,89 +1332,115 @@ export class PosComponent implements OnInit {
           <td class="num">${index + 1}</td>
           <td>${this.escapeHtml(detail)}</td>
           <td class="num">${line.quantity}</td>
-          <td class="num">${line.unit_price.toFixed(2)}</td>
-          <td class="num">${line.subtotal.toFixed(2)}</td>
-        </tr>
-      `;
+          <td class="num">S/ ${line.unit_price.toFixed(2)}</td>
+          <td class="num">S/ ${line.subtotal.toFixed(2)}</td>
+        </tr>`;
       })
       .join('');
 
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${this.escapeHtml(data.documentType)} ${this.escapeHtml(data.orderNumber)}</title>
-        <style>
-          @page { size: A4 portrait; margin: 12mm; }
-          body { font-family: Arial, sans-serif; margin: 0; color: #0f172a; font-size: 12px; }
-          .sheet { width: 100%; max-width: 186mm; margin: 0 auto; }
-          .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-          .brand h1 { margin: 0 0 4px; font-size: 20px; }
-          .muted { color: #475569; font-size: 11px; }
-          .doc-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; text-align: right; min-width: 220px; }
-          .doc-box .title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
-          .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 12px; }
-          .meta-item { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; }
-          .meta-item strong { display: block; font-size: 11px; color: #475569; margin-bottom: 2px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #dbe1e8; padding: 6px 8px; vertical-align: top; }
-          th { background: #f8fafc; text-align: left; }
-          .num { text-align: right; white-space: nowrap; }
-          .totals { margin-top: 12px; display: flex; justify-content: flex-end; }
-          .totals-box { width: 280px; border: 1px solid #dbe1e8; border-radius: 8px; padding: 8px 10px; }
-          .totals-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
-          .totals-row:last-child { margin-bottom: 0; font-size: 14px; font-weight: 700; }
-          .foot { margin-top: 16px; text-align: center; font-size: 11px; color: #64748b; }
-        </style>
-      </head>
-      <body>
-        <div class="sheet">
-          <div class="header">
-            <div class="brand">
-              <h1>HIITOP</h1>
-              <div class="muted">Representacion comercial - ${this.escapeHtml(data.printFormat.label)}</div>
-              <div class="muted">Tienda: ${this.escapeHtml(data.storeName)}</div>
-            </div>
-            <div class="doc-box">
-              <div class="title">${this.escapeHtml(data.documentType)}</div>
-              <div>N° ${this.escapeHtml(data.orderNumber)}</div>
-              <div class="muted">${this.escapeHtml(data.printFormat.label)}</div>
-            </div>
-          </div>
+    const sunatBlock = isInternalTicket
+      ? `<div class="sunat-notice">DOCUMENTO NO VÁLIDO PARA SUNAT</div>`
+      : '';
 
-          <div class="meta-grid">
-            <div class="meta-item"><strong>Fecha</strong>${this.escapeHtml(now)}</div>
-            <div class="meta-item"><strong>Metodo de pago</strong>${this.escapeHtml(data.paymentMethod)}</div>
-            <div class="meta-item"><strong>Cliente</strong>${this.escapeHtml(data.customerName || 'Publico general')}</div>
-            <div class="meta-item"><strong>Documento</strong>${this.escapeHtml(data.customerDoc || '-')}</div>
-          </div>
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${this.escapeHtml(docTypeLabel)} ${this.escapeHtml(data.orderNumber)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; color: #0f172a; font-size: 12px; }
+    .sheet { width: 100%; max-width: 186mm; margin: 0 auto; }
 
-          <table>
-            <thead>
-              <tr>
-                <th class="num">#</th>
-                <th>Descripcion</th>
-                <th class="num">Cant.</th>
-                <th class="num">P/U</th>
-                <th class="num">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
+    /* Header */
+    .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+    .brand-col { display: flex; align-items: center; gap: 10px; }
+    .brand-logo { height: 52px; width: auto; }
+    .brand-info h1 { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+    .brand-info .muted { color: #475569; font-size: 10px; line-height: 1.4; }
+    .doc-box { border: 2px solid #0f172a; border-radius: 6px; padding: 10px 14px; text-align: center; min-width: 200px; }
+    .doc-box .doc-title { font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; }
+    .doc-box .doc-ruc  { font-size: 11px; color: #475569; margin-bottom: 4px; }
+    .doc-box .doc-num  { font-size: 13px; font-weight: 700; }
 
-          <div class="totals">
-            <div class="totals-box">
-              ${data.discountAmount > 0 ? `<div class="totals-row"><span>Subtotal</span><span>S/ ${data.subtotal.toFixed(2)}</span></div><div class="totals-row" style="color:#c00"><span>Descuento</span><span>-S/ ${data.discountAmount.toFixed(2)}</span></div>` : ''}
-              <div class="totals-row"><span>Total</span><span>S/ ${data.total.toFixed(2)}</span></div>
-            </div>
-          </div>
+    /* Client info */
+    .client-section { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; margin-bottom: 12px; }
+    .client-row { display: flex; gap: 6px; font-size: 11px; margin-bottom: 2px; }
+    .client-row strong { min-width: 110px; color: #475569; }
 
-          <div class="foot">Gracias por tu compra</div>
+    /* Table */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    thead th { background: #0f172a; color: #fff; padding: 6px 8px; text-align: left; font-size: 11px; }
+    thead th.num { text-align: right; }
+    tbody td { border-bottom: 1px solid #e2e8f0; padding: 6px 8px; vertical-align: top; font-size: 11px; word-break: break-word; }
+    tbody tr:nth-child(even) td { background: #f8fafc; }
+    .num { text-align: right; white-space: nowrap; }
+
+    /* Totals */
+    .totals-section { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+    .totals-box { width: 260px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; border-bottom: 1px solid #e2e8f0; }
+    .totals-row.grand { font-size: 14px; font-weight: 800; border-bottom: none; padding-top: 6px; }
+    .totals-row.disc { color: #dc2626; }
+
+    /* Footer */
+    .sunat-notice { text-align: center; font-size: 10px; font-weight: 700; border: 1px solid #000; padding: 4px; margin-bottom: 8px; }
+    .foot { text-align: center; font-size: 11px; color: #64748b; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+
+    <div class="header">
+      <div class="brand-col">
+        <img class="brand-logo" src="${logoUrl}" alt="Hiitop" onerror="this.style.display='none'" />
+        <div class="brand-info">
+          <h1>HIITOP S.A.C.</h1>
+          <div class="muted">hiitopshopp@gmail.com · 938522192</div>
+          <div class="muted">Hiitop-Perú.com</div>
         </div>
-      </body>
-      </html>
-    `;
+      </div>
+      <div class="doc-box">
+        <div class="doc-title">${this.escapeHtml(docTypeLabel)}</div>
+        <div class="doc-num">N° ${this.escapeHtml(data.orderNumber)}</div>
+      </div>
+    </div>
+
+    <div class="client-section">
+      <div class="client-row"><strong>CLIENTE:</strong><span>${this.escapeHtml(data.customerName || 'Público general')}</span></div>
+      ${data.customerDoc ? `<div class="client-row"><strong>RUC/DNI:</strong><span>${this.escapeHtml(data.customerDoc)}</span></div>` : ''}
+      <div class="client-row"><strong>FECHA DE LA VENTA:</strong><span>${this.escapeHtml(now)}</span></div>
+      <div class="client-row"><strong>COND. PAGO:</strong><span>AL CONTADO</span></div>
+      <div class="client-row"><strong>FORMA DE PAGO:</strong><span>${this.escapeHtml(data.paymentMethod)}</span></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>CANTIDAD</th>
+          <th>DESCRIPCIÓN</th>
+          <th class="num">VALOR U.</th>
+          <th class="num">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div class="totals-section">
+      <div class="totals-box">
+        ${data.discountAmount > 0 ? `<div class="totals-row"><span>Subtotal</span><span>S/ ${data.subtotal.toFixed(2)}</span></div><div class="totals-row disc"><span>Descuento</span><span>-S/ ${data.discountAmount.toFixed(2)}</span></div>` : ''}
+        <div class="totals-row grand"><span>TOTAL:</span><span>S/ ${data.total.toFixed(2)}</span></div>
+        <div class="totals-row"><span>TOTAL PAGADO:</span><span>S/ ${data.total.toFixed(2)}</span></div>
+        <div class="totals-row"><span>VUELTO:</span><span>S/ 0.00</span></div>
+      </div>
+    </div>
+
+    ${sunatBlock}
+    <div class="foot">MUCHAS GRACIAS POR TU COMPRA</div>
+  </div>
+</body>
+</html>`;
 
     printWindow.document.open();
     printWindow.document.write(html);

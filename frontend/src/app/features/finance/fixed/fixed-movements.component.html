@@ -1,0 +1,159 @@
+<div class="container-fluid px-3 py-3">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h5 class="mb-0 fw-bold">
+      <i class="bi bi-arrow-repeat me-2 {{ movementType === 'EXPENSE' ? 'text-danger' : 'text-success' }}"></i>
+      {{ typeLabelPl }}
+    </h5>
+    <button class="btn btn-primary btn-sm" (click)="openCreate()">
+      <i class="bi bi-plus-lg me-1"></i>Nuevo
+    </button>
+  </div>
+
+  <!-- Generate month panel -->
+  <div class="card border-0 shadow-sm mb-3 bg-light">
+    <div class="card-body py-2 d-flex align-items-center gap-2 flex-wrap">
+      <span class="fw-semibold small">Generar movimientos del mes:</span>
+      <select class="form-select form-select-sm" style="width:80px" [(ngModel)]="genMonth">
+        @for (m of months; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+      </select>
+      <select class="form-select form-select-sm" style="width:90px" [(ngModel)]="genYear">
+        @for (y of years; track y) { <option [value]="y">{{ y }}</option> }
+      </select>
+      <button class="btn btn-sm btn-success" (click)="generateMonth()" [disabled]="generating()">
+        @if (generating()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        <i class="bi bi-lightning-fill me-1"></i>Generar
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  } @else if (items().length === 0) {
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-2 d-block mb-2"></i>No hay {{ typeLabelPl.toLowerCase() }} configurados.
+    </div>
+  } @else {
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Descripción</th><th>Categoría</th><th>Frecuencia</th><th>Día</th><th class="text-end">Monto</th><th>Estado</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr>
+                <td>{{ item.description }}</td>
+                <td>
+                  @if (item.category_color) {
+                    <span class="badge rounded-pill" [style.background]="item.category_color">{{ item.category_name }}</span>
+                  } @else { {{ item.category_name ?? '—' }} }
+                </td>
+                <td>{{ item.frequency }}</td>
+                <td>{{ item.day_of_month ?? '—' }}</td>
+                <td class="text-end fw-semibold" [ngClass]="movementType === 'INCOME' ? 'text-success' : 'text-danger'">
+                  S/ {{ item.amount | number:'1.2-2' }}
+                </td>
+                <td>
+                  <span class="badge" [ngClass]="item.is_active ? 'bg-success' : 'bg-secondary'">
+                    {{ item.is_active ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-secondary me-1 py-0" (click)="openEdit(item)"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-sm btn-outline-danger py-0" (click)="delete(item)"><i class="bi bi-trash"></i></button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Modal -->
+@if (showModal()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold mb-0">{{ editItem() ? 'Editar' : 'Nuevo' }} {{ typeLabel }}</h6>
+          <button class="btn-close" (click)="closeModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">Descripción *</label>
+            <input type="text" class="form-control form-control-sm" [(ngModel)]="form.description" />
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Categoría *</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.category_id">
+                <option [value]="0">Seleccionar...</option>
+                @for (c of categories(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Monto (S/) *</label>
+              <input type="number" class="form-control form-control-sm" [(ngModel)]="form.amount" min="0.01" step="0.01" />
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Frecuencia</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.frequency">
+                <option value="MONTHLY">Mensual</option>
+                <option value="WEEKLY">Semanal</option>
+                <option value="YEARLY">Anual</option>
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Día del mes</label>
+              <input type="number" class="form-control form-control-sm" [(ngModel)]="form.day_of_month" min="1" max="31" />
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Fecha inicio *</label>
+              <input type="date" class="form-control form-control-sm" [(ngModel)]="form.start_date" />
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Fecha fin (opcional)</label>
+              <input type="date" class="form-control form-control-sm" [(ngModel)]="form.end_date" />
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Método de pago</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.payment_method">
+                <option value="">—</option>
+                <option>Efectivo</option><option>Yape</option><option>Plin</option>
+                <option>Transferencia</option><option>Tarjeta</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="form.auto_generate" id="autoGen" />
+            <label class="form-check-label form-label-sm" for="autoGen">Generar automáticamente</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="form.is_active" id="isActive" />
+            <label class="form-check-label form-label-sm" for="isActive">Activo</label>
+          </div>
+          <div class="mb-1">
+            <label class="form-label form-label-sm fw-semibold">Notas</label>
+            <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="form.notes"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button class="btn btn-sm btn-secondary" (click)="closeModal()">Cancelar</button>
+          <button class="btn btn-sm btn-primary" (click)="save()" [disabled]="saving()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> } Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

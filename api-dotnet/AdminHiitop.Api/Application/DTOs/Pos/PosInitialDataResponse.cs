@@ -7,6 +7,27 @@ public sealed class PosInitialDataResponse
     public IReadOnlyList<PosPaymentMethodResponse> PaymentMethods { get; init; } = [];
     public IReadOnlyList<PosColorResponse> Colors { get; init; } = [];
     public IReadOnlyDictionary<string, PosSettingResponse> Settings { get; init; } = new Dictionary<string, PosSettingResponse>();
+
+    /// <summary>
+    /// Shopify location that should be pre-selected in POS.
+    /// 0 means "auto-select the first active location".
+    /// Only relevant when UseShopifyMode is true.
+    /// </summary>
+    public long DefaultShopifyLocationId { get; init; } = 0;
+
+    /// <summary>Maximum number of simultaneous POS warehouses allowed by configuration.</summary>
+    public int MaxPosWarehouses { get; init; } = 1;
+
+    /// <summary>Shopify locations marked as IsPos=true (synced from local DB). Used to restrict the sucursal selector in POS Shopify mode.</summary>
+    public IReadOnlyList<PosShopifyLocationResponse> ShopifyPosLocations { get; init; } = [];
+}
+
+public sealed class PosShopifyLocationResponse
+{
+    /// <summary>Real Shopify location ID (long).</summary>
+    public long Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public bool IsActive { get; init; }
 }
 
 public sealed class PosWarehouseResponse

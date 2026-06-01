@@ -38,4 +38,11 @@ public sealed class WarehousesController : ControllerBase
         await _warehouseService.DeleteAsync(id);
         return Ok(new { success = true });
     }
+
+    [HttpPost("shopify-sync")]
+    public async Task<IActionResult> SyncShopify()
+    {
+        await _warehouseService.SyncShopifyLocationsAsync();
+        return Ok(new { success = true, message = "Ubicaciones de Shopify sincronizadas correctamente." });
+    }
 }

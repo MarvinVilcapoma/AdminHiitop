@@ -97,10 +97,11 @@ export class DashboardLayoutComponent {
     { label: 'Productos',     path: '/dashboard/products',   icon: 'bi-box-seam',       permission: 'products.view'         },
     { label: 'Stock',         path: '/dashboard/stock',      icon: 'bi-boxes',          permission: 'stocks.view'           },
     { label: 'Clientes',      path: '/dashboard/customers',  icon: 'bi-people',         permission: 'customers.view'        },
-    { label: 'Comprobantes',  path: '/dashboard/invoices',   icon: 'bi-receipt',        permission: 'invoices.view'        },
-    { label: 'Promociones',   path: '/dashboard/promotions', icon: 'bi-tags',           permission: 'promotions.view'      },
-    { label: 'Usuarios',      path: '/dashboard/users',      icon: 'bi-person-badge',   permission: 'users.view'            },
-    { label: 'Configuración', path: '/dashboard/settings',   icon: 'bi-gear',           permission: 'config.order-statuses' },
+    { label: 'Comprobantes',  path: '/dashboard/invoices',          icon: 'bi-receipt',        permission: 'invoices.view'        },
+    { label: 'Promociones',   path: '/dashboard/promotions',        icon: 'bi-tags',           permission: 'promotions.view'      },
+    { label: 'Finanzas',      path: '/dashboard/finance/dashboard', icon: 'bi-bar-chart-line', permission: 'finance.view'         },
+    { label: 'Usuarios',      path: '/dashboard/users',             icon: 'bi-person-badge',   permission: 'users.view'            },
+    { label: 'Configuración', path: '/dashboard/settings',          icon: 'bi-gear',           permission: 'config.order-statuses' },
   ];
 
   // ── Nav items for SHOPIFY mode — local stock/product views hidden ────────────
@@ -112,6 +113,7 @@ export class DashboardLayoutComponent {
     { label: 'Inventario', path: '/dashboard/shopify/inventory', icon: 'bi-boxes',          permission: 'stocks.view'    },
     { label: 'Clientes', path: '/dashboard/shopify/customers',   icon: 'bi-people',          permission: 'customers.view' },
     { label: 'Comprobantes',    path: '/dashboard/invoices',          icon: 'bi-receipt',        permission: 'invoices.view'        },
+    { label: 'Finanzas',        path: '/dashboard/finance/dashboard', icon: 'bi-bar-chart-line', permission: 'finance.view'         },
     { label: 'Usuarios',        path: '/dashboard/users',             icon: 'bi-person-badge',   permission: 'users.view'            },
     { label: 'Configuración',   path: '/dashboard/settings',          icon: 'bi-gear',           permission: 'config.order-statuses' },
   ];

@@ -1,6 +1,8 @@
+using AdminHiitop.Api.Application.DTOs.Shopify;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Application.Options;
 using AdminHiitop.Api.Domain.Catalog.Entities;
+using AdminHiitop.Api.Domain.Shopify.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Shared.Exceptions;
 using AdminHiitop.Api.Shared.Helpers;
@@ -16,6 +18,9 @@ public sealed class WarehouseService : IWarehouseService
     private readonly AdminHiitopDbContext _context;
     private readonly IShopifyProductService _shopifyProductService;
     private readonly PosOptions _posOptions;
+
+    // IDs >= this threshold are Shopify location rows; subtract to get local DB id.
+    private const int ShopifyIdOffset = 100_000;
 
     public WarehouseService(
         ICatalogQueryService catalogQueryService,
@@ -95,20 +100,9 @@ public sealed class WarehouseService : IWarehouseService
             })
             .ToListAsync();
 
-        List<WarehouseListRow> shopifyRows = (await _shopifyProductService.GetLocationsAsync())
-            .Select((location, index) => new WarehouseListRow
-            {
-                Id = -100000 - index,
-                Name = location.Name,
-                Code = $"SHOPIFY-{location.Id}",
-                Address = location.Address,
-                City = location.City,
-                IsActive = location.Active,
-                IsPos = false,
-                Source = "shopify",
-                ShopifyLocationId = location.Id
-            })
-            .ToList();
+        // Shopify rows come from the local DB table (populated via sync).
+        // Fall back to live Shopify API if never synced yet (uneditable rows get negative IDs).
+        List<WarehouseListRow> shopifyRows = await BuildShopifyRowsAsync();
 
         IEnumerable<WarehouseListRow> combinedRows = localRows.Concat(shopifyRows);
 
@@ -158,6 +152,13 @@ public sealed class WarehouseService : IWarehouseService
 
     public async Task<Warehouse> UpdateAsync(int id, Warehouse request)
     {
+        // Shopify location row (id >= ShopifyIdOffset)
+        if (id >= ShopifyIdOffset)
+        {
+            return await UpdateShopifyLocationAsync(id - ShopifyIdOffset, request);
+        }
+
+        // Local warehouse
         Warehouse entity = await FindAsync(id);
 
         if (request.IsPos && !entity.IsPos)
@@ -180,9 +181,114 @@ public sealed class WarehouseService : IWarehouseService
 
     public async Task DeleteAsync(int id)
     {
+        if (id >= ShopifyIdOffset)
+        {
+            throw new AppException("Las ubicaciones de Shopify no se pueden eliminar. Usa el botón Sync para gestionar el ciclo de vida.", 422);
+        }
+
         Warehouse entity = await FindAsync(id);
         _context.Warehouses.Remove(entity);
         await _context.SaveChangesAsync();
+    }
+
+    public async Task SyncShopifyLocationsAsync()
+    {
+        List<ShopifyLocationResponse> apiLocations = await _shopifyProductService.GetLocationsAsync();
+
+        foreach (ShopifyLocationResponse loc in apiLocations)
+        {
+            ShopifyLocation? existing = await _context.ShopifyLocations
+                .FirstOrDefaultAsync(s => s.ShopifyLocationId == loc.Id);
+
+            if (existing is null)
+            {
+                _context.ShopifyLocations.Add(new ShopifyLocation
+                {
+                    ShopifyLocationId = loc.Id,
+                    Name = loc.Name,
+                    IsActive = loc.Active,
+                    IsPos = false,
+                    Address = loc.Address,
+                    City = loc.City,
+                    SyncedAt = DateTimeOffset.UtcNow
+                });
+            }
+            else
+            {
+                // Preserve IsPos — only the user controls that flag
+                existing.Name = loc.Name;
+                existing.IsActive = loc.Active;
+                existing.Address = loc.Address;
+                existing.City = loc.City;
+                existing.SyncedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private async Task<List<WarehouseListRow>> BuildShopifyRowsAsync()
+    {
+        List<ShopifyLocation> dbLocations = await _context.ShopifyLocations
+            .AsNoTracking()
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+
+        if (dbLocations.Count > 0)
+        {
+            return dbLocations.Select(sl => new WarehouseListRow
+            {
+                Id = ShopifyIdOffset + sl.Id,
+                Name = sl.Name,
+                Code = $"SHOPIFY-{sl.ShopifyLocationId}",
+                Address = sl.Address,
+                City = sl.City,
+                IsActive = sl.IsActive,
+                IsPos = sl.IsPos,
+                Source = "shopify",
+                ShopifyLocationId = sl.ShopifyLocationId
+            }).ToList();
+        }
+
+        // Fallback: never synced → show live Shopify rows (read-only; negative IDs signal "unsynced")
+        return (await _shopifyProductService.GetLocationsAsync())
+            .Select((location, index) => new WarehouseListRow
+            {
+                Id = -100_000 - index,
+                Name = location.Name,
+                Code = $"SHOPIFY-{location.Id}",
+                Address = location.Address,
+                City = location.City,
+                IsActive = location.Active,
+                IsPos = false,
+                Source = "shopify",
+                ShopifyLocationId = location.Id
+            })
+            .ToList();
+    }
+
+    private async Task<Warehouse> UpdateShopifyLocationAsync(int localId, Warehouse request)
+    {
+        ShopifyLocation sl = await _context.ShopifyLocations
+            .FirstOrDefaultAsync(s => s.Id == localId)
+            ?? throw new AppException("Ubicación de Shopify no encontrada.", 404);
+
+        sl.IsPos = request.IsPos;
+        sl.IsActive = request.IsActive;
+        await _context.SaveChangesAsync();
+
+        // Return a transient Warehouse to satisfy the interface return type
+        return new Warehouse
+        {
+            Id = ShopifyIdOffset + sl.Id,
+            Name = sl.Name,
+            Code = $"SHOPIFY-{sl.ShopifyLocationId}",
+            City = sl.City,
+            IsActive = sl.IsActive,
+            IsPos = sl.IsPos
+        };
     }
 
     private async Task ValidatePosLimitAsync(int? excludedId)

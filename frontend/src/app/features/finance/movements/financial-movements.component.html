@@ -1,0 +1,168 @@
+<div class="container-fluid px-3 py-3">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h5 class="mb-0 fw-bold">
+      <i class="bi {{ movementType === 'EXPENSE' ? 'bi-arrow-down-circle-fill text-danger' : 'bi-arrow-up-circle-fill text-success' }} me-2"></i>
+      {{ typeLabelPl }}
+    </h5>
+    <button class="btn btn-primary btn-sm" (click)="openCreate()">
+      <i class="bi bi-plus-lg me-1"></i>Nuevo {{ typeLabel }}
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="d-flex gap-2 mb-3 flex-wrap">
+    <select class="form-select form-select-sm" style="width:90px" [(ngModel)]="filterMonth">
+      @for (m of months; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+    </select>
+    <select class="form-select form-select-sm" style="width:90px" [(ngModel)]="filterYear">
+      @for (y of years; track y) { <option [value]="y">{{ y }}</option> }
+    </select>
+    <button class="btn btn-sm btn-outline-secondary" (click)="load(1)">
+      <i class="bi bi-search"></i> Filtrar
+    </button>
+  </div>
+
+  <!-- Table -->
+  @if (loading()) {
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  } @else if (items().length === 0) {
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+      No hay {{ typeLabelPl.toLowerCase() }} para el período seleccionado.
+    </div>
+  } @else {
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Descripción</th>
+              <th>Categoría</th>
+              <th>Método pago</th>
+              <th class="text-end">Monto</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr>
+                <td class="text-nowrap">{{ item.movement_date | slice:0:10 }}</td>
+                <td>
+                  {{ item.description }}
+                  @if (item.reference) { <span class="text-muted small ms-1">({{ item.reference }})</span> }
+                </td>
+                <td>
+                  @if (item.category_color) {
+                    <span class="badge rounded-pill" [style.background]="item.category_color">
+                      {{ item.category_name }}
+                    </span>
+                  } @else {
+                    {{ item.category_name ?? '—' }}
+                  }
+                </td>
+                <td>{{ item.payment_method ?? '—' }}</td>
+                <td class="text-end fw-semibold" [ngClass]="movementType === 'INCOME' ? 'text-success' : 'text-danger'">
+                  S/ {{ item.amount | number:'1.2-2' }}
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-secondary me-1 py-0" (click)="openEdit(item)" title="Editar">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger py-0" (click)="delete(item)" title="Eliminar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    @if (lastPage() > 1) {
+      <nav class="mt-3">
+        <ul class="pagination pagination-sm mb-0">
+          <li class="page-item" [class.disabled]="currentPage() <= 1">
+            <button class="page-link" (click)="load(currentPage() - 1)">‹</button>
+          </li>
+          @for (p of [].constructor(lastPage()); track $index) {
+            <li class="page-item" [class.active]="currentPage() === $index + 1">
+              <button class="page-link" (click)="load($index + 1)">{{ $index + 1 }}</button>
+            </li>
+          }
+          <li class="page-item" [class.disabled]="currentPage() >= lastPage()">
+            <button class="page-link" (click)="load(currentPage() + 1)">›</button>
+          </li>
+        </ul>
+      </nav>
+    }
+  }
+</div>
+
+<!-- Modal -->
+@if (showModal()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold mb-0">{{ editItem() ? 'Editar' : 'Nuevo' }} {{ typeLabel }}</h6>
+          <button class="btn-close" (click)="closeModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-semibold">Descripción *</label>
+            <input type="text" class="form-control form-control-sm" [(ngModel)]="form.description" placeholder="Ej. Pago de alquiler" />
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Categoría *</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.category_id">
+                <option [value]="0">Seleccionar...</option>
+                @for (c of categories(); track c.id) {
+                  <option [value]="c.id">{{ c.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Monto (S/) *</label>
+              <input type="number" class="form-control form-control-sm" [(ngModel)]="form.amount" min="0.01" step="0.01" />
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Fecha *</label>
+              <input type="date" class="form-control form-control-sm" [(ngModel)]="form.movement_date" />
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Método de pago</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.payment_method">
+                <option value="">—</option>
+                <option>Efectivo</option><option>Yape</option><option>Plin</option>
+                <option>Transferencia</option><option>Tarjeta</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-semibold">Referencia</label>
+            <input type="text" class="form-control form-control-sm" [(ngModel)]="form.reference" placeholder="N° factura, recibo, etc." />
+          </div>
+          <div class="mb-1">
+            <label class="form-label form-label-sm fw-semibold">Notas</label>
+            <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="form.notes"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button class="btn btn-sm btn-secondary" (click)="closeModal()">Cancelar</button>
+          <button class="btn btn-sm btn-primary" (click)="save()" [disabled]="saving()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

@@ -1,5 +1,6 @@
 using AdminHiitop.Api.Application.Interfaces.ElectronicBilling;
 using AdminHiitop.Api.Application.Interfaces.Services;
+using AdminHiitop.Api.Application.Services.Finance;
 using AdminHiitop.Api.Application.Services.Shopify;
 using AdminHiitop.Api.Application.Services.Auth;
 using AdminHiitop.Api.Application.Services.Catalogs;
@@ -80,6 +81,12 @@ public static class DependencyInjection
         services.AddScoped<IUnitMeasureService, UnitMeasureService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IWarehouseTypeService, WarehouseTypeService>();
+
+        // Finance module
+        services.AddScoped<IFinancialCategoryService, FinancialCategoryService>();
+        services.AddScoped<IFinancialMovementService, FinancialMovementService>();
+        services.AddScoped<IFixedFinancialMovementService, FixedFinancialMovementService>();
+        services.AddScoped<IFinancialDashboardService, FinancialDashboardService>();
 
         return services;
     }

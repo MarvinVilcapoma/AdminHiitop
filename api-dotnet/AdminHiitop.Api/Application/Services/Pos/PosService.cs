@@ -1,12 +1,16 @@
 using AdminHiitop.Api.Application.DTOs.Pos;
 using AdminHiitop.Api.Application.DTOs.Orders;
 using AdminHiitop.Api.Application.Interfaces.Services;
+using AdminHiitop.Api.Application.Options;
 using AdminHiitop.Api.Domain.Catalog.Entities;
 using AdminHiitop.Api.Domain.Sales.Entities;
+using AdminHiitop.Api.Domain.Shopify.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
+using AdminHiitop.Api.Infrastructure.Shopify;
 using AdminHiitop.Api.Shared.Exceptions;
 using AdminHiitop.Api.Shared.Helpers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AdminHiitop.Api.Application.Services.Pos;
 
@@ -14,6 +18,8 @@ public sealed class PosService : IPosService
 {
     private readonly AdminHiitopDbContext _context;
     private readonly IOrderService _orderService;
+    private readonly PosOptions _posOptions;
+    private readonly ShopifyOptions _shopifyOptions;
 
     // DocumentType.Code (display) → SUNAT numeric code used in InvoiceSeries.DocType
     private static readonly Dictionary<string, string> SunatCodeMap = new(StringComparer.OrdinalIgnoreCase)
@@ -26,17 +32,25 @@ public sealed class PosService : IPosService
         ["GUIA_REMISION_TRANSP"] = "31",
     };
 
-    public PosService(AdminHiitopDbContext context, IOrderService orderService)
+    public PosService(
+        AdminHiitopDbContext context,
+        IOrderService orderService,
+        IOptions<PosOptions> posOptions,
+        IOptions<ShopifyOptions> shopifyOptions)
     {
         _context = context;
         _orderService = orderService;
+        _posOptions = posOptions.Value;
+        _shopifyOptions = shopifyOptions.Value;
     }
 
     public async Task<PosInitialDataResponse> GetInitialDataAsync()
     {
+        // Only return warehouses that are configured as POS points.
+        // MaxPosWarehouses=1 (default) means exactly one warehouse will appear.
         List<Warehouse> warehouses = await _context.Warehouses
             .AsNoTracking()
-            .Where(item => item.IsActive)
+            .Where(item => item.IsActive && item.IsPos)
             .OrderBy(item => item.Name)
             .ToListAsync();
 
@@ -86,6 +100,12 @@ public sealed class PosService : IPosService
                     Group = item.Group
                 });
 
+        List<ShopifyLocation> shopifyPosLocations = await _context.ShopifyLocations
+            .AsNoTracking()
+            .Where(sl => sl.IsPos && sl.IsActive)
+            .OrderBy(sl => sl.Name)
+            .ToListAsync();
+
         return new PosInitialDataResponse
         {
             Warehouses = warehouses.Select(item => new PosWarehouseResponse
@@ -130,7 +150,15 @@ public sealed class PosService : IPosService
                 HexCode = item.HexCode,
                 Slug = item.Slug
             }).ToList(),
-            Settings = settings
+            Settings = settings,
+            DefaultShopifyLocationId = _shopifyOptions.DefaultLocationId,
+            MaxPosWarehouses = _posOptions.MaxPosWarehouses,
+            ShopifyPosLocations = shopifyPosLocations.Select(sl => new PosShopifyLocationResponse
+            {
+                Id = sl.ShopifyLocationId,
+                Name = sl.Name,
+                IsActive = sl.IsActive
+            }).ToList(),
         };
     }
 

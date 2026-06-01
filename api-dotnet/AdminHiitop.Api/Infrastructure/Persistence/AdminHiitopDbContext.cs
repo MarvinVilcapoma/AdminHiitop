@@ -1,5 +1,6 @@
 using AdminHiitop.Api.Domain.Catalog.Entities;
 using AdminHiitop.Api.Domain.Common;
+using AdminHiitop.Api.Domain.Finance.Entities;
 using AdminHiitop.Api.Domain.Identity.Entities;
 using AdminHiitop.Api.Domain.Inventory.Entities;
 using AdminHiitop.Api.Domain.Sales.Entities;
@@ -54,8 +55,14 @@ public sealed class AdminHiitopDbContext : DbContext
     public DbSet<ModelHasRole> ModelHasRoles => Set<ModelHasRole>();
     public DbSet<ProductColor> ProductColors => Set<ProductColor>();
     public DbSet<DocumentTypePrintFormat> DocumentTypePrintFormats => Set<DocumentTypePrintFormat>();
-    public DbSet<ShopifyTransfer>        ShopifyTransfers        => Set<ShopifyTransfer>();
-    public DbSet<ShopifyStoreConnection> ShopifyStoreConnections => Set<ShopifyStoreConnection>();
+    public DbSet<ShopifyTransfer>           ShopifyTransfers           => Set<ShopifyTransfer>();
+    public DbSet<ShopifyStoreConnection>    ShopifyStoreConnections    => Set<ShopifyStoreConnection>();
+    public DbSet<ShopifyLocation>           ShopifyLocations           => Set<ShopifyLocation>();
+
+    // Finance module
+    public DbSet<FinancialCategory>         FinancialCategories        => Set<FinancialCategory>();
+    public DbSet<FinancialMovement>         FinancialMovements         => Set<FinancialMovement>();
+    public DbSet<FixedFinancialMovement>    FixedFinancialMovements    => Set<FixedFinancialMovement>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -86,6 +93,33 @@ public sealed class AdminHiitopDbContext : DbContext
         modelBuilder.Entity<ShopifyStoreConnection>().HasKey(t => t.Id);
         modelBuilder.Entity<ShopifyStoreConnection>().Property(t => t.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<ShopifyStoreConnection>().HasIndex(t => t.ShopDomain).IsUnique();
+
+        modelBuilder.Entity<ShopifyLocation>().ToTable("shopify_locations");
+        modelBuilder.Entity<ShopifyLocation>().HasKey(t => t.Id);
+        modelBuilder.Entity<ShopifyLocation>().Property(t => t.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<ShopifyLocation>().HasIndex(t => t.ShopifyLocationId).IsUnique();
+
+        // Finance entities
+        modelBuilder.Entity<FinancialCategory>().ToTable("financial_categories");
+        modelBuilder.Entity<FinancialMovement>().ToTable("financial_movements");
+        modelBuilder.Entity<FixedFinancialMovement>().ToTable("fixed_financial_movements");
+
+        modelBuilder.Entity<FinancialMovement>()
+            .HasOne(m => m.Category)
+            .WithMany()
+            .HasForeignKey(m => m.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FixedFinancialMovement>()
+            .HasOne(m => m.Category)
+            .WithMany()
+            .HasForeignKey(m => m.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<FinancialMovement>().Property(m => m.Amount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FixedFinancialMovement>().Property(m => m.Amount).HasColumnType("decimal(12,2)");
+
+        modelBuilder.Entity<FinancialCategory>().HasIndex(c => c.Code).IsUnique();
 
         modelBuilder.Entity<Setting>().HasKey(item => item.Key);
         modelBuilder.Entity<Setting>().Property(item => item.Key).HasMaxLength(200);
@@ -230,7 +264,10 @@ public sealed class AdminHiitopDbContext : DbContext
             || clrType == typeof(Promotion)
             || clrType == typeof(PromotionItem)
             || clrType == typeof(Invoice)
-            || clrType == typeof(DailySummary);
+            || clrType == typeof(DailySummary)
+            || clrType == typeof(FinancialCategory)
+            || clrType == typeof(FinancialMovement)
+            || clrType == typeof(FixedFinancialMovement);
     }
 
     private static void ConfigureIdentitySchema(ModelBuilder modelBuilder)

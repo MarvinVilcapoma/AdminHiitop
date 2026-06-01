@@ -1,0 +1,102 @@
+<div class="container-fluid px-3 py-3">
+
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h5 class="mb-0 fw-bold"><i class="bi bi-tags me-2"></i>Categorías financieras</h5>
+    <button class="btn btn-primary btn-sm" (click)="openCreate()"><i class="bi bi-plus-lg me-1"></i>Nueva</button>
+  </div>
+
+  <!-- Type filter -->
+  <div class="btn-group btn-group-sm mb-3">
+    <button class="btn" [ngClass]="filterType() === '' ? 'btn-dark' : 'btn-outline-secondary'" (click)="filterType.set('')">Todas</button>
+    <button class="btn" [ngClass]="filterType() === 'EXPENSE' ? 'btn-danger' : 'btn-outline-danger'" (click)="filterType.set('EXPENSE')">Gastos</button>
+    <button class="btn" [ngClass]="filterType() === 'INCOME' ? 'btn-success' : 'btn-outline-success'" (click)="filterType.set('INCOME')">Ingresos</button>
+  </div>
+
+  @if (loading()) {
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  } @else if (filtered.length === 0) {
+    <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Sin categorías.</div>
+  } @else {
+    <div class="row g-2">
+      @for (item of filtered; track item.id) {
+        <div class="col-12 col-sm-6 col-lg-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3 py-2">
+              <span class="rounded-circle d-flex align-items-center justify-content-center"
+                    [style.background]="item.color ?? '#6b7280'" style="width:36px;height:36px;min-width:36px">
+                <i class="bi {{ item.icon ?? 'bi-tag' }} text-white"></i>
+              </span>
+              <div class="flex-grow-1 min-w-0">
+                <div class="fw-semibold text-truncate">{{ item.name }}</div>
+                <div class="small text-muted">{{ item.code }} · {{ item.type === 'EXPENSE' ? 'Gasto' : 'Ingreso' }}</div>
+              </div>
+              <div class="d-flex gap-1">
+                <span class="badge" [ngClass]="item.is_active ? 'bg-success' : 'bg-secondary'">
+                  {{ item.is_active ? 'Activa' : 'Inactiva' }}
+                </span>
+                <button class="btn btn-sm btn-outline-secondary py-0 px-1" (click)="openEdit(item)"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" (click)="delete(item)"><i class="bi bi-trash"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-bold mb-0">{{ editItem() ? 'Editar' : 'Nueva' }} categoría</h6>
+          <button class="btn-close" (click)="closeModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Nombre *</label>
+              <input type="text" class="form-control form-control-sm" [(ngModel)]="form.name" />
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Código *</label>
+              <input type="text" class="form-control form-control-sm" [(ngModel)]="form.code" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Tipo *</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.type">
+                <option value="EXPENSE">Gasto</option>
+                <option value="INCOME">Ingreso</option>
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label form-label-sm fw-semibold">Color</label>
+              <input type="color" class="form-control form-control-sm form-control-color" [(ngModel)]="form.color" />
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">Ícono (Bootstrap Icons)</label>
+            <input type="text" class="form-control form-control-sm" [(ngModel)]="form.icon" placeholder="Ej. bi-house" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">Descripción</label>
+            <input type="text" class="form-control form-control-sm" [(ngModel)]="form.description" />
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="form.is_active" id="catActive" />
+            <label class="form-check-label form-label-sm" for="catActive">Activa</label>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button class="btn btn-sm btn-secondary" (click)="closeModal()">Cancelar</button>
+          <button class="btn btn-sm btn-primary" (click)="save()" [disabled]="saving()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> } Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
