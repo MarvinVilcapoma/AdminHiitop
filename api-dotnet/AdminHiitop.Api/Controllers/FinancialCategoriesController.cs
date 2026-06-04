@@ -1,11 +1,9 @@
 using AdminHiitop.Api.Application.DTOs.Finance;
 using AdminHiitop.Api.Application.Interfaces.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AdminHiitop.Api.Controllers;
 
-[Authorize]
 [Route("api/financial-categories")]
 public sealed class FinancialCategoriesController : BaseApiController
 {

@@ -50,11 +50,13 @@ public sealed class FinancialMovementService : IFinancialMovementService
 
         int total = await query.CountAsync();
 
-        List<FinancialMovementResponse> items = await query
+        // Materialize first — EF Core cannot translate C# method calls inside Select() to SQL.
+        List<FinancialMovement> raw = await query
             .Skip((page - 1) * perPage)
             .Take(perPage)
-            .Select(m => MapToResponse(m))
             .ToListAsync();
+
+        List<FinancialMovementResponse> items = raw.Select(MapToResponse).ToList();
 
         return new PagedResponse<FinancialMovementResponse>
         {

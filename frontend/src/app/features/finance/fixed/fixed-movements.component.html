@@ -2,20 +2,36 @@
 
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-    <h5 class="mb-0 fw-bold">
-      <i class="bi bi-arrow-repeat me-2 {{ movementType === 'EXPENSE' ? 'text-danger' : 'text-success' }}"></i>
-      {{ typeLabelPl }}
-    </h5>
-    <button class="btn btn-primary btn-sm" (click)="openCreate()">
-      <i class="bi bi-plus-lg me-1"></i>Nuevo
-    </button>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <a routerLink="/dashboard/finance/dashboard" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Volver
+      </a>
+      <h5 class="mb-0 fw-bold">
+        <i class="bi bi-arrow-repeat me-2"
+           [class.text-danger]="movementType === 'EXPENSE'"
+           [class.text-success]="movementType === 'INCOME'"></i>
+        {{ typeLabelPl }}
+      </h5>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a routerLink="/dashboard/finance/categories" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-tags me-1"></i>Ver categorias
+      </a>
+      <button class="btn btn-outline-primary btn-sm" (click)="openCreateCategory()">
+        <i class="bi bi-tag me-1"></i>Nueva categoria
+      </button>
+      <button class="btn btn-primary btn-sm" (click)="openCreate()">
+        <i class="bi bi-plus-lg me-1"></i>Nuevo {{ typeLabel }}
+      </button>
+    </div>
   </div>
 
   <!-- Generate month panel -->
-  <div class="card border-0 shadow-sm mb-3 bg-light">
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #22c55e !important">
     <div class="card-body py-2 d-flex align-items-center gap-2 flex-wrap">
+      <i class="bi bi-lightning-fill text-success"></i>
       <span class="fw-semibold small">Generar movimientos del mes:</span>
-      <select class="form-select form-select-sm" style="width:80px" [(ngModel)]="genMonth">
+      <select class="form-select form-select-sm" style="width:75px" [(ngModel)]="genMonth">
         @for (m of months; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
       </select>
       <select class="form-select form-select-sm" style="width:90px" [(ngModel)]="genYear">
@@ -23,8 +39,11 @@
       </select>
       <button class="btn btn-sm btn-success" (click)="generateMonth()" [disabled]="generating()">
         @if (generating()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-        <i class="bi bi-lightning-fill me-1"></i>Generar
+        Generar
       </button>
+      <small class="text-muted ms-2">
+        Crea los movimientos automáticos de este período para todos los registros activos.
+      </small>
     </div>
   </div>
 
@@ -32,125 +51,316 @@
     <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
   } @else if (items().length === 0) {
     <div class="text-center text-muted py-5">
-      <i class="bi bi-inbox fs-2 d-block mb-2"></i>No hay {{ typeLabelPl.toLowerCase() }} configurados.
+      <i class="bi bi-calendar-x fs-1 d-block mb-2 opacity-25"></i>
+      No hay {{ typeLabelPl.toLowerCase() }} configurados.
+      <div class="mt-2">
+        <button class="btn btn-outline-primary btn-sm" (click)="openCreate()">
+          <i class="bi bi-plus-lg me-1"></i>Agregar primero
+        </button>
+      </div>
     </div>
   } @else {
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr><th>Descripción</th><th>Categoría</th><th>Frecuencia</th><th>Día</th><th class="text-end">Monto</th><th>Estado</th><th></th></tr>
-          </thead>
-          <tbody>
-            @for (item of items(); track item.id) {
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
               <tr>
-                <td>{{ item.description }}</td>
-                <td>
-                  @if (item.category_color) {
-                    <span class="badge rounded-pill" [style.background]="item.category_color">{{ item.category_name }}</span>
-                  } @else { {{ item.category_name ?? '—' }} }
-                </td>
-                <td>{{ item.frequency }}</td>
-                <td>{{ item.day_of_month ?? '—' }}</td>
-                <td class="text-end fw-semibold" [ngClass]="movementType === 'INCOME' ? 'text-success' : 'text-danger'">
-                  S/ {{ item.amount | number:'1.2-2' }}
-                </td>
-                <td>
-                  <span class="badge" [ngClass]="item.is_active ? 'bg-success' : 'bg-secondary'">
-                    {{ item.is_active ? 'Activo' : 'Inactivo' }}
-                  </span>
-                </td>
-                <td class="text-end">
-                  <button class="btn btn-sm btn-outline-secondary me-1 py-0" (click)="openEdit(item)"><i class="bi bi-pencil"></i></button>
-                  <button class="btn btn-sm btn-outline-danger py-0" (click)="delete(item)"><i class="bi bi-trash"></i></button>
-                </td>
+                <th>Descripción</th>
+                <th>Categoría</th>
+                <th>Recurrencia</th>
+                <th class="text-end">Monto</th>
+                <th>Próxima</th>
+                <th>Método</th>
+                <th>Estado</th>
+                <th class="col-actions"></th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (item of items(); track item.id) {
+                <tr [class.table-secondary]="!item.is_active" [class.opacity-50]="!item.is_active">
+                  <td>
+                    <div class="fw-semibold">{{ item.description }}</div>
+                    @if (item.notes) {
+                      <div class="text-muted" style="font-size:0.75rem">{{ item.notes }}</div>
+                    }
+                  </td>
+                  <td>
+                    @if (item.category_color) {
+                      <span class="badge rounded-pill" [style.background]="item.category_color">{{ item.category_name }}</span>
+                    } @else { {{ item.category_name ?? '—' }} }
+                  </td>
+                  <td class="small">
+                    <div>{{ recurrenceSummary(item) }}</div>
+                  </td>
+                  <td class="text-end fw-semibold text-nowrap"
+                      [class.text-danger]="movementType === 'EXPENSE'"
+                      [class.text-success]="movementType === 'INCOME'">
+                    S/ {{ item.amount | number:'1.2-2' }}
+                  </td>
+                  <td class="small text-muted text-nowrap">{{ nextOccurrence(item) }}</td>
+                  <td class="small">{{ item.payment_method || '—' }}</td>
+                  <td>
+                    <span class="badge" [class.bg-success]="item.is_active" [class.bg-secondary]="!item.is_active">
+                      {{ item.is_active ? 'Activo' : 'Pausado' }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="d-flex gap-1 justify-content-end">
+                      <button class="btn btn-xs btn-outline-primary" title="Editar" (click)="openEdit(item)">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="confirmDelete(item)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   }
 </div>
 
-<!-- Modal -->
+<!-- Create / Edit modal -->
 @if (showModal()) {
-  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
-    <div class="modal-dialog modal-dialog-centered">
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
-        <div class="modal-header py-2">
-          <h6 class="modal-title fw-bold mb-0">{{ editItem() ? 'Editar' : 'Nuevo' }} {{ typeLabel }}</h6>
-          <button class="btn-close" (click)="closeModal()"></button>
+        <div class="modal-header"
+             [class.bg-danger]="movementType === 'EXPENSE'"
+             [class.bg-success]="movementType === 'INCOME'"
+             class="text-white">
+          <h5 class="modal-title fs-6">
+            <i class="bi bi-arrow-repeat me-2"></i>
+            {{ editItem() ? 'Editar' : 'Nuevo' }} {{ typeLabel }}
+          </h5>
+          <button class="btn-close btn-close-white" (click)="closeModal()"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-2">
-            <label class="form-label form-label-sm fw-semibold">Descripción *</label>
-            <input type="text" class="form-control form-control-sm" [(ngModel)]="form.description" />
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Categoría *</label>
-              <select class="form-select form-select-sm" [(ngModel)]="form.category_id">
-                <option [value]="0">Seleccionar...</option>
-                @for (c of categories(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+          <div class="row g-3">
+
+            <!-- Description -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">Descripción <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" [(ngModel)]="form.description"
+                placeholder="Ej: Alquiler de local, Suscripción software..." maxlength="500" />
+            </div>
+
+            <!-- Category + Amount -->
+            <div class="col-md-7">
+              <label class="form-label fw-semibold">Categoría <span class="text-danger">*</span></label>
+              <select class="form-select" [(ngModel)]="form.category_id">
+                <option [ngValue]="0">— Seleccionar —</option>
+                @for (c of categories(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
               </select>
             </div>
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Monto (S/) *</label>
-              <input type="number" class="form-control form-control-sm" [(ngModel)]="form.amount" min="0.01" step="0.01" />
+            <div class="col-md-5">
+              <label class="form-label fw-semibold">Monto (S/) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" [(ngModel)]="form.amount"
+                min="0.01" step="0.01" placeholder="0.00" />
             </div>
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Frecuencia</label>
-              <select class="form-select form-select-sm" [(ngModel)]="form.frequency">
-                <option value="MONTHLY">Mensual</option>
-                <option value="WEEKLY">Semanal</option>
-                <option value="YEARLY">Anual</option>
+            <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+              <small class="text-muted">Si la categoria no existe, puedes crearla al instante.</small>
+              <button type="button" class="btn btn-outline-primary btn-sm" (click)="openCreateCategory()">
+                <i class="bi bi-plus-circle me-1"></i>Nueva categoria
+              </button>
+            </div>
+
+            <!-- Recurrence section -->
+            <div class="col-12">
+              <div class="p-3 rounded bg-light">
+                <div class="fw-semibold small text-muted mb-2">
+                  <i class="bi bi-calendar-week me-1"></i>CONFIGURACIÓN DE RECURRENCIA
+                </div>
+                <div class="row g-3">
+
+                  <!-- Frequency -->
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold">Frecuencia</label>
+                    <select class="form-select" [(ngModel)]="form.frequency">
+                      <option value="MONTHLY">Mensual</option>
+                      <option value="WEEKLY">Semanal</option>
+                      <option value="YEARLY">Anual</option>
+                    </select>
+                  </div>
+
+                  <!-- Day of month (MONTHLY) -->
+                  @if (form.frequency === 'MONTHLY') {
+                    <div class="col-md-4">
+                      <label class="form-label fw-semibold">Día del mes</label>
+                      <select class="form-select" [(ngModel)]="form.day_of_month">
+                        @for (d of daysOfMonth; track d) { <option [ngValue]="d">Día {{ d }}</option> }
+                      </select>
+                      <div class="form-text">Se generará el día {{ form.day_of_month }} de cada mes.</div>
+                    </div>
+                  }
+
+                  <!-- Day of week (WEEKLY) -->
+                  @if (form.frequency === 'WEEKLY') {
+                    <div class="col-md-4">
+                      <label class="form-label fw-semibold">Día de la semana</label>
+                      <select class="form-select" [(ngModel)]="form.day_of_month">
+                        @for (d of daysOfWeek; track d.value) { <option [ngValue]="d.value">{{ d.label }}</option> }
+                      </select>
+                      <div class="form-text">Se generará cada {{ selectedDowLabel() }}.</div>
+                    </div>
+                  }
+
+                  <!-- Month display (YEARLY) -->
+                  @if (form.frequency === 'YEARLY') {
+                    <div class="col-md-4">
+                      <label class="form-label fw-semibold">Día del mes</label>
+                      <select class="form-select" [(ngModel)]="form.day_of_month">
+                        @for (d of daysOfMonth; track d) { <option [ngValue]="d">Día {{ d }}</option> }
+                      </select>
+                      <div class="form-text">
+                        Se generará el {{ form.day_of_month }} de {{ startDateMonthName() }} cada año.
+                      </div>
+                    </div>
+                  }
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Start / End dates -->
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Fecha de inicio <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" [(ngModel)]="form.start_date" />
+              <div class="form-text">Primera vez que se puede generar.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Fecha de fin</label>
+              <input type="date" class="form-control" [(ngModel)]="form.end_date" />
+              <div class="form-text">Deja vacío si es indefinido.</div>
+            </div>
+
+            <!-- Payment method -->
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Método de pago</label>
+              <select class="form-select" [(ngModel)]="form.payment_method">
+                <option value="">— Opcional —</option>
+                <option>EFECTIVO</option><option>TRANSFERENCIA</option>
+                <option>TARJETA</option><option>YAPE</option><option>PLIN</option>
               </select>
             </div>
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Día del mes</label>
-              <input type="number" class="form-control form-control-sm" [(ngModel)]="form.day_of_month" min="1" max="31" />
+
+            <!-- Notes -->
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Notas</label>
+              <textarea class="form-control" rows="1" [(ngModel)]="form.notes"
+                placeholder="Observaciones opcionales..."></textarea>
             </div>
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Fecha inicio *</label>
-              <input type="date" class="form-control form-control-sm" [(ngModel)]="form.start_date" />
+
+            <!-- Toggles -->
+            <div class="col-12 d-flex gap-4">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" [(ngModel)]="form.auto_generate" id="autoGen" />
+                <label class="form-check-label" for="autoGen">
+                  Generar automáticamente al ejecutar el mes
+                </label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" [(ngModel)]="form.is_active" id="isActive" />
+                <label class="form-check-label" for="isActive">Activo</label>
+              </div>
             </div>
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Fecha fin (opcional)</label>
-              <input type="date" class="form-control form-control-sm" [(ngModel)]="form.end_date" />
-            </div>
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col">
-              <label class="form-label form-label-sm fw-semibold">Método de pago</label>
-              <select class="form-select form-select-sm" [(ngModel)]="form.payment_method">
-                <option value="">—</option>
-                <option>Efectivo</option><option>Yape</option><option>Plin</option>
-                <option>Transferencia</option><option>Tarjeta</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" [(ngModel)]="form.auto_generate" id="autoGen" />
-            <label class="form-check-label form-label-sm" for="autoGen">Generar automáticamente</label>
-          </div>
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" [(ngModel)]="form.is_active" id="isActive" />
-            <label class="form-check-label form-label-sm" for="isActive">Activo</label>
-          </div>
-          <div class="mb-1">
-            <label class="form-label form-label-sm fw-semibold">Notas</label>
-            <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="form.notes"></textarea>
+
           </div>
         </div>
-        <div class="modal-footer py-2">
-          <button class="btn btn-sm btn-secondary" (click)="closeModal()">Cancelar</button>
-          <button class="btn btn-sm btn-primary" (click)="save()" [disabled]="saving()">
-            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> } Guardar
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="closeModal()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" (click)="save()" [disabled]="saving()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-check-lg me-1"></i>{{ editItem() ? 'Actualizar' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showCategoryModal()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fs-6">
+            <i class="bi bi-tag me-2"></i>Nueva categoria de {{ categoryTypeLabel }}
+          </h5>
+          <button class="btn-close" (click)="closeCategoryModal()" [disabled]="savingCategory()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" [(ngModel)]="categoryForm.name"
+                placeholder="Ej: Marketplace, Membresias, Proveedores..." />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Codigo</label>
+              <input type="text" class="form-control" [(ngModel)]="categoryForm.code"
+                placeholder="Opcional. Se genera automaticamente." />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Color</label>
+              <input type="color" class="form-control form-control-color" [(ngModel)]="categoryForm.color" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Icono</label>
+              <input type="text" class="form-control" [(ngModel)]="categoryForm.icon" placeholder="Ej: bi-cash-stack" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Descripcion</label>
+              <input type="text" class="form-control" [(ngModel)]="categoryForm.description"
+                placeholder="Detalle opcional" />
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" [(ngModel)]="categoryForm.is_active" id="fixedCategoryActive" />
+                <label class="form-check-label" for="fixedCategoryActive">Activa</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="closeCategoryModal()" [disabled]="savingCategory()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" (click)="saveCategory()" [disabled]="savingCategory()">
+            @if (savingCategory()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-check-lg me-1"></i>Guardar categoria
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirmation -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <i class="bi bi-exclamation-triangle-fill text-danger fs-1 d-block mb-2"></i>
+          <h6 class="fw-bold mb-1">¿Eliminar recurrencia?</h6>
+          <p class="text-muted small mb-0">
+            <strong>{{ delConfirm()!.description }}</strong><br>
+            <span class="text-muted">{{ recurrenceSummary(delConfirm()!) }}</span>
+          </p>
+          <p class="small text-muted mt-1 mb-0">
+            Los movimientos ya generados <strong>no se eliminarán</strong>.
+          </p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary btn-sm" (click)="delConfirm.set(null)"
+                  [disabled]="deleting()">Cancelar</button>
+          <button class="btn btn-danger btn-sm" (click)="executeDelete()" [disabled]="deleting()">
+            @if (deleting()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-trash me-1"></i>Eliminar
           </button>
         </div>
       </div>

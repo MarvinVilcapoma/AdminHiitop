@@ -1,8 +1,8 @@
 <div class="page-header">
   <h1>
-    <a routerLink="/dashboard/customers" class="btn btn-sm btn-outline-secondary me-2">
+    <button class="btn btn-sm btn-outline-secondary me-2" (click)="location.back()">
       <i class="bi bi-arrow-left"></i>
-    </a>
+    </button>
     {{ isEdit() ? 'Editar cliente' : 'Nuevo cliente' }}
   </h1>
 </div>

@@ -23,14 +23,16 @@ public sealed class OrdersController : BaseApiController
     [HttpGet]
     public async Task<IActionResult> Get(
         [FromQuery] string? search,
-        [FromQuery(Name = "per_page")]        int? perPage      = null,
-        [FromQuery]                           int  page         = 1,
-        [FromQuery(Name = "with_summary")]    int? withSummary  = null,
-        [FromQuery(Name = "order_status_id")] int? orderStatusId = null,
-        [FromQuery(Name = "user_id")]         int? userId        = null,
-        [FromQuery]                           string? source      = null)
+        [FromQuery(Name = "per_page")]              int? perPage              = null,
+        [FromQuery]                                 int  page                 = 1,
+        [FromQuery(Name = "with_summary")]          int? withSummary          = null,
+        [FromQuery(Name = "order_status_id")]       int? orderStatusId        = null,
+        [FromQuery(Name = "user_id")]               int? userId               = null,
+        [FromQuery]                                 string? source             = null,
+        [FromQuery(Name = "exclude_guide_orders")]  int? excludeGuideOrders   = 1)
     {
-        return Ok(await _orderService.GetAsync(search, perPage, page, withSummary == 1, orderStatusId, userId, source));
+        bool excludeGuides = excludeGuideOrders != 0; // default true
+        return Ok(await _orderService.GetAsync(search, perPage, page, withSummary == 1, orderStatusId, userId, source, excludeGuides));
     }
 
     [HttpGet("monthly-stats")]

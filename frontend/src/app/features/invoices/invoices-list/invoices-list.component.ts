@@ -7,9 +7,19 @@ import { Invoice, InvoiceStatus, Page } from '../../../core/models';
 import { ToastService } from '../../../core/services/toast.service';
 
 interface VoidForm {
+  void_method: 'auto' | 'baja' | 'credit_note';
+  motivo: string;
   note_motive: string;
   note_motive_desc: string;
   auto_send: boolean;
+}
+
+interface VoidCheck {
+  days_since: number;
+  within_seven_days: boolean;
+  can_use_baja: boolean;
+  can_use_credit_note: boolean;
+  recommendation: string;
 }
 
 @Component({
@@ -37,12 +47,64 @@ export class InvoicesListComponent implements OnInit {
   filterFrom = '';
   filterTo = '';
 
-  voidInvoice = signal<Invoice | null>(null);
-  voidForm: VoidForm = { note_motive: '01', note_motive_desc: 'Anulacion de operacion', auto_send: true };
-  voidError = signal('');
+  voidInvoice      = signal<Invoice | null>(null);
+  voidCheck        = signal<VoidCheck | null>(null);
+  voidCheckLoading = signal(false);
+  voidForm: VoidForm = { void_method: 'baja', motivo: 'Anulación de comprobante', note_motive: '01', note_motive_desc: 'Anulacion de operacion', auto_send: true };
+  voidError  = signal('');
   voidResult = signal<{ success: boolean; message: string } | null>(null);
 
   sendingId = signal<number | null>(null);
+
+  // ── WhatsApp ────────────────────────────────────────────────────────────────
+  whatsAppInvoice = signal<Invoice | null>(null);
+  whatsAppPhone = '';
+  whatsAppCountryCode = '51';
+  whatsAppLoading = signal(false);
+
+  readonly countries = [
+    // Spanish-speaking countries
+    { code: '51',   flag: '🇵🇪', name: 'Perú' },
+    { code: '54',   flag: '🇦🇷', name: 'Argentina' },
+    { code: '591',  flag: '🇧🇴', name: 'Bolivia' },
+    { code: '56',   flag: '🇨🇱', name: 'Chile' },
+    { code: '57',   flag: '🇨🇴', name: 'Colombia' },
+    { code: '506',  flag: '🇨🇷', name: 'Costa Rica' },
+    { code: '53',   flag: '🇨🇺', name: 'Cuba' },
+    { code: '1809', flag: '🇩🇴', name: 'Rep. Dominicana' },
+    { code: '593',  flag: '🇪🇨', name: 'Ecuador' },
+    { code: '503',  flag: '🇸🇻', name: 'El Salvador' },
+    { code: '502',  flag: '🇬🇹', name: 'Guatemala' },
+    { code: '504',  flag: '🇭🇳', name: 'Honduras' },
+    { code: '52',   flag: '🇲🇽', name: 'México' },
+    { code: '505',  flag: '🇳🇮', name: 'Nicaragua' },
+    { code: '507',  flag: '🇵🇦', name: 'Panamá' },
+    { code: '595',  flag: '🇵🇾', name: 'Paraguay' },
+    { code: '1787', flag: '🇵🇷', name: 'Puerto Rico' },
+    { code: '598',  flag: '🇺🇾', name: 'Uruguay' },
+    { code: '58',   flag: '🇻🇪', name: 'Venezuela' },
+    { code: '34',   flag: '🇪🇸', name: 'España' },
+    // Other common countries
+    { code: '55',   flag: '🇧🇷', name: 'Brasil' },
+    { code: '1',    flag: '🇺🇸', name: 'EE. UU.' },
+    { code: '1',    flag: '🇨🇦', name: 'Canadá' },
+    { code: '44',   flag: '🇬🇧', name: 'Reino Unido' },
+    { code: '49',   flag: '🇩🇪', name: 'Alemania' },
+    { code: '33',   flag: '🇫🇷', name: 'Francia' },
+    { code: '39',   flag: '🇮🇹', name: 'Italia' },
+    { code: '351',  flag: '🇵🇹', name: 'Portugal' },
+    { code: '81',   flag: '🇯🇵', name: 'Japón' },
+    { code: '82',   flag: '🇰🇷', name: 'Corea del Sur' },
+    { code: '86',   flag: '🇨🇳', name: 'China' },
+  ];
+
+  // ── Email via Nubefact ──────────────────────────────────────────────────────
+  emailInvoice = signal<Invoice | null>(null);
+  emailAddress = '';
+  emailSaveToCustomer = false;
+  emailLoading = signal(false);
+  emailError = signal('');
+  emailFallbackPdfUrl = signal<string | null>(null);
 
   totalPages = computed(() => Math.max(1, Math.ceil(this.total() / this.pageSize)));
   pageRange = computed(() => {
@@ -69,8 +131,30 @@ export class InvoicesListComponent implements OnInit {
     { value: '13', label: 'Ajuste en operaciones de exportacion' },
   ];
 
+  // Company info loaded once for invoice print header
+  companyInfo = signal<{ name: string; ruc: string; razonSocial: string; address: string }>({
+    name: 'HIITOP', ruc: '', razonSocial: '', address: ''
+  });
+
   ngOnInit(): void {
     this.load();
+    this.loadCompanyInfo();
+  }
+
+  private loadCompanyInfo(): void {
+    this.api.get<Record<string, { value: unknown }>>('settings').subscribe({
+      next: (s) => {
+        const str = (k: string) => (s[k]?.value as string) ?? '';
+        const env  = str('sunat_environment') === 'produccion' ? 'prod' : 'beta';
+        this.companyInfo.set({
+          name:        str('company_name')                         || 'HIITOP',
+          ruc:         str(`sunat_${env}_ruc`)                    || str('sunat_ruc'),
+          razonSocial: str(`sunat_${env}_razon_social`)           || str('sunat_razon_social'),
+          address:     str(`sunat_${env}_direccion`)              || str('sunat_direccion'),
+        });
+      },
+      error: () => { /* keep defaults */ },
+    });
   }
 
   load(): void {
@@ -208,6 +292,16 @@ export class InvoicesListComponent implements OnInit {
     });
   }
 
+  openPdf(inv: Invoice): void {
+    const directPdfUrl = this.resolvePdfUrl(inv);
+    if (directPdfUrl) {
+      window.open(directPdfUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    this.downloadPdf(inv);
+  }
+
   printInvoice(inv: Invoice): void {
     const docLabel = inv.doc_type === '01' ? 'FACTURA ELECTRÓNICA'
                    : inv.doc_type === '03' ? 'BOLETA DE VENTA'
@@ -232,7 +326,8 @@ export class InvoicesListComponent implements OnInit {
     const doRender = (itemsHtml: string) => {
       const win = window.open('', '_blank', 'width=900,height=760');
       if (!win) { this.toast.error('El navegador bloqueó la ventana de impresión.'); return; }
-      win.document.write(this.buildInvoiceHtml(docLabel, inv.full_number, issued, docTypeLabel, inv.customer_doc_number ?? '', inv.customer_name ?? '', base, igv, total, itemsHtml));
+      const seller = (inv as any).user?.name ?? '';
+      win.document.write(this.buildInvoiceHtml(docLabel, inv.full_number, issued, docTypeLabel, inv.customer_doc_number ?? '', inv.customer_name ?? '', base, igv, total, itemsHtml, seller));
       win.document.close();
       setTimeout(() => { win.focus(); win.print(); }, 400);
     };
@@ -270,6 +365,132 @@ export class InvoicesListComponent implements OnInit {
     }
   }
 
+  // ── WhatsApp methods ────────────────────────────────────────────────────────
+
+  openWhatsAppDialog(inv: Invoice): void {
+    this.whatsAppPhone = inv.customer_phone ?? '';
+    this.whatsAppCountryCode = '51';
+    this.whatsAppInvoice.set(inv);
+  }
+
+  closeWhatsAppDialog(): void {
+    this.whatsAppInvoice.set(null);
+    this.whatsAppPhone = '';
+  }
+
+  sendByWhatsApp(): void {
+    const inv = this.whatsAppInvoice();
+    if (!inv) return;
+
+    this.whatsAppLoading.set(true);
+    const params = { phone: this.whatsAppPhone.trim(), country_code: this.whatsAppCountryCode };
+    this.api.get<any>(`invoices/${inv.id}/whatsapp-link`, params).subscribe({
+      next: (res) => {
+        // Backend returns WhatsAppUrl as snake_case: "whats_app_url"
+        const url = res?.data?.whats_app_url ?? res?.data?.whatsapp_url ?? res?.data?.whatsAppUrl;
+        if (!url) {
+          this.toast.error('No se pudo generar el enlace de WhatsApp.');
+          this.whatsAppLoading.set(false);
+          return;
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+        this.toast.success('Se abrió WhatsApp con el comprobante listo para enviar.');
+        this.whatsAppLoading.set(false);
+        this.closeWhatsAppDialog();
+      },
+      error: (e) => {
+        this.toast.error(e?.error?.message ?? 'No se pudo generar el enlace de WhatsApp.');
+        this.whatsAppLoading.set(false);
+      },
+    });
+  }
+
+  // ── Email methods ────────────────────────────────────────────────────────────
+
+  openEmailDialog(inv: Invoice): void {
+    this.emailAddress = inv.customer_email ?? '';
+    this.emailSaveToCustomer = false;
+    this.emailError.set('');
+    this.emailFallbackPdfUrl.set(this.resolvePdfUrl(inv));
+    this.emailInvoice.set(inv);
+  }
+
+  closeEmailDialog(): void {
+    this.emailInvoice.set(null);
+    this.emailAddress = '';
+    this.emailError.set('');
+    this.emailFallbackPdfUrl.set(null);
+  }
+
+  sendByEmail(): void {
+    const inv = this.emailInvoice();
+    if (!inv) return;
+
+    const email = this.emailAddress.trim();
+    if (!email || !email.includes('@')) {
+      this.emailError.set('Ingresa un correo electrónico válido.');
+      return;
+    }
+
+    this.emailLoading.set(true);
+    this.emailError.set('');
+    this.emailFallbackPdfUrl.set(this.resolvePdfUrl(inv));
+    this.api.post<any>(`invoices/${inv.id}/send-email`, {
+      email,
+      save_email_to_customer: this.emailSaveToCustomer,
+    }).subscribe({
+      next: (res) => {
+        this.emailLoading.set(false);
+        if (res?.success) {
+          this.toast.success(res.message ?? 'Correo enviado correctamente.');
+          this.invoices.update(list => list.map(i => i.id === inv.id
+            ? { ...i, customer_email: email } : i));
+          this.closeEmailDialog();
+        } else {
+          const msg = res?.message ?? 'No se pudo enviar el correo.';
+          this.emailError.set(msg);
+          const fallbackPdfUrl = this.resolvePdfUrl(inv, res?.pdf_url);
+          if (fallbackPdfUrl) {
+            this.emailFallbackPdfUrl.set(fallbackPdfUrl);
+          }
+          // When Nubefact rejects resend, show PDF URL for manual sharing
+          if (res?.requires_fallback && res?.pdf_url) {
+            this.emailFallbackPdfUrl.set(res.pdf_url);
+          }
+        }
+      },
+      error: (e) => {
+        this.emailError.set(e?.error?.message ?? 'Error al enviar el correo.');
+        this.emailLoading.set(false);
+      },
+    });
+  }
+
+  canSendByWhatsApp(inv: Invoice): boolean {
+    return ['sent', 'accepted', 'accepted_with_obs'].includes(inv.status);
+  }
+
+  canSendByEmail(inv: Invoice): boolean {
+    return ['sent', 'accepted', 'accepted_with_obs'].includes(inv.status);
+  }
+
+  private resolvePdfUrl(inv: Invoice, overrideUrl?: string | null): string | null {
+    const url = overrideUrl ?? inv.pdf_url ?? null;
+    const normalized = url?.trim();
+    return normalized ? normalized : null;
+  }
+
+  buildMailtoLink(email: string, inv: Invoice, pdfUrl: string): string {
+    const subject = encodeURIComponent(`Tu comprobante ${inv.full_number ?? ''}`);
+    const body = encodeURIComponent(
+      `Hola ${inv.customer_name ?? 'cliente'},\n\n` +
+      `Te adjuntamos tu ${inv.doc_type === '01' ? 'Factura' : 'Boleta'} electrónica ${inv.full_number}.\n\n` +
+      `Puedes descargarlo aquí:\n${pdfUrl}\n\n` +
+      `Gracias por tu compra.\n— Hiitop`
+    );
+    return `mailto:${email}?subject=${subject}&body=${body}`;
+  }
+
   private escHtml(s: string): string {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -277,15 +498,10 @@ export class InvoicesListComponent implements OnInit {
   private buildInvoiceHtml(
     docLabel: string, fullNumber: string, issued: string,
     docTypeLabel: string, docNum: string, customer: string,
-    base: string, igv: string, total: string, itemsHtml: string
+    base: string, igv: string, total: string, itemsHtml: string,
+    seller: string = ''
   ): string {
-    // Company data from SUNAT settings (update with your real data in appsettings)
-    const co = {
-      name:    'HIITOP',
-      ruc:     '',      // filled from settings if available
-      address: '',
-      phone:   '',
-    };
+    const co = this.companyInfo();
 
     return `<!doctype html><html><head><meta charset="utf-8">
 <title>${fullNumber}</title>
@@ -335,9 +551,14 @@ export class InvoicesListComponent implements OnInit {
 
 <div class="hdr">
   <div class="co">
-    <div class="co-name">${co.name}</div>
-    ${co.ruc    ? `<div class="co-sub">RUC: ${co.ruc}</div>` : ''}
-    ${co.address? `<div class="co-sub">${this.escHtml(co.address)}</div>` : ''}
+    <img src="${window.location.origin}/assets/img/iso-black-.png"
+         alt="${co.name}" style="height:48px;max-width:160px;object-fit:contain;display:block;margin-bottom:4px"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <div class="co-name" style="display:none">${co.name}</div>
+    ${co.razonSocial ? `<div class="co-sub fw-600">${this.escHtml(co.razonSocial)}</div>` : ''}
+    ${co.ruc         ? `<div class="co-sub">RUC: ${co.ruc}</div>` : ''}
+    ${co.address     ? `<div class="co-sub">${this.escHtml(co.address)}</div>` : ''}
+    ${seller         ? `<div class="co-sub" style="margin-top:3px;color:#555">Vendedor: ${this.escHtml(seller)}</div>` : ''}
   </div>
   <div class="doc-box">
     <div class="doc-type">${docLabel}</div>
@@ -387,9 +608,21 @@ export class InvoicesListComponent implements OnInit {
 
   openVoid(inv: Invoice): void {
     this.voidInvoice.set(inv);
-    this.voidForm = { note_motive: '01', note_motive_desc: 'Anulacion de operacion', auto_send: true };
+    this.voidCheck.set(null);
+    this.voidCheckLoading.set(true);
+    this.voidForm = { void_method: 'baja', motivo: 'Anulación de comprobante', note_motive: '01', note_motive_desc: 'Anulacion de operacion', auto_send: true };
     this.voidError.set('');
     this.voidResult.set(null);
+
+    this.api.get<VoidCheck>(`invoices/${inv.id}/void-check`).subscribe({
+      next: (check) => {
+        this.voidCheck.set(check);
+        this.voidCheckLoading.set(false);
+        // Pre-select recommended method
+        this.voidForm.void_method = check.can_use_baja ? 'baja' : 'credit_note';
+      },
+      error: () => this.voidCheckLoading.set(false),
+    });
   }
 
   onNoteMotive(): void {
@@ -407,12 +640,36 @@ export class InvoicesListComponent implements OnInit {
     this.saving.set(true);
     this.voidError.set('');
 
-    this.api.post<any>(`invoices/${inv.id}/void`, this.voidForm).subscribe({
+    const body = {
+      void_method:     this.voidForm.void_method,
+      motivo:          this.voidForm.motivo,
+      note_motive:     this.voidForm.note_motive,
+      note_motive_desc: this.voidForm.note_motive_desc,
+      auto_send:       this.voidForm.auto_send,
+    };
+
+    this.api.post<any>(`invoices/${inv.id}/void`, body).subscribe({
       next: (res) => {
-        const ok = res?.sunat_result?.success ?? !res?.sunat_result;
-        const msg = res?.sunat_result?.description ?? (ok ? 'Nota de credito emitida correctamente.' : (res?.sunat_result?.error ?? 'Guardada como borrador.'));
-        this.voidResult.set({ success: true, message: msg });
         this.saving.set(false);
+
+        if (res?.error) {
+          this.voidError.set(res.message ?? 'No se pudo anular el comprobante.');
+          return;
+        }
+
+        const isBaja = res?.void_method === 'baja';
+        const sunat  = res?.sunat_result;
+        const ncNum  = res?.credit_note?.full_number;
+        const pdfUrl = res?.credit_note?.pdf_url;
+
+        let msg = isBaja
+          ? (res?.message ?? 'Baja comunicada correctamente.')
+          : (sunat?.description ?? (res?.success ? 'Nota de crédito emitida correctamente.' : 'Guardada como borrador.'));
+
+        if (ncNum)  msg += ` NC: ${ncNum}.`;
+        if (pdfUrl) msg += ` <a href="${pdfUrl}" target="_blank">Ver PDF</a>`;
+
+        this.voidResult.set({ success: !!res?.success, message: msg });
         this.load();
       },
       error: (e) => {

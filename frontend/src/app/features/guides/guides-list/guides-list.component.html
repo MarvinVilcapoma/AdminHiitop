@@ -11,10 +11,17 @@
 <p class="text-muted mb-3">Módulo exclusivo para emisión de guía electrónica, separado del POS.</p>
 
 @if (notice(); as n) {
-  <div class="alert" [class.alert-success]="n.type === 'success'" [class.alert-danger]="n.type === 'danger'" role="alert">
-    <i class="bi me-2" [class.bi-check-circle-fill]="n.type === 'success'" [class.bi-exclamation-triangle-fill]="n.type === 'danger'"></i>
-    {{ n.message }}
-  </div>
+  @if (n.type === 'success') {
+    <div class="alert alert-success d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-check-circle-fill"></i>{{ n.message }}
+      <button class="btn-close ms-auto" (click)="notice.set(null)"></button>
+    </div>
+  } @else {
+    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+      <i class="bi bi-x-circle-fill"></i>{{ n.message }}
+      <button class="btn-close ms-auto" (click)="notice.set(null)"></button>
+    </div>
+  }
 }
 
 <div class="filter-wrap mb-3 p-3">
@@ -34,7 +41,16 @@
     </div>
 
     <div class="col-6 col-md-2">
-      <label class="form-label small text-muted mb-1" for="guides-status">Estado guía</label>
+      <label class="form-label small text-muted mb-1">Tipo GRE</label>
+      <select class="form-select form-select-sm" [(ngModel)]="filterType" (change)="onFilterChange()">
+        <option value="">Todos los tipos</option>
+        <option value="GUIA_REMISION">GRE Remitente</option>
+        <option value="GUIA_REMISION_TRANSP">GRE Transportista</option>
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1" for="guides-status">Estado</label>
       <select id="guides-status" class="form-select form-select-sm" [(ngModel)]="filterStatus" (change)="onFilterChange()">
         <option value="">Todos</option>
         <option value="draft">Borrador</option>
@@ -83,13 +99,18 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of guides(); track row.id) {
+          @for (row of visibleGuides(); track row.id) {
             <tr>
               <td class="text-muted">{{ row.order_date | date:'dd/MM/yyyy HH:mm' }}</td>
               <td class="fw-500">{{ row.order_number ?? ('#' + row.id) }}</td>
               <td>
                 @if (row.guide_full_number) {
-                  <span class="badge bg-light text-dark border">{{ row.guide_full_number }}</span>
+                  <div class="d-flex flex-column gap-1">
+                    <span class="badge bg-light text-dark border">{{ row.guide_full_number }}</span>
+                    <span class="badge" [class]="row.guide_type === '31' ? 'text-bg-info' : 'text-bg-secondary'" style="font-size:0.7rem">
+                      {{ guideTypeLabel(row) }}
+                    </span>
+                  </div>
                 } @else {
                   <span class="text-muted">—</span>
                 }
@@ -109,7 +130,7 @@
               <td class="text-muted small">
                 @if (row.user?.name) {
                   <span class="badge bg-secondary bg-opacity-10 text-secondary">
-                    <i class="bi bi-person me-1"></i>{{ row.user?.name }}
+                    <i class="bi bi-person me-1"></i>{{ row.user!.name }}
                   </span>
                 } @else {
                   —
@@ -118,14 +139,41 @@
               <td>
                 <div class="d-flex gap-1 justify-content-end">
                   @if (canSendGuide(row)) {
-                    <button class="btn btn-xs btn-outline-success" title="Emitir / reenviar" (click)="sendGuide(row)" [disabled]="sendingId() === row.id">
-                      @if (sendingId() === row.id) {
-                        <span class="spinner-border spinner-border-sm"></span>
-                      } @else {
-                        <i class="bi bi-send"></i>
-                      }
+                    <button class="btn btn-xs btn-outline-success" title="Emitir / reenviar a SUNAT" (click)="sendGuide(row)" [disabled]="sendingId() === row.id">
+                      @if (sendingId() === row.id) { <span class="spinner-border spinner-border-sm"></span> }
+                      @else { <i class="bi bi-send"></i> }
                     </button>
                   }
+
+                  @if (canConsultGuide(row)) {
+                    <button class="btn btn-xs btn-outline-warning" title="Consultar estado en SUNAT (paso 2)" (click)="consultGuide(row)" [disabled]="consultingId() === row.id">
+                      @if (consultingId() === row.id) { <span class="spinner-border spinner-border-sm"></span> }
+                      @else { <i class="bi bi-search"></i> }
+                    </button>
+                  }
+
+                  @if (row.guide_pdf_link) {
+                    <a [href]="row.guide_pdf_link" target="_blank" class="btn btn-xs btn-outline-danger" title="Ver PDF Nubefact">
+                      <i class="bi bi-file-earmark-pdf"></i>
+                    </a>
+                    <button class="btn btn-xs btn-outline-danger" title="Descargar PDF Nubefact" (click)="downloadNubefactPdf(row)">
+                      <i class="bi bi-download"></i>
+                    </button>
+                  }
+
+                  <button class="btn btn-xs btn-outline-info"
+                    (click)="openGuideEmail(row)"
+                    [disabled]="!row.guide_pdf_link && row.guide_status !== 'accepted'"
+                    [title]="row.guide_pdf_link || row.guide_status === 'accepted' ? 'Enviar por correo' : 'PDF aún no disponible (consulta el estado en SUNAT)'">
+                    <i class="bi bi-envelope"></i>
+                  </button>
+
+                  <button class="btn btn-xs btn-outline-success"
+                    (click)="openGuideWhatsApp(row)"
+                    [disabled]="!row.guide_pdf_link && row.guide_status !== 'accepted'"
+                    [title]="row.guide_pdf_link || row.guide_status === 'accepted' ? 'Enviar por WhatsApp' : 'PDF aún no disponible (consulta el estado en SUNAT)'">
+                    <i class="bi bi-whatsapp"></i>
+                  </button>
 
                   <button class="btn btn-xs btn-outline-primary" title="Imprimir guía" (click)="printGuide(row)">
                     <i class="bi bi-printer"></i>
@@ -160,6 +208,98 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Email modal -->
+    @if (guideEmail(); as ge) {
+      <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-envelope me-2 text-info"></i>Enviar guía por correo
+              </h5>
+              <button type="button" class="btn-close" (click)="closeGuideEmail()" [disabled]="guideEmailLoading()"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                Guía <strong>{{ ge.guide_full_number }}</strong> · {{ guideTypeLabel(ge) }}
+              </p>
+
+              @if (guideEmailError()) {
+                <div class="alert py-2 small" [class]="guideEmailPdfUrl() ? 'alert-warning' : 'alert-danger'">
+                  {{ guideEmailError() }}
+                  @if (guideEmailPdfUrl()) {
+                    <div class="mt-2">
+                      <a [href]="guideEmailPdfUrl()!" target="_blank" rel="noopener noreferrer"
+                        class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Ver PDF
+                      </a>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="mb-2">
+                <label class="form-label fw-semibold small">Correo del destinatario</label>
+                <input type="email" class="form-control form-control-sm" [(ngModel)]="guideEmailAddress"
+                  placeholder="destinatario@correo.com" [disabled]="guideEmailLoading()" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline-secondary btn-sm" (click)="closeGuideEmail()" [disabled]="guideEmailLoading()">Cancelar</button>
+              <button class="btn btn-info btn-sm text-white" (click)="sendGuideEmail()"
+                [disabled]="guideEmailLoading() || !guideEmailAddress.trim()">
+                @if (guideEmailLoading()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                <i class="bi bi-send me-1"></i>Enviar correo
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- WhatsApp modal -->
+    @if (guideWhatsApp(); as gw) {
+      <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-whatsapp me-2 text-success"></i>Enviar guía por WhatsApp
+              </h5>
+              <button type="button" class="btn-close" (click)="closeGuideWhatsApp()"></button>
+            </div>
+            <div class="modal-body">
+              <p class="small text-muted mb-3">
+                Guía <strong>{{ gw.guide_full_number }}</strong> · {{ guideTypeLabel(gw) }}
+              </p>
+              <div class="mb-3">
+                <label class="form-label fw-semibold small">País</label>
+                <select class="form-select form-select-sm" [(ngModel)]="guideWhatsAppCode">
+                  @for (c of countries; track c.code) {
+                    <option [value]="c.code">{{ c.flag }} +{{ c.code }} — {{ c.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small">Número de WhatsApp</label>
+                <input type="tel" class="form-control form-control-sm" [(ngModel)]="guideWhatsAppPhone"
+                  placeholder="987 654 321" />
+                <div class="form-text">Sin código de país ni ceros iniciales.</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline-secondary btn-sm" (click)="closeGuideWhatsApp()">Cancelar</button>
+              <button class="btn btn-success btn-sm" (click)="sendGuideWhatsApp()"
+                [disabled]="guideWhatsAppLoading() || !guideWhatsAppPhone.trim()">
+                @if (guideWhatsAppLoading()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                <i class="bi bi-whatsapp me-1"></i>Generar enlace
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
 
     @if (totalPages() > 1) {
       <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">

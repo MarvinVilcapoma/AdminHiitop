@@ -19,7 +19,7 @@
       </div>
     </div>
     <div class="col text-end">
-      <small class="text-muted">{{ filtered().length }} usuarios</small>
+      <small class="text-muted">{{ filtered().length }} usuario{{ filtered().length !== 1 ? 's' : '' }}</small>
     </div>
   </div>
 </div>
@@ -43,7 +43,7 @@
             <i class="bi bi-inbox fs-2 d-block mb-2"></i>No hay usuarios
           </td></tr>
         }
-        @for (u of filtered(); track u.id) {
+        @for (u of pagedUsers(); track u.id) {
           <tr>
             <td class="fw-500">
               <i class="bi bi-person-circle me-2 text-muted"></i>{{ u.name }}
@@ -77,6 +77,32 @@
         }
       </tbody>
     </table>
+    @if (totalPages() > 1) {
+      <div class="px-3 py-2 border-top d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <small class="text-muted">Página {{ currentPage() }} de {{ totalPages() }} · {{ filtered().length }} usuarios</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" (click)="goToPage(1)">«</button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === 1">
+              <button class="page-link" (click)="goToPage(currentPage() - 1)">‹</button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="p === currentPage()">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage() === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage() + 1)">›</button>
+            </li>
+            <li class="page-item" [class.disabled]="currentPage() === totalPages()">
+              <button class="page-link" (click)="goToPage(totalPages())">»</button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
   </div>
 </app-page-state>
 

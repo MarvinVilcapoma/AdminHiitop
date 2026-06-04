@@ -22,4 +22,13 @@ public sealed class NubeFactProviderFacade : IElectronicBillingProvider
 
     public Task<NubeFactSubmitResult> SendGuideDocumentAsync(NubeFactGuideDocumentRequest request) =>
         _client.SendGuideDocumentAsync(request);
+
+    public Task<NubeFactSubmitResult> ConsultGuideAsync(NubeFactConsultGuideRequest request) =>
+        _client.ConsultGuideAsync(request);
+
+    public Task<NubeFactSubmitResult> SendDocumentByEmailAsync(NubeFactSendEmailRequest request) =>
+        _client.SendDocumentByEmailAsync(request);
+
+    public Task<NubeFactSubmitResult> SendBajaAsync(NubeFactBajaRequest request) =>
+        _client.SendBajaAsync(request);
 }

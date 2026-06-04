@@ -1,0 +1,152 @@
+<div class="page-header">
+  <h1><i class="bi bi-arrow-return-left me-2 text-primary"></i>Cambios y devoluciones</h1>
+  <a routerLink="/dashboard/returns/new" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Nueva devolución
+  </a>
+</div>
+
+@if (stockWarnings().length > 0) {
+  <div class="alert alert-warning alert-dismissible d-flex gap-2 mb-3">
+    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+    <div class="flex-grow-1">
+      <strong>Advertencia de stock:</strong> Los siguientes artículos no pudieron ser reingresados automáticamente. Ajústalos de forma manual en Inventario.
+      <ul class="mb-0 mt-1">
+        @for (w of stockWarnings(); track w) { <li>{{ w }}</li> }
+      </ul>
+    </div>
+    <button class="btn-close" (click)="stockWarnings.set([])"></button>
+  </div>
+}
+
+<div class="filters-bar mb-3">
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <div class="input-group input-group-sm" style="max-width:320px">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="search" class="form-control" placeholder="Pedido, comprobante, cliente…"
+        [(ngModel)]="search" (keyup.enter)="onSearch()" />
+      <button class="btn btn-outline-secondary" (click)="onSearch()">Buscar</button>
+    </div>
+  </div>
+</div>
+
+<app-page-state [loading]="loading()" [error]="error()" (dismissed)="error.set('')">
+  <div class="table-wrap">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Pedido</th>
+            <th>Cliente</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+            <th>Comprobante orig.</th>
+            <th>Nota de crédito</th>
+            <th class="text-end">Devuelto</th>
+            <th>Fecha</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (!returns().length) {
+            <tr>
+              <td colspan="10" class="text-center text-muted py-5">
+                <i class="bi bi-arrow-return-left fs-1 d-block mb-2 opacity-25"></i>
+                No hay devoluciones registradas.
+              </td>
+            </tr>
+          }
+          @for (ret of returns(); track ret.id) {
+            <tr>
+              <td class="small text-muted font-monospace">{{ ret.id }}</td>
+              <td class="small">{{ ret.order_number ?? '—' }}</td>
+              <td class="small">
+                {{ ret.customer_name ?? '—' }}
+                @if (ret.customer_dni) {
+                  <div class="text-muted" style="font-size:.75rem">{{ ret.customer_dni }}</div>
+                }
+              </td>
+              <td class="small">{{ ret.return_type_label }}</td>
+              <td>
+                <span class="badge {{ statusClass(ret.status) }}">{{ ret.status_label }}</span>
+              </td>
+              <td class="small font-monospace">{{ ret.original_invoice_number ?? '—' }}</td>
+              <td class="small font-monospace">
+                {{ ret.credit_note_number ?? '—' }}
+                @if (ret.credit_note_pdf_url) {
+                  <a [href]="ret.credit_note_pdf_url" target="_blank" class="ms-1 text-danger" title="PDF Nota de crédito">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                  </a>
+                }
+              </td>
+              <td class="text-end small">S/ {{ ret.total_returned_amount | number:'1.2-2' }}</td>
+              <td class="small text-muted text-nowrap">{{ ret.created_at | date:'dd/MM/yy HH:mm' }}</td>
+              <td>
+                <div class="d-flex gap-1 justify-content-end">
+                  @if (canIssueCreditNote(ret)) {
+                    <button class="btn btn-xs btn-outline-warning" title="Emitir nota de crédito"
+                      [disabled]="saving()" (click)="issueCreditNote(ret)">
+                      <i class="bi bi-receipt"></i>
+                    </button>
+                  }
+                  @if (canCancel(ret)) {
+                    <button class="btn btn-xs btn-outline-danger" title="Cancelar" (click)="openCancel(ret)">
+                      <i class="bi bi-x-circle"></i>
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">Página {{ currentPage }} de {{ totalPages() }} · {{ total() }} devoluciones</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" [class.disabled]="currentPage === 1">
+              <button class="page-link" (click)="goToPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
+            </li>
+            @for (p of pageRange(); track p) {
+              <li class="page-item" [class.active]="currentPage === p">
+                <button class="page-link" (click)="goToPage(p)">{{ p }}</button>
+              </li>
+            }
+            <li class="page-item" [class.disabled]="currentPage === totalPages()">
+              <button class="page-link" (click)="goToPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    }
+  </div>
+</app-page-state>
+
+<!-- Cancel modal -->
+@if (cancelTarget()) {
+  <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-x-circle me-2 text-danger"></i>Cancelar devolución #{{ cancelTarget()!.id }}</h5>
+          <button class="btn-close" (click)="cancelTarget.set(null)"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label fw-semibold small">Motivo de cancelación (opcional)</label>
+          <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="cancelReason"
+            placeholder="Describe el motivo…"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="cancelTarget.set(null)">Cerrar</button>
+          <button class="btn btn-danger btn-sm" [disabled]="saving()" (click)="confirmCancel()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            Cancelar devolución
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

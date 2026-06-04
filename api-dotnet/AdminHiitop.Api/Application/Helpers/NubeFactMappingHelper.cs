@@ -130,9 +130,75 @@ public static class NubeFactMappingHelper
         return mappedItems;
     }
 
+    /// <summary>
+    /// Builds a NubeFact request for a credit note (NC) that references the original invoice.
+    /// Uses a single summary line item built from the credit note totals.
+    /// </summary>
+    public static NubeFactDocumentRequest MapCreditNote(Invoice creditNote)
+    {
+        decimal totalConIgv = creditNote.MtoImpVenta;
+        decimal baseAmount  = Math.Round(totalConIgv / 1.18m, 2);
+        decimal igvAmount   = Math.Round(totalConIgv - baseAmount, 2);
+
+        string description = string.IsNullOrWhiteSpace(creditNote.NoteMotiveDesc)
+            ? "Devolución de mercadería"
+            : creditNote.NoteMotiveDesc;
+
+        string customerDocNumber = string.IsNullOrWhiteSpace(creditNote.CustomerDocNumber)
+            ? "00000000"
+            : creditNote.CustomerDocNumber;
+
+        return new NubeFactDocumentRequest
+        {
+            Operacion                     = "generar_comprobante",
+            TipoDeComprobante             = MapInvoiceType(creditNote.DocType),
+            Serie                         = creditNote.Serie,
+            Numero                        = creditNote.Correlativo,
+            SunatTransaction              = 1,
+            ClienteTipoDeDocumento        = MapCustomerDocumentType(creditNote.CustomerDocType),
+            ClienteNumeroDeDocumento      = customerDocNumber,
+            ClienteDenominacion           = creditNote.CustomerName ?? "CLIENTE VARIOS",
+            ClienteDireccion              = string.Empty,
+            ClienteEmail                  = creditNote.CustomerEmail ?? string.Empty,
+            FechaDeEmision                = creditNote.IssuedAt.ToString("dd-MM-yyyy"),
+            Moneda                        = MapCurrency(creditNote.Currency),
+            PorcentajeDeIgv               = 18.00m,
+            TotalGravada                  = baseAmount,
+            TotalIgv                      = igvAmount,
+            Total                         = totalConIgv,
+            Detraccion                    = false,
+            Observaciones                 = creditNote.Observations ?? string.Empty,
+            DocumentoQueSeModificaTipo    = creditNote.RefDocType,
+            DocumentoQueSeModificaSerie   = ExtractReferenceSeries(creditNote.RefDocNumber),
+            DocumentoQueSeModificaNumero  = ExtractReferenceNumber(creditNote.RefDocNumber),
+            TipoDeNotaDeCredito           = creditNote.NoteMotive,
+            EnviarAutomaticamenteALaSunat = true,
+            EnviarAutomaticamenteAlCliente = !string.IsNullOrWhiteSpace(creditNote.CustomerEmail),
+            FormatoDePdf                  = "A4",
+            Items = new[]
+            {
+                new NubeFactItemRequest
+                {
+                    UnidadDeMedida = "NIU",
+                    Codigo         = "DEVOL",
+                    Descripcion    = description,
+                    Cantidad       = 1,
+                    ValorUnitario  = baseAmount,
+                    PrecioUnitario = totalConIgv,
+                    Subtotal       = baseAmount,
+                    TipoDeIgv      = 1,
+                    Igv            = igvAmount,
+                    Total          = totalConIgv
+                }
+            }
+        };
+    }
+
+    /// <summary>
+    /// Maps an Order to a NubeFact guide request.
+    /// </summary>
     /// <param name="guideDocType">
-    /// SUNAT guide type: "09" = remitente (TipoDeComprobante=31), "31" = transportista (TipoDeComprobante=32).
-    /// Defaults to remitente.
+    /// SUNAT guide type: "09" = GRE Remitente (NubeFact tipo 7), "31" = GRE Transportista (NubeFact tipo 8).
     /// </param>
     public static NubeFactGuideDocumentRequest MapGuide(Order order, string serie, int correlativo, string guideDocType = "09")
     {
@@ -151,51 +217,130 @@ public static class NubeFactMappingHelper
         if (items.Count == 0)
             items.Add(new NubeFactGuideItemRequest { Codigo = "ITEM", Descripcion = "BIENES TRASLADADOS", Cantidad = 1 });
 
-        string today = PeruClock.Now.ToString("dd-MM-yyyy");
+        DateTime todayDate  = PeruClock.Now.Date;
+        string today        = todayDate.ToString("dd-MM-yyyy");
 
-        // 09 = remitente → Nubefact tipo 31 | 31 = transportista → Nubefact tipo 32
-        int tipoComprobante = guideDocType == "31" ? 32 : 31;
+        // NubeFact requires fecha_de_inicio_de_traslado >= fecha_de_emision (today).
+        // If the stored date is in the past, use today to avoid rejection.
+        DateTime rawTransfer  = order.GuideTransferDate?.Date ?? todayDate;
+        DateTime transferDt   = rawTransfer < todayDate ? todayDate : rawTransfer;
+        string transferDate   = transferDt.ToString("dd-MM-yyyy");
+        bool isTransportista = guideDocType == "31";
 
-        return new NubeFactGuideDocumentRequest
+        // NubeFact tipo: 7 = GRE Remitente, 8 = GRE Transportista
+        int tipoComprobante = isTransportista ? 8 : 7;
+
+        // Split driver name into first/last name (NubeFact requires separate fields)
+        string? driverFull = order.GuideDriverName;
+        string? driverNombre   = null;
+        string? driverApellidos = null;
+        if (!string.IsNullOrWhiteSpace(driverFull))
         {
-            TipoDeComprobante          = tipoComprobante,
-            Serie                      = serie,
-            Numero                     = correlativo,
-            FechaDeEmision             = today,
-            FechaDeTraslado            = order.GuideTransferDate?.ToString("dd-MM-yyyy") ?? today,
-            MotivoDeTraslado           = order.GuideTransferReasonCode ?? "01",
-            ModalidadDeTraslado        = order.GuideTransferMode ?? "01",
-            PesoBrutoTotal             = order.GuideTotalWeight ?? 1m,
-            NumeroDeBultos             = order.GuidePackageCount ?? 1,
-            UnidadDePeso               = order.GuideWeightUnit ?? "KGM",
-            DestinatarioTipoDeDocumento      = MapGuideDocType(order.GuideRecipientDocType ?? order.GuideCarrierDocType),
-            DestinatarioNumeroDeDocumento    = order.GuideRecipientDocNumber ?? order.Dni ?? "00000000",
-            DestinatarioDenominacion         = order.GuideRecipientName ?? order.CustomerName ?? "SIN DESTINATARIO",
-            DestinatarioDireccion            = order.GuideDestinationAddress ?? order.Address,
-            CodigoDeUbigeoDePartida          = order.GuideOriginUbigeo,
-            DireccionDePartida               = order.GuideOriginAddress,
-            CodigoDeUbigeoDeLlegada          = order.GuideDestinationUbigeo,
-            DireccionDeLlegada               = order.GuideDestinationAddress,
-            TransportistaTipoDeDocumento     = string.IsNullOrWhiteSpace(order.GuideCarrierDocNumber) ? null : MapGuideDocType(order.GuideCarrierDocType),
-            TransportistaNumeroDeDocumento   = order.GuideCarrierDocNumber,
-            TransportistaDenominacion        = order.GuideCarrierName,
-            TransportistaPlacaNumero         = order.GuideVehiclePlate,
-            ConductorTipoDeDocumento         = string.IsNullOrWhiteSpace(order.GuideDriverDocNumber) ? null : MapGuideDocType(order.GuideDriverDocType),
-            ConductorNumeroDeDocumento       = order.GuideDriverDocNumber,
-            ConductorDenominacion            = order.GuideDriverName,
-            ConductorNumeroLicencia          = order.GuideDriverLicense,
-            Items = items,
+            int spaceIdx = driverFull.IndexOf(' ');
+            driverNombre    = spaceIdx > 0 ? driverFull[..spaceIdx] : driverFull;
+            driverApellidos = spaceIdx > 0 ? driverFull[(spaceIdx + 1)..] : "";
+        }
+
+        bool hasCarrier = !string.IsNullOrWhiteSpace(order.GuideCarrierDocNumber);
+        bool hasDriver  = !string.IsNullOrWhiteSpace(order.GuideDriverDocNumber);
+        bool publicTransport = (order.GuideTransferMode ?? "02") == "01";
+
+        var req = new NubeFactGuideDocumentRequest
+        {
+            TipoDeComprobante             = tipoComprobante,
+            Serie                         = serie,
+            Numero                        = correlativo,
+            FechaDeEmision                = today,
+            FechaDeInicioDeTraslado       = transferDate,
+            PesoBrutoTotal                = order.GuideTotalWeight ?? 1m,
+            // NubeFact only accepts KGM or TNE — normalize any legacy "KG"
+            PesoBrutoUnidadDeMedida       = NormalizeWeightUnit(order.GuideWeightUnit),
+            Observaciones                 = order.GuideTransferReasonDescription,
+            Items                         = items,
+            EnviarAutomaticamenteAlCliente = "false",
+            FormatoDePdf                  = "A4",
+            // Origin
+            PuntoDePartidaUbigeo          = order.GuideOriginUbigeo,
+            PuntoDePartidaDireccion       = order.GuideOriginAddress,
+            PuntoDePartidaCodigoEstablecimientoSunat = "0000",
+            // Destination
+            PuntoDeLlegadaUbigeo          = order.GuideDestinationUbigeo,
+            PuntoDeLlegadaDireccion       = order.GuideDestinationAddress,
+            PuntoDeLlegadaCodigoEstablecimientoSunat = "0000",
+            // Vehicle plate (always required)
+            TransportistaPlacaNumero      = order.GuideVehiclePlate,
         };
+
+        if (!isTransportista)
+        {
+            // GRE Remitente: cliente_* = destinatario (who receives goods)
+            req.ClienteTipoDeDocumento    = MapGuideDocTypeInt(order.GuideRecipientDocType ?? "1");
+            req.ClienteNumeroDeDocumento  = order.GuideRecipientDocNumber ?? order.Dni ?? "00000000";
+            req.ClienteDenominacion       = order.GuideRecipientName ?? order.CustomerName ?? "DESTINATARIO";
+            req.ClienteDireccion          = order.GuideDestinationAddress ?? order.Address;
+            req.MotivoDeTraslado          = order.GuideTransferReasonCode ?? "01";
+            req.TipoDeTransporte          = order.GuideTransferMode ?? "02";
+            req.NumeroDeBultos            = order.GuidePackageCount ?? 1;
+
+            if (publicTransport)
+            {
+                req.FechaDeEntregaAlTransportista = transferDate;
+                if (hasCarrier)
+                {
+                    req.TransportistaDocumentoTipo   = order.GuideCarrierDocType ?? "6";
+                    req.TransportistaDocumentoNumero = order.GuideCarrierDocNumber;
+                    req.TransportistaDenominacion    = order.GuideCarrierName;
+                }
+            }
+            else if (hasDriver)
+            {
+                req.ConductorDocumentoTipo   = order.GuideDriverDocType ?? "1";
+                req.ConductorDocumentoNumero = order.GuideDriverDocNumber;
+                req.ConductorNombre          = driverNombre;
+                req.ConductorApellidos       = driverApellidos;
+                req.ConductorNumeroLicencia  = order.GuideDriverLicense;
+            }
+        }
+        else
+        {
+            // GRE Transportista: cliente_* = remitente (who sends goods)
+            req.ClienteTipoDeDocumento    = MapGuideDocTypeInt(order.GuideCarrierDocType ?? "6");
+            req.ClienteNumeroDeDocumento  = order.GuideCarrierDocNumber ?? "00000000";
+            req.ClienteDenominacion       = order.GuideCarrierName ?? "REMITENTE";
+            // Destinatario (who receives)
+            if (!string.IsNullOrWhiteSpace(order.GuideRecipientDocNumber))
+            {
+                req.DestinatarioDocumentoTipo   = order.GuideRecipientDocType ?? "1";
+                req.DestinatarioDocumentoNumero = order.GuideRecipientDocNumber;
+                req.DestinatarioDenominacion    = order.GuideRecipientName ?? "DESTINATARIO";
+            }
+            if (hasDriver)
+            {
+                req.ConductorDocumentoTipo   = order.GuideDriverDocType ?? "1";
+                req.ConductorDocumentoNumero = order.GuideDriverDocNumber;
+                req.ConductorNombre          = driverNombre;
+                req.ConductorApellidos       = driverApellidos;
+                req.ConductorNumeroLicencia  = order.GuideDriverLicense;
+            }
+        }
+
+        return req;
     }
 
-    private static int MapGuideDocType(string? docType)
+    private static string NormalizeWeightUnit(string? raw)
     {
-        return docType?.ToUpperInvariant() switch
+        var u = (raw ?? "KGM").Trim().ToUpperInvariant();
+        return u == "TNE" ? "TNE" : "KGM";
+    }
+
+    private static int MapGuideDocTypeInt(string? docType)
+    {
+        return docType?.Trim() switch
         {
-            "RUC" or "6"  => 6,
-            "CE"  or "4"  => 4,
-            "PAS" or "7"  => 7,
-            _ => 1, // DNI default
+            "6" or "RUC" => 6,
+            "4" or "CE"  => 4,
+            "7" or "PAS" => 7,
+            _            => 1, // DNI default
         };
     }
 

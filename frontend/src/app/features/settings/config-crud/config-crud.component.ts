@@ -37,6 +37,7 @@ export class ConfigCrudComponent implements OnInit {
   editRow    = signal<any>(null);
   backRoute  = signal('/dashboard/settings');
   adminOnly  = signal(false);
+  noCreate   = signal(false);
   useServerPagination = signal(false);
   searchEnabled = signal(false);
   searchPlaceholder = signal('Buscar por nombre o código…');
@@ -60,6 +61,7 @@ export class ConfigCrudComponent implements OnInit {
     this.icon.set(data?.icon ?? 'bi-list');
     this.columns.set(data?.columns ?? [{ key: 'name', label: 'Nombre', type: 'text' }]);
     this.adminOnly.set(data?.adminOnly === true);
+    this.noCreate.set(data?.noCreate === true);
     this.useServerPagination.set(data?.serverPagination === true);
     this.searchEnabled.set(data?.searchEnabled === true);
     this.searchPlaceholder.set(data?.searchPlaceholder ?? 'Buscar por nombre o código…');

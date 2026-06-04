@@ -24,6 +24,8 @@ export interface PaymentEntry {
 
 /** Line item for the order form — includes UI helpers not sent to API */
 export interface OrderLine {
+  /** Set when loaded from a saved order — blocks deletion in edit mode. */
+  saved_id?:           number;
   product_id:          number | null;
   color_id:            number | null;
   size:                string;
@@ -140,6 +142,7 @@ export class OrderFormComponent implements OnInit {
     total:              [0],
     document_type_id:   [null as number | null],
     customer_email:     [''],
+    guide_type:                        ['09'],
     guide_transfer_reason_code:        [''],
     guide_transfer_reason_description: [''],
     guide_transfer_mode:               [''],
@@ -282,10 +285,11 @@ export class OrderFormComponent implements OnInit {
           customer_email:     order.customer_email ?? '',
           guide_transfer_reason_code:        order.guide_transfer_reason_code ?? '',
           guide_transfer_reason_description: order.guide_transfer_reason_description ?? '',
+          guide_type:                        order.guide_type ?? '09',
           guide_transfer_mode:               order.guide_transfer_mode ?? '',
           guide_transfer_date:               order.guide_transfer_date ?? '',
           guide_total_weight:                order.guide_total_weight ?? null,
-          guide_weight_unit:                 order.guide_weight_unit ?? '',
+          guide_weight_unit:                 this.normalizeGuideWeightUnit(order.guide_weight_unit),
           guide_package_count:               order.guide_package_count ?? null,
           guide_origin_ubigeo:               order.guide_origin_ubigeo ?? '',
           guide_origin_address:              order.guide_origin_address ?? '',
@@ -309,18 +313,30 @@ export class OrderFormComponent implements OnInit {
         this.onDocumentTypeChange();
 
         if (order.items?.length) {
-          const mapped: OrderLine[] = order.items.map((it: any) => ({
-            ...blankLine(),
-            product_id:          it.product_id ?? null,
-            color_id:            it.color_id ?? null,
-            product_description: it.product_description ?? it.product?.name ?? '',
-            size:                it.size ?? '',
-            quantity:            it.quantity ?? 1,
-            unit_price:          parseFloat(String(it.unit_price ?? 0)),
-            subtotal:            parseFloat(String(it.subtotal ?? 0)),
-            productSearch:       it.product?.name ?? it.product_description ?? '',
-            availableColors:     it.product?.colors ?? [],
-          }));
+          const mapped: OrderLine[] = order.items.map((it: any) => {
+            const key: string = it.product_key ?? '';
+            const isShopify   = key.startsWith('shopify:');
+            const keyParts    = isShopify ? key.split(':') : [];
+
+            return {
+              ...blankLine(),
+              saved_id:            it.id ?? undefined,
+              product_id:          it.product_id ?? null,
+              color_id:            it.color_id ?? null,
+              product_description: it.product_description ?? it.product?.name ?? '',
+              size:                it.size ?? '',
+              quantity:            it.quantity ?? 1,
+              unit_price:          parseFloat(String(it.unit_price ?? 0)),
+              subtotal:            parseFloat(String(it.subtotal ?? 0)),
+              productSearch:       it.product?.name ?? it.product_description ?? '',
+              availableColors:     it.product?.colors ?? [],
+              // Restore Shopify source so product_key is rebuilt correctly on save
+              source:                    (isShopify ? 'shopify' : 'mysql') as 'shopify' | 'mysql',
+              shopify_variant_id:        isShopify ? (parseInt(keyParts[1], 10) || null) : null,
+              shopify_inventory_item_id: isShopify ? (parseInt(keyParts[2], 10) || null) : null,
+              shopify_location_id:       isShopify ? (parseInt(keyParts[3], 10) || null) : null,
+            };
+          });
           this.lines.set(mapped);
         }
 
@@ -338,7 +354,9 @@ export class OrderFormComponent implements OnInit {
 
         const hasInvoice = order.invoices?.some((inv: any) => inv.status !== 'cancelled');
         const currentStatusSlug = String(order?.order_status?.slug ?? '').toLowerCase();
-        const statusLocked = ['pagado', 'cancelado', 'cancelled'].includes(currentStatusSlug);
+        // "entregado" and "devuelto" are final states — no further editing allowed
+        const finalSlugs = ['pagado', 'cancelado', 'cancelled', 'entregado', 'devuelto', 'delivered'];
+        const statusLocked = finalSlugs.includes(currentStatusSlug);
         this.isStatusLocked.set(statusLocked);
 
         if (hasInvoice) {
@@ -740,10 +758,11 @@ export class OrderFormComponent implements OnInit {
     const today = formatPeruDate();
     this.form.patchValue({
       guide_transfer_reason_code: raw.guide_transfer_reason_code || '01',
+      guide_type:                 raw.guide_type || '09',
       guide_transfer_mode:        raw.guide_transfer_mode || '02',
       guide_transfer_date:        raw.guide_transfer_date || today,
       guide_total_weight:         raw.guide_total_weight ?? 1,
-      guide_weight_unit:          raw.guide_weight_unit || 'KGM',
+      guide_weight_unit:          this.normalizeGuideWeightUnit(raw.guide_weight_unit),
       guide_package_count:        raw.guide_package_count ?? 1,
       guide_recipient_doc_type:   raw.guide_recipient_doc_type || (raw.dni ? '1' : '6'),
       guide_recipient_doc_number: raw.guide_recipient_doc_number || raw.dni || '',
@@ -754,6 +773,14 @@ export class OrderFormComponent implements OnInit {
   }
 
   // ── DNI autocomplete ──────────────────────────────────────────────────────────
+
+  private normalizeGuideWeightUnit(unit?: string | null): string {
+    const normalized = String(unit ?? '').trim().toUpperCase();
+    // NubeFact only accepts KGM or TNE — normalize any legacy "KG" values
+    if (!normalized || normalized === 'KG') return 'KGM';
+    if (normalized === 'TNE') return 'TNE';
+    return 'KGM'; // safe default
+  }
 
   onDniBlur(): void {
     const dni = this.form.get('dni')?.value?.trim();
@@ -891,6 +918,7 @@ export class OrderFormComponent implements OnInit {
       warehouse_id:        this.isShopifyMode ? null : (body.warehouse_id ?? null),
       shopify_location_id: this.isShopifyMode ? this.shopifyLocationId() : null,
       guide_transfer_date: body.guide_transfer_date || null,
+      guide_weight_unit:   this.normalizeGuideWeightUnit(body.guide_weight_unit),
       user_id:             this.auth.currentUser()?.id ?? null,
       items,
       discount_type:   discountAmt > 0 ? this.discountType() : null,

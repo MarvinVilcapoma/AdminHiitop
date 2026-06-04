@@ -1,10 +1,8 @@
 using AdminHiitop.Api.Application.Interfaces.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AdminHiitop.Api.Controllers;
 
-[Authorize]
 [Route("api/financial-dashboard")]
 public sealed class FinancialDashboardController : BaseApiController
 {

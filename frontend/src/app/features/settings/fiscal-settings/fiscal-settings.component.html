@@ -73,7 +73,7 @@
               <label class="form-label fw-500">Almacen predeterminado para POS</label>
               <select class="form-select" [(ngModel)]="cfg.pos_default_warehouse_id">
                 <option [ngValue]="null">Automatico (primera tienda activa)</option>
-                @for (w of (storeWarehouses().length ? storeWarehouses() : warehouses()); track w.id) {
+                @for (w of warehouses(); track w.id) {
                   <option [ngValue]="w.id">{{ w.name }}</option>
                 }
               </select>
@@ -156,7 +156,7 @@
                 <label class="form-label fw-500">Serie predeterminada - {{ doc.label }}</label>
                 <!-- Read-only: series is auto-assigned by doc type, not manually picked -->
                 <input class="form-control form-control-sm bg-light"
-                  [value]="seriesFor(doc.code)[0]?.serie
+                  [value]="seriesFor(doc.code).length > 0
                     ? (seriesFor(doc.code)[0].serie + '  ·  Siguiente: ' + seriesFor(doc.code)[0].next_number)
                     : 'Sin serie configurada'"
                   readonly />
@@ -172,9 +172,11 @@
                   <h6 class="mb-0">{{ doc.label }}</h6>
                   <small class="text-muted">Tipo {{ doc.code }}</small>
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" (click)="addSeries(doc.code)">
-                  <i class="bi bi-plus-lg me-1"></i>Agregar serie
-                </button>
+                @if (seriesFor(doc.code).length === 0) {
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="addSeries(doc.code)">
+                    <i class="bi bi-plus-lg me-1"></i>Inicializar
+                  </button>
+                }
               </div>
 
               <div class="table-responsive">

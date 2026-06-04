@@ -13,6 +13,7 @@ using AdminHiitop.Api.Application.Services.Districts;
 using AdminHiitop.Api.Application.Services.DocumentPrintFormats;
 using AdminHiitop.Api.Application.Services.DocumentTypes;
 using AdminHiitop.Api.Application.Services.Invoices;
+using AdminHiitop.Api.Application.Services.Returns;
 using AdminHiitop.Api.Application.Services.InvoiceSeries;
 using AdminHiitop.Api.Application.Services.OrderGuides;
 using AdminHiitop.Api.Application.Services.Orders;
@@ -49,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<IStockService, StockService>();
         services.AddScoped<IInvoiceElectronicBillingService, InvoiceElectronicBillingService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IInvoiceDeliveryService, InvoiceDeliveryService>();
+        services.AddScoped<IReturnService, ReturnService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IDistrictService, DistrictService>();
         services.AddScoped<IDocumentTypeService, DocumentTypeService>();

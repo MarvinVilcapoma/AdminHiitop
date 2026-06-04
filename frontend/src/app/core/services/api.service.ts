@@ -25,10 +25,10 @@ export class ApiService {
   private handle401<T>(source$: Observable<T>): Observable<T> {
     return source$.pipe(
       catchError(err => {
-        // Only redirect on 401 from our own API — not from embedded Shopify/Nubefact calls
+        // Only redirect on 401 from our own API - not from embedded Shopify/Nubefact calls
         // (those return 502 on the backend when their tokens fail).
         if (err?.status === 401) {
-          this.toast.error('Tu sesión ha expirado. Inicia sesión nuevamente.');
+          this.toast.error('Tu sesion ha expirado. Inicia sesion nuevamente.');
           this.router.navigate(['/login']);
         }
         return throwError(() => err);
@@ -40,7 +40,9 @@ export class ApiService {
     let httpParams = new HttpParams();
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) httpParams = httpParams.set(k, String(v));
+        if (v !== undefined && v !== null) {
+          httpParams = httpParams.set(k, String(v));
+        }
       });
     }
     return this.handle401(this.http.get<T>(`${this.base}/${path}`, { params: httpParams }));
@@ -71,8 +73,22 @@ export class ApiService {
 
   /** Download a file as a blob, triggers browser download */
   downloadFile(path: string, filename: string, onError?: (msg: string) => void): void {
-    this.http.get(`${this.base}/${path}`, { responseType: 'blob' }).subscribe({
-      next: blob => {
+    this.handle401(
+      this.http.get(`${this.base}/${path}`, { observe: 'response', responseType: 'blob' })
+    ).subscribe({
+      next: async (response) => {
+        const blob = response.body;
+        if (!blob) {
+          this.notifyDownloadError('Archivo no disponible.', onError);
+          return;
+        }
+
+        const contentType = (response.headers.get('content-type') ?? blob.type ?? '').toLowerCase();
+        if (contentType.includes('application/json') || contentType.includes('text/json')) {
+          this.notifyDownloadError(await this.readBlobMessage(blob), onError);
+          return;
+        }
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -80,13 +96,35 @@ export class ApiService {
         a.click();
         URL.revokeObjectURL(url);
       },
-      error: err => {
+      error: async (err) => {
         const msg = err?.error instanceof Blob
-          ? 'No disponible aún. Envía el comprobante a SUNAT primero.'
+          ? await this.readBlobMessage(err.error)
           : (err?.message ?? 'Error al descargar el archivo.');
-        if (onError) onError(msg);
-        else this.toast.error(msg);
+        this.notifyDownloadError(msg, onError);
       },
     });
+  }
+
+  private async readBlobMessage(blob: Blob): Promise<string> {
+    try {
+      const text = (await blob.text()).trim();
+      if (!text) {
+        return 'No disponible aun. Envia el comprobante a SUNAT primero.';
+      }
+
+      const parsed = JSON.parse(text) as { message?: string };
+      return parsed.message?.trim() || text;
+    } catch {
+      return 'No disponible aun. Envia el comprobante a SUNAT primero.';
+    }
+  }
+
+  private notifyDownloadError(message: string, onError?: (msg: string) => void): void {
+    if (onError) {
+      onError(message);
+      return;
+    }
+
+    this.toast.error(message);
   }
 }

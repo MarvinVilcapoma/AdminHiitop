@@ -1,5 +1,6 @@
 using AdminHiitop.Api.Application.DTOs.Orders;
 using AdminHiitop.Api.Application.Interfaces.Services;
+using AdminHiitop.Api.Domain.Inventory.Entities;
 using AdminHiitop.Api.Domain.Sales.Entities;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Infrastructure.Shopify;
@@ -29,7 +30,7 @@ public sealed class OrderService : IOrderService
         _shopifyOpts       = shopifyOpts.Value;
     }
 
-    public async Task<object> GetAsync(string? search, int? perPage, int page, bool withSummary, int? orderStatusId, int? userId = null, string? source = null)
+    public async Task<object> GetAsync(string? search, int? perPage, int page, bool withSummary, int? orderStatusId, int? userId = null, string? source = null, bool excludeGuideOrders = true)
     {
         if (!perPage.HasValue)
         {
@@ -61,6 +62,14 @@ public sealed class OrderService : IOrderService
                 (item.CustomerName != null && item.CustomerName.Contains(term)) ||
                 (item.Dni          != null && item.Dni.Contains(term)) ||
                 (item.Phone        != null && item.Phone.Contains(term)));
+        }
+
+        // Exclude guide-type orders so they only appear in the Guides section
+        if (excludeGuideOrders)
+        {
+            query = query.Where(item =>
+                item.DocumentType == null ||
+                (item.DocumentType.Code != "GUIA_REMISION" && item.DocumentType.Code != "GUIA_REMISION_TRANSP"));
         }
 
         if (orderStatusId.HasValue)
@@ -189,6 +198,10 @@ public sealed class OrderService : IOrderService
 
         ValidateRequest(request);
         request.UserId ??= entity.UserId;
+
+        // Restore stock for items that are being removed from the order
+        await RestoreStockForRemovedItemsAsync(entity, request);
+
         MapOrder(entity, request);
         await _context.SaveChangesAsync();
         return entity;
@@ -198,13 +211,17 @@ public sealed class OrderService : IOrderService
     {
         Order entity = await _context.Orders
              .Include(item => item.Items)
+             .Include(item => item.OrderStatus)
              .FirstOrDefaultAsync(item => item.Id == id)
              ?? throw new AppException("Pedido no encontrado.", 404);
+
+        string currentSlug = (entity.OrderStatus?.Slug ?? string.Empty).ToLower();
+        if (currentSlug == "devuelto")
+            throw new AppException("Este pedido fue devuelto y no puede cambiar de estado.", 422);
 
         entity.OrderStatusId = orderStatusId;
         await _context.SaveChangesAsync();
         return entity;
-
     }
 
     public async Task<Order> UpdateTrackingAsync(int id, OrderTrackingUpdateRequest request)
@@ -306,7 +323,11 @@ public sealed class OrderService : IOrderService
             throw new AppException("Agrega al menos un item al pedido.", 400);
         }
 
-        if (request.Items.Any(item =>
+        // Guide orders (GRE) identify products by description — product ID and Shopify key are optional.
+        bool isGuideOrder = !string.IsNullOrWhiteSpace(request.GuideTransferReasonCode)
+                         || !string.IsNullOrWhiteSpace(request.GuideOriginUbigeo);
+
+        if (!isGuideOrder && request.Items.Any(item =>
             (item.ProductId == null || item.ProductId <= 0) &&
             (string.IsNullOrWhiteSpace(item.ProductKey) ||
              !item.ProductKey.StartsWith("shopify:", StringComparison.OrdinalIgnoreCase))))
@@ -385,6 +406,45 @@ public sealed class OrderService : IOrderService
             Orders  = r.Orders,
             Revenue = r.Revenue,
         }).ToList();
+    }
+
+    /// <summary>
+    /// When an order update removes items, restore their stock so inventory is correct.
+    /// Only applies to local (non-Shopify) products.
+    /// </summary>
+    private async Task RestoreStockForRemovedItemsAsync(Order existing, OrderUpsertRequest request)
+    {
+        if (existing.WarehouseId is null) return;
+        int warehouseId = existing.WarehouseId.Value;
+
+        var newProductIds = request.Items
+            .Where(i => i.ProductId.HasValue)
+            .Select(i => i.ProductId!.Value)
+            .ToHashSet();
+
+        var removedItems = existing.Items
+            .Where(i => i.ProductId.HasValue && !newProductIds.Contains(i.ProductId!.Value))
+            .ToList();
+
+        foreach (OrderItem removed in removedItems)
+        {
+            Stock? stock = await _context.Stocks.FirstOrDefaultAsync(s =>
+                s.ProductId    == removed.ProductId!.Value
+                && s.WarehouseId == warehouseId
+                && s.ColorId    == removed.ColorId
+                && s.Size       == removed.Size);
+
+            // Relax criteria if exact variant not found
+            stock ??= await _context.Stocks.FirstOrDefaultAsync(s =>
+                s.ProductId == removed.ProductId!.Value && s.WarehouseId == warehouseId
+                && s.Size == removed.Size);
+
+            stock ??= await _context.Stocks.FirstOrDefaultAsync(s =>
+                s.ProductId == removed.ProductId!.Value && s.WarehouseId == warehouseId);
+
+            if (stock is null) continue;
+            stock.Quantity += removed.Quantity;
+        }
     }
 
     private async Task<Order> FindAsync(int id)

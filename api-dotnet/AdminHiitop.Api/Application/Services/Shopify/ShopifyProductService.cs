@@ -240,10 +240,24 @@ public sealed class ShopifyProductService : IShopifyProductService
 
     // ── Metrics ───────────────────────────────────────────────────────────────
 
+    // Peru is UTC-5 (no DST). Dates from the frontend are calendar dates in Peru time.
+    private const int PeruOffsetHours = 5;
+
     public async Task<ShopifyMetricsResponse> GetMetricsAsync(DateTime? startDate, DateTime? endDate)
     {
-        string? minDate = startDate?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-        string? maxDate = endDate?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+        // Treat incoming dates as Peru calendar dates, convert to UTC for Shopify.
+        // Midnight Peru = 05:00 UTC same day. End-of-day Peru = 04:59:59 UTC next day.
+        string? minDate = startDate.HasValue
+            ? new DateTime(startDate.Value.Year, startDate.Value.Month, startDate.Value.Day, 0, 0, 0)
+                .AddHours(PeruOffsetHours)
+                .ToString("yyyy-MM-ddTHH:mm:ssZ")
+            : null;
+
+        string? maxDate = endDate.HasValue
+            ? new DateTime(endDate.Value.Year, endDate.Value.Month, endDate.Value.Day, 23, 59, 59)
+                .AddHours(PeruOffsetHours)
+                .ToString("yyyy-MM-ddTHH:mm:ssZ")
+            : null;
 
         // Use GetAllOrdersAsync to get ALL paid orders in the period (not capped at 250)
         List<ShopifyApiOrder> allOrders = await _client.GetAllOrdersAsync(
@@ -270,8 +284,9 @@ public sealed class ShopifyProductService : IShopifyProductService
             .Take(10)
             .ToList();
 
+        // Group by Peru date (UTC - 5h) so orders from e.g. 04/06 04:30 UTC appear on 03/06 Peru.
         var dailyStats = active
-            .GroupBy(o => o.CreatedAt.Date)
+            .GroupBy(o => o.CreatedAt.AddHours(-PeruOffsetHours).Date)
             .OrderBy(g => g.Key)
             .Select(g => new ShopifyDailyStat
             {

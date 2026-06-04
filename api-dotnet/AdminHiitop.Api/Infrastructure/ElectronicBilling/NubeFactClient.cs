@@ -38,18 +38,34 @@ public sealed class NubeFactClient
     public Task<NubeFactSubmitResult> SendGuideDocumentAsync(NubeFactGuideDocumentRequest request)
         => SendAsync(request, new NubeFactDocumentRequest());
 
+    public Task<NubeFactSubmitResult> ConsultGuideAsync(NubeFactConsultGuideRequest request)
+        => SendAsync(request, new NubeFactDocumentRequest());
+
+    /// <summary>
+    /// Calls Nubefact "enviar_correo" operation to resend an existing document to a customer email.
+    /// </summary>
+    public Task<NubeFactSubmitResult> SendDocumentByEmailAsync(NubeFactSendEmailRequest request)
+        => SendAsync(request, new NubeFactDocumentRequest());
+
+    /// <summary>
+    /// Calls Nubefact "comunicar_baja" to void a document via SUNAT low-communication.
+    /// Only valid within 7 days of emission.
+    /// </summary>
+    public Task<NubeFactSubmitResult> SendBajaAsync(NubeFactBajaRequest request)
+        => SendAsync(request, new NubeFactDocumentRequest());
+
     private async Task<NubeFactSubmitResult> SendAsync(object payload, NubeFactDocumentRequest requestRef)
     {
         string apiUrl = ResolveApiUrl();
 
         if (string.IsNullOrWhiteSpace(apiUrl))
         {
-            throw new AppException("La URL de Nubefact no est� configurada.");
+            throw new AppException("La URL de Nubefact no está configurada.");
         }
 
         if (string.IsNullOrWhiteSpace(_options.ApiToken))
         {
-            throw new AppException("El token de Nubefact no est� configurado.");
+            throw new AppException("El token de Nubefact no está configurado.");
         }
 
         string requestJson = JsonSerializer.Serialize(payload, JsonOptions);
@@ -76,7 +92,7 @@ public sealed class NubeFactClient
         {
             response = new NubeFactDocumentResponse
             {
-                Errors = "La respuesta de Nubefact no tiene un JSON v�lido."
+                Errors = "La respuesta de Nubefact no tiene un JSON válido."
             };
         }
 

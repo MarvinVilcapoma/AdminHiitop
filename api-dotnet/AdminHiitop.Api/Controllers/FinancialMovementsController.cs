@@ -2,12 +2,10 @@ using AdminHiitop.Api.Application.DTOs.Finance;
 using AdminHiitop.Api.Application.Interfaces.Services;
 using AdminHiitop.Api.Infrastructure.Auth;
 using AdminHiitop.Api.Shared.Helpers;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AdminHiitop.Api.Controllers;
 
-[Authorize]
 [Route("api/financial-movements")]
 public sealed class FinancialMovementsController : BaseApiController
 {

@@ -126,6 +126,19 @@ public static class WebApplicationExtensions
             "UPDATE `invoice_series` SET `serie`='TTT1', `name`='Guias de Remision Remitente'     WHERE `serie`='T001'");
         await context.Database.ExecuteSqlRawAsync(
             "UPDATE `invoice_series` SET `serie`='VVV1', `name`='Guias de Remision Transportista' WHERE `serie`='V001'");
+
+        // ── orders: new guide columns ────────────────────────────────────────
+        if (!await ColumnExistsAsync(context, "orders", "guide_type"))
+            await context.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE `orders` ADD COLUMN `guide_type` VARCHAR(10) NULL");
+
+        if (!await ColumnExistsAsync(context, "orders", "guide_pdf_link"))
+            await context.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE `orders` ADD COLUMN `guide_pdf_link` TEXT NULL");
+
+        if (!await ColumnExistsAsync(context, "orders", "guide_consulted_at"))
+            await context.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE `orders` ADD COLUMN `guide_consulted_at` DATETIME NULL");
     }
 
     private static async Task<bool> ColumnExistsAsync(

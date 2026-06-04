@@ -29,7 +29,9 @@ public sealed class FixedFinancialMovementService : IFixedFinancialMovementServi
         if (isActive.HasValue)
             query = query.Where(m => m.IsActive == isActive.Value);
 
-        return await query.Select(m => MapToResponse(m)).ToListAsync();
+        // Materialize first — EF Core cannot translate C# method calls inside Select() to SQL.
+        List<FixedFinancialMovement> raw = await query.ToListAsync();
+        return raw.Select(MapToResponse).ToList();
     }
 
     public async Task<FixedFinancialMovementResponse?> GetByIdAsync(int id)
@@ -124,41 +126,91 @@ public sealed class FixedFinancialMovementService : IFixedFinancialMovementServi
 
         foreach (FixedFinancialMovement fixed_ in actives)
         {
-            int day = fixed_.DayOfMonth ?? 1;
-            day = Math.Min(day, DateTime.DaysInMonth(year, month));
-            DateTime movDate = new(year, month, day);
+            var dates = GetOccurrenceDates(fixed_, year, month, periodStart, periodEnd);
 
-            // Skip if already generated for this period
-            bool alreadyExists = await _context.FinancialMovements.AnyAsync(m =>
-                m.SourceType == "FIXED"
-                && m.SourceId == fixed_.Id
-                && m.MovementDate.Year == year
-                && m.MovementDate.Month == month);
-
-            if (alreadyExists) continue;
-
-            _context.FinancialMovements.Add(new FinancialMovement
+            foreach (DateTime movDate in dates)
             {
-                Type             = fixed_.Type,
-                CategoryId       = fixed_.CategoryId,
-                Description      = fixed_.Description,
-                Amount           = fixed_.Amount,
-                MovementDate     = movDate,
-                PaymentMethod    = fixed_.PaymentMethod,
-                Notes            = fixed_.Notes,
-                SourceType       = "FIXED",
-                SourceId         = fixed_.Id,
-                IsFixedGenerated = true,
-                CreatedBy        = userId,
-                UpdatedBy        = userId,
-            });
-            generated++;
+                // Skip if already generated for this exact date
+                bool alreadyExists = await _context.FinancialMovements.AnyAsync(m =>
+                    m.SourceType == "FIXED"
+                    && m.SourceId == fixed_.Id
+                    && m.MovementDate.Year  == movDate.Year
+                    && m.MovementDate.Month == movDate.Month
+                    && m.MovementDate.Day   == movDate.Day);
+
+                if (alreadyExists) continue;
+
+                _context.FinancialMovements.Add(new FinancialMovement
+                {
+                    Type             = fixed_.Type,
+                    CategoryId       = fixed_.CategoryId,
+                    Description      = fixed_.Description,
+                    Amount           = fixed_.Amount,
+                    MovementDate     = movDate,
+                    PaymentMethod    = fixed_.PaymentMethod,
+                    Notes            = fixed_.Notes,
+                    SourceType       = "FIXED",
+                    SourceId         = fixed_.Id,
+                    IsFixedGenerated = true,
+                    CreatedBy        = userId,
+                    UpdatedBy        = userId,
+                });
+                generated++;
+            }
         }
 
         if (generated > 0)
             await _context.SaveChangesAsync();
 
         return generated;
+    }
+
+    /// <summary>
+    /// Returns all dates within the given month that match the recurrence rule.
+    /// MONTHLY → one date: the specified day of month.
+    /// WEEKLY  → all dates in the month whose weekday matches DayOfMonth
+    ///           (1=Monday … 7=Sunday, ISO 8601).
+    /// YEARLY  → one date per year: StartDate's month + DayOfMonth. Only fires
+    ///           if the requested month matches.
+    /// </summary>
+    private static List<DateTime> GetOccurrenceDates(
+        FixedFinancialMovement m, int year, int month,
+        DateTime periodStart, DateTime periodEnd)
+    {
+        string freq = m.Frequency?.ToUpperInvariant() ?? "MONTHLY";
+
+        if (freq == "MONTHLY")
+        {
+            int day = Math.Min(m.DayOfMonth ?? 1, DateTime.DaysInMonth(year, month));
+            return [new DateTime(year, month, day)];
+        }
+
+        if (freq == "WEEKLY")
+        {
+            // DayOfMonth stores ISO day-of-week: 1=Monday, 7=Sunday
+            int isoDow = m.DayOfMonth ?? 1;
+            isoDow = Math.Clamp(isoDow, 1, 7);
+
+            // Convert ISO to .NET DayOfWeek (0=Sunday, 1=Monday … 6=Saturday)
+            DayOfWeek target = isoDow == 7
+                ? DayOfWeek.Sunday
+                : (DayOfWeek)isoDow;
+
+            var dates = new List<DateTime>();
+            for (var d = periodStart; d <= periodEnd; d = d.AddDays(1))
+                if (d.DayOfWeek == target) dates.Add(d);
+            return dates;
+        }
+
+        if (freq == "YEARLY")
+        {
+            // Only fires in the month that matches StartDate's month
+            if (m.StartDate.Month != month) return [];
+            int day = Math.Min(m.DayOfMonth ?? m.StartDate.Day, DateTime.DaysInMonth(year, month));
+            return [new DateTime(year, month, day)];
+        }
+
+        return [];
     }
 
     private async Task EnsureCategoryExistsAsync(int categoryId, string type)

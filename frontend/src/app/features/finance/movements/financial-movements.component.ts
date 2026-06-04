@@ -1,6 +1,6 @@
 import { Component, OnInit, signal, computed, inject, Input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DecimalPipe, NgClass, SlicePipe } from '@angular/common';
+import { DecimalPipe, LowerCasePipe, NgClass, SlicePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import {
@@ -10,7 +10,7 @@ import {
 @Component({
   selector: 'app-financial-movements',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, NgClass, SlicePipe],
+  imports: [FormsModule, DecimalPipe, LowerCasePipe, NgClass, SlicePipe],
   templateUrl: './financial-movements.component.html',
 })
 export class FinancialMovementsComponent implements OnInit {
@@ -34,6 +34,8 @@ export class FinancialMovementsComponent implements OnInit {
 
   showModal   = signal(false);
   editItem    = signal<FinancialMovement | null>(null);
+  delConfirm  = signal<FinancialMovement | null>(null);
+  deleting    = signal(false);
 
   form: FinancialMovementRequest = this.emptyForm();
 
@@ -129,13 +131,24 @@ export class FinancialMovementsComponent implements OnInit {
   }
 
   delete(item: FinancialMovement): void {
-    if (!confirm(`¿Eliminar "${item.description}"?`)) return;
+    this.delConfirm.set(item);
+  }
+
+  executeDelete(): void {
+    const item = this.delConfirm();
+    if (!item) return;
+    this.deleting.set(true);
     this.api.delete(`financial-movements/${item.id}`).subscribe({
       next: () => {
+        this.deleting.set(false);
+        this.delConfirm.set(null);
         this.toast.success(`${this.typeLabel} eliminado.`);
         this.load(this.currentPage());
       },
-      error: () => this.toast.error('Error al eliminar.'),
+      error: (err) => {
+        this.deleting.set(false);
+        this.toast.error(err?.error?.message ?? 'Error al eliminar.');
+      },
     });
   }
 

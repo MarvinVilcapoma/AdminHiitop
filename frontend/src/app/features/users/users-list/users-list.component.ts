@@ -18,10 +18,14 @@ export class UsersListComponent implements OnInit {
   private api = inject(ApiService);
   private toastService = inject(ToastService);
 
-  loading = signal(false);
-  users   = signal<AppUser[]>([]);
-  search  = '';
+  loading      = signal(false);
+  users        = signal<AppUser[]>([]);
+  search       = '';
   statusFilter = signal<'all' | 'active' | 'inactive'>('all');
+
+  // Pagination
+  pageSize    = 15;
+  currentPage = signal(1);
 
   filtered = computed(() => {
     const f = this.statusFilter();
@@ -29,15 +33,36 @@ export class UsersListComponent implements OnInit {
     return this.users().filter(u => f === 'active' ? u.is_active !== false : u.is_active === false);
   });
 
+  totalPages = computed(() => Math.max(1, Math.ceil(this.filtered().length / this.pageSize)));
+
+  pagedUsers = computed(() => {
+    const page = this.currentPage();
+    const start = (page - 1) * this.pageSize;
+    return this.filtered().slice(start, start + this.pageSize);
+  });
+
+  pageRange = computed(() => {
+    const total = this.totalPages(), current = this.currentPage(), delta = 2;
+    const pages: number[] = [];
+    for (let i = Math.max(1, current - delta); i <= Math.min(total, current + delta); i++) pages.push(i);
+    return pages;
+  });
+
   ngOnInit(): void { this.load(); }
 
   load(): void {
     this.loading.set(true);
+    this.currentPage.set(1);
     const q = this.search ? `?search=${encodeURIComponent(this.search)}` : '';
     this.api.get<AppUser[] | { data: AppUser[] }>(`users${q}`).subscribe({
-      next:  r  => { this.users.set(Array.isArray(r) ? r : r.data); this.loading.set(false); },
+      next:  r  => { this.users.set(Array.isArray(r) ? r : r.data ?? []); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
+  }
+
+  goToPage(p: number): void {
+    if (p < 1 || p > this.totalPages() || p === this.currentPage()) return;
+    this.currentPage.set(p);
   }
 
   roleBadge(roleName: string): string {

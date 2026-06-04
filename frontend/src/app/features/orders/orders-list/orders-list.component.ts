@@ -349,8 +349,8 @@ export class OrdersListComponent implements OnInit {
       max_orders: 0,
       search: q,
     };
-    if (this.filterFromDate)              params['created_at_min']     = this.filterFromDate;
-    if (this.filterToDate)                params['created_at_max']     = this.filterToDate;
+    if (this.filterFromDate)              params['created_at_min']     = `${this.filterFromDate}T00:00:00-05:00`;
+    if (this.filterToDate)                params['created_at_max']     = `${this.filterToDate}T23:59:59-05:00`;
     if (this.shopifyPaymentTab())         params['financial_status']   = this.shopifyPaymentTab();
     if (this.shopifyFulfillmentTab())     params['fulfillment_status'] = this.shopifyFulfillmentTab();
 
@@ -389,8 +389,8 @@ export class OrdersListComponent implements OnInit {
     this.shopifyLoading.set(true);
     const params: Record<string, string | number> = { limit: this.pageSize };
     if (pageInfo)                       params['page_info']          = pageInfo;
-    if (this.filterFromDate)            params['created_at_min']     = this.filterFromDate;
-    if (this.filterToDate)              params['created_at_max']     = this.filterToDate;
+    if (this.filterFromDate)            params['created_at_min']     = `${this.filterFromDate}T00:00:00-05:00`;
+    if (this.filterToDate)              params['created_at_max']     = `${this.filterToDate}T23:59:59-05:00`;
     if (this.shopifySearch.trim())      params['search']             = this.shopifySearch.trim();
     if (this.shopifyPaymentTab())       params['financial_status']   = this.shopifyPaymentTab();
     if (this.shopifyFulfillmentTab())   params['fulfillment_status'] = this.shopifyFulfillmentTab();
@@ -417,8 +417,8 @@ export class OrdersListComponent implements OnInit {
     const params: Record<string, string | number> = {
       max_orders: limit <= 0 ? 0 : limit,
     };
-    if (this.filterFromDate)            params['created_at_min']     = this.filterFromDate;
-    if (this.filterToDate)              params['created_at_max']     = this.filterToDate;
+    if (this.filterFromDate)            params['created_at_min']     = `${this.filterFromDate}T00:00:00-05:00`;
+    if (this.filterToDate)              params['created_at_max']     = `${this.filterToDate}T23:59:59-05:00`;
     if (this.shopifyPaymentTab())       params['financial_status']   = this.shopifyPaymentTab();
     if (this.shopifyFulfillmentTab())   params['fulfillment_status'] = this.shopifyFulfillmentTab();
 
@@ -638,7 +638,7 @@ export class OrdersListComponent implements OnInit {
 
   isStatusLocked(order: Order): boolean {
     const slug = String(order.order_status?.slug ?? '').toLowerCase();
-    return ['pagado', 'cancelado', 'cancelled'].includes(slug);
+    return ['pagado', 'cancelado', 'cancelled', 'devuelto'].includes(slug);
   }
 
   isPosOrder(order: Order): boolean {

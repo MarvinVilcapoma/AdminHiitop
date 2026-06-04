@@ -6,4 +6,5 @@ public interface IInvoiceElectronicBillingService
 {
     Task<bool> TestConnectionAsync();
     Task<NubeFactSubmitResult> SendInvoiceAsync(int invoiceId);
+    Task<NubeFactSubmitResult> SendCreditNoteAsync(int creditNoteInvoiceId);
 }

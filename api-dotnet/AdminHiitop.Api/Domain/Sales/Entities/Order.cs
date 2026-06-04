@@ -52,6 +52,8 @@ public sealed class Order : AuditableEntity
     public string? GuideDriverName { get; set; }
     public string? GuideDriverLicense { get; set; }
     public string? GuideTransportCertificate { get; set; }
+    /// <summary>"09" = GRE Remitente, "31" = GRE Transportista. Defaults to "09".</summary>
+    public string? GuideType { get; set; }
     public string? GuideSeries { get; set; }
     public int? GuideCorrelativo { get; set; }
     public string? GuideFullNumber { get; set; }
@@ -60,7 +62,9 @@ public sealed class Order : AuditableEntity
     public string? GuideSunatDescription { get; set; }
     public string? GuideXmlContent { get; set; }
     public string? GuideCdrContent { get; set; }
+    public string? GuidePdfLink { get; set; }
     public DateTime? GuideSentAt { get; set; }
+    public DateTime? GuideConsultedAt { get; set; }
 
     public OrderStatus OrderStatus { get; set; } = null!;
     public ShippingAgency? ShippingAgency { get; set; }

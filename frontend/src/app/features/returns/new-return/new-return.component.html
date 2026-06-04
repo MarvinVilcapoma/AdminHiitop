@@ -1,0 +1,228 @@
+<div class="page-header">
+  <h1>
+    <a routerLink="/dashboard/returns" class="btn btn-sm btn-outline-secondary me-2">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <i class="bi bi-arrow-return-left me-2 text-primary"></i>Nueva devolución / cambio
+  </h1>
+</div>
+
+<!-- Step indicator -->
+<div class="d-flex gap-2 mb-4">
+  @for (s of [1, 2, 3]; track s) {
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge rounded-pill"
+        [class]="step() === s ? 'bg-primary' : (step() > s ? 'bg-success' : 'bg-secondary')">{{ s }}</span>
+      <span class="small" [class.fw-semibold]="step() === s">
+        {{ s === 1 ? 'Buscar pedido' : s === 2 ? 'Seleccionar ítems' : 'Resumen y confirmar' }}
+      </span>
+      @if (s < 3) { <i class="bi bi-chevron-right text-muted"></i> }
+    </div>
+  }
+</div>
+
+<!-- ── STEP 1: Search order ──────────────────────────────────────────────── -->
+@if (step() === 1) {
+  <div class="form-section">
+    <h6 class="form-section-title">Buscar pedido original</h6>
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-sm-8">
+        <label class="form-label fw-semibold">Número de pedido, cliente o DNI</label>
+        <input type="text" class="form-control" [(ngModel)]="orderSearch"
+          placeholder="Ej. P-000123, Juan Pérez, 76543210"
+          (keyup.enter)="searchOrder()" />
+      </div>
+      <div class="col-12 col-sm-4">
+        <button class="btn btn-primary w-100" (click)="searchOrder()" [disabled]="loadingOrder() || !orderSearch.trim()">
+          @if (loadingOrder()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-search me-1"></i>Buscar pedido
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── STEP 2: Select items & details ─────────────────────────────────────── -->
+@if (step() === 2) {
+  <div class="form-section mb-3">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h6 class="form-section-title mb-1">Pedido #{{ foundOrder()?.order_number }}</h6>
+        <small class="text-muted">
+          Cliente: {{ foundOrder()?.customer_name ?? '—' }}
+          &nbsp;·&nbsp;Total: S/ {{ foundOrder()?.total | number:'1.2-2' }}
+        </small>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" (click)="step.set(1)">
+        <i class="bi bi-arrow-left me-1"></i>Cambiar pedido
+      </button>
+    </div>
+
+    <h6 class="fw-semibold mb-2 small">Selecciona los ítems a devolver</h6>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th style="width:40px"></th>
+            <th>Producto</th>
+            <th class="text-center">Cant. vendida</th>
+            <th class="text-center">Cant. a devolver</th>
+            <th>Condición</th>
+            <th>Acción de stock</th>
+            <th>Motivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of orderItems(); track item.id) {
+            <tr [class.table-primary]="item.selected">
+              <td class="text-center" style="cursor:pointer" (click)="toggleItem(item)">
+                <input type="checkbox" [checked]="item.selected" class="form-check-input"
+                  style="pointer-events:none" />
+              </td>
+              <td class="small">{{ item.product_description }}</td>
+              <td class="text-center">{{ item.quantity }}</td>
+              <td class="text-center" style="width:100px">
+                <input type="number" class="form-control form-control-sm text-center"
+                  [(ngModel)]="item.return_qty" [min]="1" [max]="item.quantity"
+                  [disabled]="!item.selected" />
+              </td>
+              <td style="min-width:110px">
+                <select class="form-select form-select-sm" [(ngModel)]="item.condition" [disabled]="!item.selected">
+                  <option value="NEW">Nueva</option>
+                  <option value="USED">Usada</option>
+                  <option value="DAMAGED">Dañada</option>
+                  <option value="DEFECTIVE">Defectuosa</option>
+                </select>
+              </td>
+              <td style="min-width:140px">
+                <select class="form-select form-select-sm" [(ngModel)]="item.restock_action" [disabled]="!item.selected">
+                  @for (a of restockActions; track a.value) {
+                    <option [value]="a.value">{{ a.label }}</option>
+                  }
+                </select>
+              </td>
+              <td>
+                <input type="text" class="form-control form-control-sm" [(ngModel)]="item.reason"
+                  placeholder="Opcional" [disabled]="!item.selected" />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-sm-6">
+        <label class="form-label fw-semibold small">Tipo de operación</label>
+        <select class="form-select form-select-sm" [(ngModel)]="returnType">
+          @for (t of returnTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-12 col-sm-6">
+        <label class="form-label fw-semibold small">Motivo de nota de crédito</label>
+        <select class="form-select form-select-sm" [(ngModel)]="noteMotive">
+          @for (m of noteMotives; track m.value) {
+            <option [value]="m.value">{{ m.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label fw-semibold small">Motivo general</label>
+        <input type="text" class="form-control form-control-sm" [(ngModel)]="reason"
+          placeholder="Ej. Talla incorrecta, defecto de fábrica…" />
+      </div>
+      <div class="col-12">
+        <label class="form-label fw-semibold small">Observaciones internas</label>
+        <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="observation"
+          placeholder="Opcional…"></textarea>
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="autoEmit" [(ngModel)]="autoEmit" />
+          <label class="form-check-label small" for="autoEmit">
+            Emitir nota de crédito automáticamente si el pedido tiene comprobante electrónico
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-3">
+      <button class="btn btn-outline-secondary" (click)="step.set(1)">Atrás</button>
+      <button class="btn btn-primary" (click)="goToSummary()" [disabled]="!selectedItems.length">
+        Ver resumen <i class="bi bi-chevron-right ms-1"></i>
+      </button>
+    </div>
+  </div>
+}
+
+<!-- ── STEP 3: Summary & confirm ─────────────────────────────────────────── -->
+@if (step() === 3) {
+  <div class="form-section">
+    <h6 class="form-section-title">Resumen de la devolución</h6>
+
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-sm-3">
+        <div class="text-muted small">Tipo</div>
+        <div class="fw-semibold small">{{ selectedReturnTypeLabel }}</div>
+      </div>
+      <div class="col-6 col-sm-3">
+        <div class="text-muted small">Ítems a devolver</div>
+        <div class="fw-semibold">{{ selectedItems.length }}</div>
+      </div>
+      <div class="col-6 col-sm-3">
+        <div class="text-muted small">Total a devolver</div>
+        <div class="fw-semibold text-danger">S/ {{ totalToReturn | number:'1.2-2' }}</div>
+      </div>
+      <div class="col-6 col-sm-3">
+        <div class="text-muted small">Nota de crédito</div>
+        <div class="fw-semibold">{{ autoEmit ? 'Automática' : 'Manual' }}</div>
+      </div>
+    </div>
+
+    <table class="table table-sm mb-4">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="text-center">Cant.</th>
+          <th class="text-end">Precio</th>
+          <th class="text-end">Subtotal</th>
+          <th>Condición</th>
+          <th>Acción stock</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of selectedItems; track item.id) {
+          <tr>
+            <td class="small">{{ item.product_description }}</td>
+            <td class="text-center">{{ item.return_qty }}</td>
+            <td class="text-end small">S/ {{ item.unit_price | number:'1.2-2' }}</td>
+            <td class="text-end small fw-semibold">S/ {{ (item.return_qty * item.unit_price) | number:'1.2-2' }}</td>
+            <td class="small">{{ conditionLabel(item.condition) }}</td>
+            <td class="small">{{ restockActionLabel(item.restock_action) }}</td>
+          </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr class="table-light">
+          <td colspan="3" class="text-end fw-semibold">Total devuelto:</td>
+          <td class="text-end fw-bold text-danger">S/ {{ totalToReturn | number:'1.2-2' }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    @if (reason) {
+      <p class="small text-muted mb-3"><strong>Motivo:</strong> {{ reason }}</p>
+    }
+
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-outline-secondary" (click)="step.set(2)" [disabled]="saving()">Atrás</button>
+      <button class="btn btn-danger" (click)="submit()" [disabled]="saving()">
+        @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        <i class="bi bi-check-lg me-1"></i>Confirmar devolución
+      </button>
+    </div>
+  </div>
+}

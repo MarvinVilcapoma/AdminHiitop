@@ -5,13 +5,15 @@
     </a>
     <i class="bi {{ icon() }} me-2 text-primary"></i>{{ title() }}
   </h1>
-  @if (!adminOnly() || isAdmin) {
-    <button class="btn btn-primary" (click)="toggleForm()">
-      <i class="bi" [class]="showForm() ? 'bi-x-lg' : 'bi-plus-lg'"></i>
-      {{ showForm() ? 'Cancelar' : 'Nuevo' }}
-    </button>
-  } @else {
-    <span class="text-muted small"><i class="bi bi-lock me-1"></i>Solo administradores</span>
+  @if (!noCreate()) {
+    @if (!adminOnly() || isAdmin) {
+      <button class="btn btn-primary" (click)="toggleForm()">
+        <i class="bi" [class]="showForm() ? 'bi-x-lg' : 'bi-plus-lg'"></i>
+        {{ showForm() ? 'Cancelar' : 'Nuevo' }}
+      </button>
+    } @else {
+      <span class="text-muted small"><i class="bi bi-lock me-1"></i>Solo administradores</span>
+    }
   }
 </div>
 

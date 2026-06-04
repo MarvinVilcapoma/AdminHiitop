@@ -11,7 +11,25 @@ export interface AppConfig {
   shop_domain:                 string;
   store_name:                  string;
   shopify_configured:          boolean;
+  active_modules:              string[];
 }
+
+// All modules that can be toggled — shown as labels in settings
+export const ALL_MODULE_OPTIONS: { permission: string; label: string; icon: string }[] = [
+  { permission: 'dashboard.view',        label: 'Dashboard',       icon: 'bi-grid-1x2'         },
+  { permission: 'pos.view',              label: 'Punto de venta',  icon: 'bi-shop-window'       },
+  { permission: 'orders.view',           label: 'Pedidos',         icon: 'bi-bag'               },
+  { permission: 'guides.view',           label: 'Guías',           icon: 'bi-truck'             },
+  { permission: 'stocks.view',           label: 'Inventario',      icon: 'bi-boxes'             },
+  { permission: 'customers.view',        label: 'Clientes',        icon: 'bi-people'            },
+  { permission: 'invoices.view',         label: 'Comprobantes',    icon: 'bi-receipt'           },
+  { permission: 'finance.view',          label: 'Finanzas',        icon: 'bi-bar-chart-line'    },
+  { permission: 'users.view',            label: 'Usuarios',        icon: 'bi-person-badge'      },
+  { permission: 'config.order-statuses', label: 'Configuración',   icon: 'bi-gear'              },
+  { permission: 'products.view',         label: 'Productos',       icon: 'bi-box-seam'          },
+  { permission: 'promotions.view',       label: 'Promociones',     icon: 'bi-tags'              },
+  { permission: 'sales.view',            label: 'Ventas',          icon: 'bi-graph-up'          },
+];
 
 @Injectable({ providedIn: 'root' })
 export class AppConfigService {
@@ -20,11 +38,18 @@ export class AppConfigService {
   readonly shopifyMode              = signal(false);
   readonly useShopifyStock          = signal(false);
   readonly syncInventory            = signal(false);
-  /** When false the "Fuente de stock" toggle is hidden and Web/Shopify is always used. */
   readonly showStockSourceSelector  = signal(true);
   readonly shopDomain               = signal('');
   readonly storeName                = signal('');
   readonly shopifyConfigured        = signal(false);
+  /** Permissions of modules that are enabled. null = all enabled (before config loaded). */
+  readonly activeModules            = signal<string[] | null>(null);
+
+  isModuleActive(permission: string): boolean {
+    const list = this.activeModules();
+    if (list === null) return true; // config not loaded yet → allow
+    return list.includes(permission);
+  }
 
   /** Called once before the app starts via APP_INITIALIZER. */
   async loadConfig(): Promise<void> {
@@ -41,5 +66,6 @@ export class AppConfigService {
     this.shopDomain.set(config.shop_domain ?? '');
     this.storeName.set(config.store_name ?? '');
     this.shopifyConfigured.set(config.shopify_configured ?? false);
+    this.activeModules.set(config.active_modules ?? null);
   }
 }

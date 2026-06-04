@@ -23,7 +23,9 @@ public sealed class FinancialCategoryService : IFinancialCategoryService
         if (!string.IsNullOrEmpty(type))
             query = query.Where(c => c.Type == type.ToUpperInvariant());
 
-        return await query.Select(c => MapToResponse(c)).ToListAsync();
+        // Materialize first — EF Core cannot translate C# method calls inside Select() to SQL.
+        List<FinancialCategory> raw = await query.ToListAsync();
+        return raw.Select(MapToResponse).ToList();
     }
 
     public async Task<FinancialCategoryResponse?> GetByIdAsync(int id)

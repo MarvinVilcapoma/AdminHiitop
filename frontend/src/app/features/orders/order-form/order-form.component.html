@@ -438,12 +438,16 @@
               S/ {{ line.subtotal | number:'1.2-2' }}
             </div>
 
-            <!-- Remove -->
+            <!-- Remove: only for NEW items (no saved_id) and non-invoiced orders -->
             <div class="order-line-actions d-flex justify-content-end align-items-center">
-              @if (!isInvoiced()) {
-                <button type="button" class="btn btn-xs btn-outline-danger" title="Quitar" (click)="removeItem(i)">
+              @if (!isInvoiced() && !line.saved_id) {
+                <button type="button" class="btn btn-xs btn-outline-danger" title="Quitar ítem nuevo" (click)="removeItem(i)">
                   <i class="bi bi-trash3"></i>
                 </button>
+              } @else if (line.saved_id) {
+                <span class="btn btn-xs btn-outline-secondary disabled" title="Los ítems guardados no se pueden eliminar. Use Devoluciones.">
+                  <i class="bi bi-lock"></i>
+                </span>
               }
             </div>
 
@@ -607,6 +611,15 @@
       <div class="row g-3">
 
         <div class="col-md-4">
+          <label class="form-label fw-semibold">Tipo de GRE</label>
+          <select class="form-select" formControlName="guide_type">
+            <option value="09">GRE Remitente (serie TTT, tipo 7)</option>
+            <option value="31">GRE Transportista (serie VVV, tipo 8)</option>
+          </select>
+          <div class="form-text">Remitente = empresa que envía. Transportista = empresa de transporte.</div>
+        </div>
+
+        <div class="col-md-4">
           <label class="form-label">Motivo de traslado</label>
           <select class="form-select" formControlName="guide_transfer_reason_code">
             <option value="01">01 - Venta</option>
@@ -638,7 +651,11 @@
 
         <div class="col-md-3">
           <label class="form-label">Unidad peso</label>
-          <input type="text" class="form-control" formControlName="guide_weight_unit" maxlength="3" placeholder="KGM" />
+          <select class="form-select" formControlName="guide_weight_unit">
+            <option value="KGM">KGM — Kilogramos</option>
+            <option value="TNE">TNE — Toneladas</option>
+          </select>
+          <div class="form-text text-danger small">NubeFact solo acepta KGM o TNE.</div>
         </div>
 
         <div class="col-md-3">

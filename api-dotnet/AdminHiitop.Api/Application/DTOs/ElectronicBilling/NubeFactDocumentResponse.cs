@@ -16,8 +16,18 @@ public sealed class NubeFactDocumentResponse
     [JsonPropertyName("numero")]
     public int? Numero { get; set; }
 
-    [JsonPropertyName("url")]
+    // Nubefact devuelve "enlace" (vista del comprobante) y "enlace_del_pdf" (PDF directo).
+    [JsonPropertyName("enlace")]
     public string? Url { get; set; }
+
+    [JsonPropertyName("enlace_del_pdf")]
+    public string? EnlaceDelPdf { get; set; }
+
+    [JsonPropertyName("enlace_del_xml")]
+    public string? EnlaceDelXml { get; set; }
+
+    [JsonPropertyName("enlace_del_cdr")]
+    public string? EnlaceDelCdr { get; set; }
 
     [JsonPropertyName("aceptada_por_sunat")]
     public bool? AceptadaPorSunat { get; set; }

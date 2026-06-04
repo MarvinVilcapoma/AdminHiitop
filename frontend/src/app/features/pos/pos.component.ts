@@ -313,8 +313,8 @@ export class PosComponent implements OnInit {
             this.shopifyLocationId.set(mapped[0]?.id ?? null);
           }
         } else {
-          // No POS locations configured in DB — load all active Shopify locations as fallback
-          this.loadAllShopifyLocations();
+          // No POS locations configured yet — leave empty so user knows to configure first
+          this.shopifyLocations.set([]);
         }
 
         const boleta = documentRows.find((doc) => String(doc.code ?? '').toUpperCase() === 'BOLETA');
@@ -328,8 +328,11 @@ export class PosComponent implements OnInit {
         this.onDocumentTypeChange(true);
         this.selectedPaymentMethodId = paymentRows[0]?.id ?? null;
 
-        if (!this.selectedWarehouseId) {
+        if (!this.selectedWarehouseId && !this.isShopifyMode) {
           this.error.set('No hay almacenes activos marcados como punto de venta. Configuralo en Ajustes > Almacenes.');
+        }
+        if (this.isShopifyMode && shopifyPosLocs.length === 0) {
+          this.error.set('No hay ubicaciones Shopify marcadas como punto de venta. Ve a Configuración → Almacenes, haz Sync Shopify y activa el campo "Punto de venta".');
         }
 
         this.loading.set(false);
@@ -351,19 +354,6 @@ export class PosComponent implements OnInit {
 
     this.api.get<InvoiceSeries[]>('invoices/series').subscribe({
       next: series => this.invoiceSeries.set(series ?? []),
-      error: () => {},
-    });
-  }
-
-  private loadAllShopifyLocations(): void {
-    this.api.get<ShopifyLocation[]>('shopify/locations').subscribe({
-      next: locs => {
-        const active = locs.filter(l => l.active);
-        this.shopifyLocations.set(active);
-        if (this.isShopifyMode && active.length && !this.shopifyLocationId()) {
-          this.shopifyLocationId.set(active[0].id);
-        }
-      },
       error: () => {},
     });
   }

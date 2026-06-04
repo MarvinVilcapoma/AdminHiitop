@@ -29,6 +29,36 @@ public sealed class InvoiceElectronicBillingService : IInvoiceElectronicBillingS
         return _electronicBillingProvider.ValidateConfigurationAsync();
     }
 
+    /// <summary>
+    /// Emits a credit note (NC) via Nubefact using MapCreditNote — does NOT rely on Order items.
+    /// </summary>
+    public async Task<NubeFactSubmitResult> SendCreditNoteAsync(int creditNoteInvoiceId)
+    {
+        Invoice? invoice = await _invoiceRepository.GetInvoiceForSendAsync(creditNoteInvoiceId);
+        if (invoice is null)
+            throw new AppException("Nota de crédito no encontrada.", 404);
+
+        NubeFactDocumentRequest request = NubeFactMappingHelper.MapCreditNote(invoice);
+        NubeFactSubmitResult submitResult = await _electronicBillingProvider.SendDocumentAsync(request);
+
+        ApplyResponse(invoice, submitResult);
+
+        try { await _invoiceRepository.SaveChangesAsync(); }
+        catch (DbUpdateException ex)
+        {
+            throw new AppException($"Error al actualizar la nota de crédito: {ex.InnerException?.Message ?? ex.Message}", 422);
+        }
+
+        try
+        {
+            await RegisterSendLogAsync(invoice, submitResult);
+            await _invoiceRepository.SaveChangesAsync();
+        }
+        catch { /* non-blocking */ }
+
+        return submitResult;
+    }
+
     public async Task<NubeFactSubmitResult> SendInvoiceAsync(int invoiceId)
     {
         Invoice? invoice = await _invoiceRepository.GetInvoiceForSendAsync(invoiceId);
@@ -92,6 +122,14 @@ public sealed class InvoiceElectronicBillingService : IInvoiceElectronicBillingS
         invoice.SunatNotesJson = submitResult.RawResponseJson;
         invoice.XmlContent = submitResult.Response.XmlZipBase64;
         invoice.CdrContent = submitResult.Response.CdrZipBase64;
+
+        // Save public PDF URL: prefer enlace_del_pdf, fallback to enlace + ".pdf"
+        string? pdfUrl = submitResult.Response.EnlaceDelPdf;
+        if (string.IsNullOrWhiteSpace(pdfUrl) && !string.IsNullOrWhiteSpace(submitResult.Response.Url))
+            pdfUrl = submitResult.Response.Url.TrimEnd('/') + ".pdf";
+
+        if (!string.IsNullOrWhiteSpace(pdfUrl))
+            invoice.PdfUrl = pdfUrl;
 
         if (int.TryParse(submitResult.Response.SunatResponseCode, out int responseCode))
         {

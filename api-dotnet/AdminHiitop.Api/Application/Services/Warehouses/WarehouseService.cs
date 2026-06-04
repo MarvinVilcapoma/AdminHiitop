@@ -275,6 +275,22 @@ public sealed class WarehouseService : IWarehouseService
             .FirstOrDefaultAsync(s => s.Id == localId)
             ?? throw new AppException("Ubicación de Shopify no encontrada.", 404);
 
+        // Validate the total POS limit (local warehouses + Shopify locations combined)
+        if (request.IsPos && !sl.IsPos)
+        {
+            int localPos   = await _context.Warehouses.CountAsync(w => w.IsPos);
+            int shopifyPos = await _context.ShopifyLocations.CountAsync(s => s.IsPos && s.Id != localId);
+            int totalPos   = localPos + shopifyPos;
+
+            if (totalPos >= _posOptions.MaxPosWarehouses)
+            {
+                throw new AppException(
+                    $"Se alcanzó el límite de {_posOptions.MaxPosWarehouses} punto(s) de venta permitidos " +
+                    "(entre almacenes locales y ubicaciones Shopify). " +
+                    "Desactiva el POS actual antes de asignar otro.", 422);
+            }
+        }
+
         sl.IsPos = request.IsPos;
         sl.IsActive = request.IsActive;
         await _context.SaveChangesAsync();

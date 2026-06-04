@@ -37,10 +37,18 @@ public sealed class Invoice : AuditableEntity
     public DateTime IssuedAt { get; set; }
     public int? UserId { get; set; }
 
+    // Customer contact — captured at emission time for WhatsApp / email delivery
+    public string? CustomerPhone { get; set; }
+    public string? CustomerEmail { get; set; }
+
+    // Public PDF URL returned by Nubefact; used for WhatsApp sharing and email links
+    public string? PdfUrl { get; set; }
+
     public Order? Order { get; set; }
     public InvoiceSeries InvoiceSeries { get; set; } = null!;
     public PaymentMethod? PaymentMethod { get; set; }
     public User? User { get; set; }
     public ICollection<DailySummaryItem> DailySummaryItems { get; set; } = new List<DailySummaryItem>();
     public ICollection<SunatSendLog> SunatSendLogs { get; set; } = new List<SunatSendLog>();
+    public ICollection<InvoiceDeliveryLog> DeliveryLogs { get; set; } = new List<InvoiceDeliveryLog>();
 }

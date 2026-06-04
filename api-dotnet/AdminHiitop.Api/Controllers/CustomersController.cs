@@ -16,6 +16,10 @@ public sealed class CustomersController : ControllerBase
     public async Task<IActionResult> Get([FromQuery] string? search)
         => Ok(await _customerService.GetAsync(search));
 
+    [HttpGet("metrics")]
+    public async Task<IActionResult> GetMetrics([FromQuery] int top = 20)
+        => Ok(await _customerService.GetMetricsAsync(Math.Clamp(top, 1, 100)));
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
         => await _customerService.GetByIdAsync(id) is { } customer

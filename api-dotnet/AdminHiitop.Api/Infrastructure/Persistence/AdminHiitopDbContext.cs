@@ -46,6 +46,10 @@ public sealed class AdminHiitopDbContext : DbContext
     public DbSet<PromotionItem> PromotionItems => Set<PromotionItem>();
     public DbSet<InvoiceSeries> InvoiceSeries => Set<InvoiceSeries>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceDeliveryLog> InvoiceDeliveryLogs => Set<InvoiceDeliveryLog>();
+    public DbSet<ReturnRequest> ReturnRequests => Set<ReturnRequest>();
+    public DbSet<ReturnRequestItem> ReturnRequestItems => Set<ReturnRequestItem>();
+    public DbSet<CustomerCredit> CustomerCredits => Set<CustomerCredit>();
     public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
     public DbSet<DailySummaryItem> DailySummaryItems => Set<DailySummaryItem>();
     public DbSet<SunatSendLog> SunatSendLogs => Set<SunatSendLog>();
@@ -134,6 +138,69 @@ public sealed class AdminHiitopDbContext : DbContext
         modelBuilder.Entity<Product>().HasIndex(item => item.Sku).IsUnique().HasFilter("[Sku] IS NOT NULL");
         modelBuilder.Entity<Order>().HasIndex(item => item.OrderNumber).IsUnique();
         modelBuilder.Entity<Invoice>().HasIndex(item => item.FullNumber).IsUnique();
+
+        modelBuilder.Entity<InvoiceDeliveryLog>().ToTable("invoice_delivery_logs");
+        modelBuilder.Entity<InvoiceDeliveryLog>().HasKey(l => l.Id);
+        modelBuilder.Entity<InvoiceDeliveryLog>().Property(l => l.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<InvoiceDeliveryLog>()
+            .HasOne(l => l.Invoice)
+            .WithMany(i => i.DeliveryLogs)
+            .HasForeignKey(l => l.InvoiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Returns module
+        modelBuilder.Entity<ReturnRequest>().ToTable("return_requests");
+        modelBuilder.Entity<ReturnRequest>().HasKey(r => r.Id);
+        modelBuilder.Entity<ReturnRequest>().Property(r => r.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<ReturnRequest>()
+            .HasMany(r => r.Items)
+            .WithOne(i => i.ReturnRequest)
+            .HasForeignKey(i => i.ReturnRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ReturnRequest>()
+            .HasOne(r => r.CustomerCredit)
+            .WithOne(c => c.ReturnRequest)
+            .HasForeignKey<CustomerCredit>(c => c.ReturnRequestId);
+        modelBuilder.Entity<ReturnRequest>()
+            .HasOne(r => r.Customer)
+            .WithMany()
+            .HasForeignKey(r => r.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+        modelBuilder.Entity<ReturnRequest>()
+            .HasOne(r => r.OriginalInvoice)
+            .WithMany()
+            .HasForeignKey(r => r.OriginalInvoiceId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+        modelBuilder.Entity<ReturnRequest>()
+            .HasOne(r => r.CreditNoteInvoice)
+            .WithMany()
+            .HasForeignKey(r => r.CreditNoteInvoiceId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+
+        modelBuilder.Entity<ReturnRequestItem>().ToTable("return_request_items");
+        modelBuilder.Entity<ReturnRequestItem>().HasKey(i => i.Id);
+        modelBuilder.Entity<ReturnRequestItem>().Property(i => i.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<ReturnRequestItem>()
+            .HasOne(i => i.OrderItem)
+            .WithMany()
+            .HasForeignKey(i => i.OrderItemId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
+
+        modelBuilder.Entity<CustomerCredit>().ToTable("customer_credits");
+        modelBuilder.Entity<CustomerCredit>().HasKey(c => c.Id);
+        modelBuilder.Entity<CustomerCredit>().Property(c => c.Id).ValueGeneratedOnAdd();
+        modelBuilder.Entity<CustomerCredit>().Property(c => c.Amount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<CustomerCredit>().Property(c => c.UsedAmount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<CustomerCredit>().Property(c => c.RemainingAmount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<CustomerCredit>()
+            .HasOne(c => c.Customer)
+            .WithMany()
+            .HasForeignKey(c => c.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<InvoiceSeries>().HasIndex(item => item.Serie).IsUnique();
         modelBuilder.Entity<DocumentType>().HasIndex(item => item.Code).IsUnique();
         modelBuilder.Entity<DocumentPrintFormat>().HasIndex(item => item.Code).IsUnique();

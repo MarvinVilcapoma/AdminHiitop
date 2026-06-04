@@ -270,11 +270,24 @@ html, body {
 .table-wrap {
   background: #fff;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;   // horizontal scroll on narrow screens
+  overflow-y: visible;
   border: 1px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
   margin-bottom: 1.5rem;
-  isolation: isolate; /* clips children to border-radius in all browsers */
+  isolation: isolate;
+  -webkit-overflow-scrolling: touch;
+
+  // clip border-radius without hiding scroll
+  & > .table,
+  & > .table-responsive > .table {
+    border-radius: 12px;
+  }
+}
+
+// Bootstrap's .table-responsive inside .table-wrap
+.table-wrap .table-responsive {
+  border-radius: 12px;
 }
 .table {
   margin: 0;

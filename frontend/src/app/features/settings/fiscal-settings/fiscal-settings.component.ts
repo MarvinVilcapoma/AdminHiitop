@@ -116,20 +116,6 @@ export class FiscalSettingsComponent implements OnInit {
   warehouses = signal<WarehouseOption[]>([]);
   invoiceSeries = signal<InvoiceSeriesForm[]>([]);
 
-  storeWarehouses = computed(() =>
-    this.warehouses().filter((w) => {
-      const directType = String(w.type ?? '').toLowerCase();
-      const typeCode = String(w.warehouse_type?.code ?? '').toLowerCase();
-      const typeName = String(w.warehouse_type?.name ?? '').toLowerCase();
-      return (
-        directType === 'store' ||
-        typeCode.includes('store') ||
-        typeCode.includes('tienda') ||
-        typeName.includes('tienda')
-      );
-    })
-  );
-
   showPemBeta = false;
   showPemProd = false;
 

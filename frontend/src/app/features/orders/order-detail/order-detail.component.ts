@@ -59,4 +59,9 @@ export class OrderDetailComponent implements OnInit {
   get editRoute(): string {
     return `/dashboard/orders/${this.order()?.id}`;
   }
+
+  isReturned(order: Order): boolean {
+    const slug = (order.order_status?.slug ?? '').toLowerCase();
+    return slug === 'devuelto' || slug === 'cancelado';
+  }
 }

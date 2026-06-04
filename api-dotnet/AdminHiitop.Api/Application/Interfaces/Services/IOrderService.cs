@@ -5,7 +5,7 @@ namespace AdminHiitop.Api.Application.Interfaces.Services;
 
 public interface IOrderService
 {
-    Task<object> GetAsync(string? search, int? perPage, int page, bool withSummary, int? orderStatusId, int? userId = null, string? source = null);
+    Task<object> GetAsync(string? search, int? perPage, int page, bool withSummary, int? orderStatusId, int? userId = null, string? source = null, bool excludeGuideOrders = true);
     Task<Order?> GetByIdAsync(int id);
     Task<Order> CreateAsync(OrderUpsertRequest request);
     Task<Order> UpdateAsync(int id, OrderUpsertRequest request);

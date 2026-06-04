@@ -136,7 +136,8 @@ public static class HiitopSeedData
         ("sunat_certificate_pem", "", "Certificado digital PEM", "string", "sunat"),
         ("igv_enabled", "1", "IGV habilitado", "boolean", "fiscal"),
         ("igv_rate", "0.18", "Tasa IGV (0.18 = 18%)", "decimal", "fiscal"),
-        ("prices_include_igv", "1", "Los precios ya incluyen IGV", "boolean", "fiscal")
+        ("prices_include_igv", "1", "Los precios ya incluyen IGV", "boolean", "fiscal"),
+        ("active_modules", "dashboard.view,pos.view,orders.view,guides.view,stocks.view,customers.view,invoices.view,finance.view,users.view,config.order-statuses", "Módulos activos del sistema", "string", "system")
     ];
 
     public static IReadOnlyList<string> Permissions { get; } =

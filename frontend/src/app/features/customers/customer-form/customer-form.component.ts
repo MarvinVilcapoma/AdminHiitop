@@ -1,5 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Location } from '@angular/common';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { Province, District, Page } from '../../../core/models';
@@ -15,10 +16,11 @@ import { ToastService } from '../../../core/services/toast.service';
   styleUrl: './customer-form.component.scss',
 })
 export class CustomerFormComponent implements OnInit {
-  private api    = inject(ApiService);
-  private router = inject(Router);
-  private route  = inject(ActivatedRoute);
-  private toast  = inject(ToastService);
+  private api      = inject(ApiService);
+  private router   = inject(Router);
+  private route    = inject(ActivatedRoute);
+  private toast    = inject(ToastService);
+  readonly location = inject(Location);
 
   loading   = signal(false);
   saving    = signal(false);
@@ -86,7 +88,7 @@ export class CustomerFormComponent implements OnInit {
     req.subscribe({
       next:  () => {
         this.toast.success(this.isEdit() ? 'Cliente actualizado correctamente.' : 'Cliente creado correctamente.');
-        this.router.navigate(['/dashboard/customers']);
+        this.location.back();
       },
       error: (e) => {
         const msg = e?.error?.message ?? e?.error?.errors ?? 'Error al guardar.';

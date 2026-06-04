@@ -4,6 +4,7 @@ using AdminHiitop.Api.Application.Options;
 using AdminHiitop.Api.Application.Services.Shopify;
 using AdminHiitop.Api.Infrastructure.Auth;
 using AdminHiitop.Api.Infrastructure.ElectronicBilling;
+using AdminHiitop.Api.Infrastructure.Email;
 using AdminHiitop.Api.Infrastructure.Persistence;
 using AdminHiitop.Api.Infrastructure.Repositories;
 using AdminHiitop.Api.Infrastructure.Seed;
@@ -48,6 +49,9 @@ public static class DependencyInjection
         services.Configure<PaginationOptions>(configuration.GetSection(PaginationOptions.SectionName));
         services.Configure<SwaggerOptions>(configuration.GetSection(SwaggerOptions.SectionName));
         services.Configure<NubeFactOptions>(configuration.GetSection("ElectronicBilling:NubeFact"));
+        services.Configure<SmtpOptions>(configuration.GetSection("Smtp"));
+        services.AddSingleton<DailyEmailCounter>();
+        services.AddSingleton<IEmailService, SmtpEmailService>();
         services.Configure<PosOptions>(configuration.GetSection(PosOptions.SectionName));
         services.Configure<ShopifyOptions>(configuration.GetSection(ShopifyOptions.SectionName));
 

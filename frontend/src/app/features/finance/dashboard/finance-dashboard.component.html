@@ -3,16 +3,27 @@
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-line me-2"></i>Dashboard Financiero</h5>
-    <div class="d-flex gap-2 align-items-center">
-      <select class="form-select form-select-sm" style="width:120px" [(ngModel)]="selectedMonth">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <select class="form-select form-select-sm" style="width:120px"
+              [(ngModel)]="selectedMonth" (ngModelChange)="load()">
         @for (m of months; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
       </select>
-      <select class="form-select form-select-sm" style="width:90px" [(ngModel)]="selectedYear">
+      <select class="form-select form-select-sm" style="width:90px"
+              [(ngModel)]="selectedYear" (ngModelChange)="load()">
         @for (y of years; track y) { <option [value]="y">{{ y }}</option> }
       </select>
-      <button class="btn btn-primary btn-sm" (click)="load()" [disabled]="loading()">
-        <i class="bi bi-arrow-clockwise"></i> Actualizar
+      <button class="btn btn-outline-secondary btn-sm" (click)="load()" [disabled]="loading()" title="Actualizar">
+        <i class="bi bi-arrow-clockwise"></i>
       </button>
+      <button class="btn btn-success btn-sm" (click)="openCreate('INCOME')">
+        <i class="bi bi-plus-circle me-1"></i>Ingreso
+      </button>
+      <button class="btn btn-danger btn-sm" (click)="openCreate('EXPENSE')">
+        <i class="bi bi-dash-circle me-1"></i>Gasto
+      </button>
+      <a routerLink="/dashboard/finance/fixed-incomes" class="btn btn-outline-success btn-sm" title="Ingresos fijos recurrentes">
+        <i class="bi bi-arrow-repeat me-1"></i>Fijos
+      </a>
     </div>
   </div>
 
@@ -85,37 +96,48 @@
         </div>
       </div>
 
-      <!-- Charts row -->
+      <!-- Bar chart (full width) -->
       <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-8">
+        <div class="col-12">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white fw-semibold py-2">Ingresos vs Gastos ({{ selectedYear }})</div>
-            <div class="card-body" style="height:260px">
-              <canvas #barChart></canvas>
+            <div class="card-body" style="height:250px"><canvas #barChart></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pie charts row -->
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white py-2 small fw-semibold">
+              <i class="bi bi-arrow-down-circle text-danger me-1"></i>Gastos por categoría
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center p-2" style="min-height:230px">
+              @if (d.expenses_by_category.length > 0) { <canvas #expPieChart></canvas> }
+              @else { <span class="text-muted small">Sin gastos este mes</span> }
             </div>
           </div>
         </div>
-        <div class="col-6 col-lg-2">
+        <div class="col-12 col-md-4">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white fw-semibold py-2 small">Gastos por categoría</div>
-            <div class="card-body d-flex align-items-center justify-content-center p-2" style="min-height:180px">
-              @if ((d.expenses_by_category.length) > 0) {
-                <canvas #expPieChart></canvas>
-              } @else {
-                <span class="text-muted small">Sin datos</span>
-              }
+            <div class="card-header bg-white py-2 small fw-semibold">
+              <i class="bi bi-arrow-up-circle text-success me-1"></i>Ingresos por categoría
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center p-2" style="min-height:230px">
+              @if (d.incomes_by_category.length > 0) { <canvas #incPieChart></canvas> }
+              @else { <span class="text-muted small">Sin ingresos este mes</span> }
             </div>
           </div>
         </div>
-        <div class="col-6 col-lg-2">
+        <div class="col-12 col-md-4">
           <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white fw-semibold py-2 small">Ingresos por categoría</div>
-            <div class="card-body d-flex align-items-center justify-content-center p-2" style="min-height:180px">
-              @if ((d.incomes_by_category.length) > 0) {
-                <canvas #incPieChart></canvas>
-              } @else {
-                <span class="text-muted small">Sin datos</span>
-              }
+            <div class="card-header bg-white py-2 small fw-semibold">
+              <i class="bi bi-pie-chart me-1"></i>Todas las categorías
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center p-2" style="min-height:230px">
+              @if ((d.expenses_by_category.length + d.incomes_by_category.length) > 0) { <canvas #combPieChart></canvas> }
+              @else { <span class="text-muted small">Sin movimientos este mes</span> }
             </div>
           </div>
         </div>
@@ -125,7 +147,7 @@
       <div class="row g-3">
         <div class="col-12 col-lg-8">
           <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white fw-semibold py-2 d-flex justify-content-between">
+            <div class="card-header bg-white fw-semibold py-2 d-flex justify-content-between align-items-center">
               <span>Últimos movimientos</span>
               <a routerLink="/dashboard/finance/expenses" class="btn btn-sm btn-outline-secondary py-0">Ver todos</a>
             </div>
@@ -133,10 +155,11 @@
               @if (d.recent_movements.length === 0) {
                 <div class="text-center text-muted py-4">Sin movimientos este mes.</div>
               } @else {
-                <table class="table table-sm table-hover mb-0">
+                <table class="table table-sm table-hover mb-0 align-middle">
                   <thead class="table-light"><tr>
                     <th>Fecha</th><th>Descripción</th><th>Categoría</th>
                     <th class="text-end">Monto</th>
+                    <th class="text-end" style="width:70px"></th>
                   </tr></thead>
                   <tbody>
                     @for (m of d.recent_movements; track m.id) {
@@ -146,12 +169,21 @@
                         <td>
                           @if (m.category_color) {
                             <span class="badge rounded-pill" [style.background]="m.category_color">{{ m.category_name }}</span>
-                          } @else {
-                            {{ m.category_name }}
-                          }
+                          } @else { {{ m.category_name }} }
                         </td>
-                        <td class="text-end fw-semibold" [ngClass]="m.type === 'INCOME' ? 'text-success' : 'text-danger'">
+                        <td class="text-end fw-semibold text-nowrap"
+                            [ngClass]="m.type === 'INCOME' ? 'text-success' : 'text-danger'">
                           {{ m.type === 'INCOME' ? '+' : '-' }}{{ formatCurrency(m.amount) }}
+                        </td>
+                        <td class="text-end">
+                          <div class="d-flex gap-1 justify-content-end">
+                            <button class="btn btn-xs btn-outline-primary" title="Editar" (click)="openEdit(m)">
+                              <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="confirmDelete(m)">
+                              <i class="bi bi-trash"></i>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     }
@@ -165,11 +197,11 @@
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white fw-semibold py-2">Top gastos por categoría</div>
             <div class="card-body p-0">
-              @if ((d.expenses_by_category.length) === 0) {
+              @if (d.expenses_by_category.length === 0) {
                 <div class="text-center text-muted py-4">Sin gastos este mes.</div>
               } @else {
                 <ul class="list-group list-group-flush">
-                  @for (c of d.expenses_by_category.slice(0, 5); track c.category_id) {
+                  @for (c of d.expenses_by_category | slice:0:5; track c.category_id) {
                     <li class="list-group-item d-flex justify-content-between align-items-center px-3 py-2">
                       <div class="d-flex align-items-center gap-2">
                         <span class="rounded-circle d-inline-block" style="width:10px;height:10px"
@@ -191,3 +223,107 @@
     }
   }
 </div>
+
+<!-- Create / Edit modal -->
+@if (showModal()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"
+             [class]="quickAddType() === 'INCOME' ? 'bg-success text-white' : 'bg-danger text-white'">
+          <h5 class="modal-title fs-6">
+            <i class="bi me-2"
+               [class]="quickAddType() === 'INCOME' ? 'bi-arrow-up-circle' : 'bi-arrow-down-circle'"></i>
+            {{ isEditing() ? 'Editar' : 'Registrar' }}
+            {{ quickAddType() === 'INCOME' ? 'Ingreso' : 'Gasto' }}
+          </h5>
+          <button class="btn-close btn-close-white" (click)="closeModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-500">Categoría <span class="text-danger">*</span></label>
+            <select class="form-select" [(ngModel)]="quickForm.category_id">
+              <option [ngValue]="0">— Seleccionar —</option>
+              @for (cat of quickCategories(); track cat.id) {
+                <option [ngValue]="cat.id">{{ cat.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-500">Descripción <span class="text-danger">*</span></label>
+            <input class="form-control" [(ngModel)]="quickForm.description"
+              placeholder="Ej: Pago de luz, Venta por mayor..." maxlength="500" />
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-500">Monto (S/) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" [(ngModel)]="quickForm.amount"
+                min="0.01" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-500">Fecha</label>
+              <input type="date" class="form-control" [(ngModel)]="quickForm.movement_date" />
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-500">Método de pago</label>
+            <select class="form-select" [(ngModel)]="quickForm.payment_method">
+              <option value="">— Opcional —</option>
+              @for (pm of paymentMethods; track pm) { <option [value]="pm">{{ pm }}</option> }
+            </select>
+          </div>
+          @if (!isEditing()) {
+            <div class="form-check form-switch mt-3 pt-2 border-top">
+              <input class="form-check-input" type="checkbox" id="is_fixed_check"
+                     [(ngModel)]="quickForm.is_fixed">
+              <label class="form-check-label small" for="is_fixed_check">
+                <span class="fw-semibold">¿Es un movimiento recurrente?</span>
+                <span class="text-muted"> — al guardar te llevará a configurar la recurrencia completa (día, frecuencia, fechas)</span>
+              </label>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="closeModal()">Cancelar</button>
+          <button class="btn btn-sm" [disabled]="savingQuick()"
+            [class]="quickAddType() === 'INCOME' ? 'btn-success' : 'btn-danger'"
+            (click)="save()">
+            @if (savingQuick()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-check-lg me-1"></i>{{ isEditing() ? 'Actualizar' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirmation modal -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <div class="mb-3">
+            <i class="bi bi-exclamation-triangle-fill text-danger fs-1"></i>
+          </div>
+          <h6 class="fw-bold mb-1">¿Eliminar este movimiento?</h6>
+          <p class="text-muted small mb-0">
+            <strong>{{ delConfirm()!.item.description }}</strong><br>
+            {{ formatCurrency(delConfirm()!.item.amount) }} —
+            <span [class]="delConfirm()!.item.type === 'INCOME' ? 'text-success' : 'text-danger'">
+              {{ delConfirm()!.item.type === 'INCOME' ? 'Ingreso' : 'Gasto' }}
+            </span>
+          </p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary btn-sm" (click)="delConfirm.set(null)"
+                  [disabled]="deleting()">Cancelar</button>
+          <button class="btn btn-danger btn-sm" (click)="executeDelete()" [disabled]="deleting()">
+            @if (deleting()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-trash me-1"></i>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

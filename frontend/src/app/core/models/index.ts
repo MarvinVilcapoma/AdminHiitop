@@ -257,13 +257,16 @@ export interface Order {
   guide_driver_name?: string;
   guide_driver_license?: string;
   guide_transport_certificate?: string;
+  guide_type?: string;
   guide_series?: string;
   guide_correlativo?: number;
   guide_full_number?: string;
   guide_status?: string;
   guide_sunat_code?: number;
   guide_sunat_description?: string;
+  guide_pdf_link?: string;
   guide_sent_at?: string;
+  guide_consulted_at?: string;
   needs_receipt?: boolean;
   user_id?: number;
   user?: Pick<AppUser, 'id' | 'name'>;
@@ -439,6 +442,49 @@ export type InvoiceStatus =
   | 'ticket_generated'
   | 'processing';
 
+// ── Returns & Exchanges ───────────────────────────────────────────────────────
+
+export interface ReturnRequestItem {
+  id: number;
+  order_item_id?: number;
+  product_id?: number;
+  product_description?: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  condition: string;
+  restock_action: string;
+  reason?: string;
+}
+
+export interface ReturnRequest {
+  id: number;
+  order_id?: number;
+  order_number?: string;
+  customer_id?: number;
+  customer_name?: string;
+  customer_dni?: string;
+  original_invoice_id?: number;
+  original_invoice_number?: string;
+  credit_note_invoice_id?: number;
+  credit_note_number?: string;
+  return_type: string;
+  return_type_label: string;
+  status: string;
+  status_label: string;
+  reason?: string;
+  observation?: string;
+  total_returned_amount: number;
+  refund_amount: number;
+  store_credit_amount: number;
+  requires_credit_note: boolean;
+  created_at: string;
+  completed_at?: string;
+  items: ReturnRequestItem[];
+  credit_note_pdf_url?: string;
+  credit_note_sunat_status?: string;
+}
+
 export interface Invoice {
   id: number;
   order_id?: number;
@@ -454,6 +500,9 @@ export interface Invoice {
   customer_doc_type?: string;   // '1'=DNI, '6'=RUC, '4'=CE, '7'=PAS, '-'=sin doc
   customer_doc_number?: string;
   customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  pdf_url?: string;
   currency: string;
   form_of_payment: string;
   mto_oper_gravadas: number;

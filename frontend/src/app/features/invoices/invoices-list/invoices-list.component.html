@@ -111,7 +111,7 @@
                     <i class="bi bi-printer"></i>
                   </button>
 
-                  <button class="btn btn-xs btn-outline-danger me-1" title="Descargar PDF Nubefact" (click)="downloadPdf(inv)">
+                  <button class="btn btn-xs btn-outline-danger me-1" title="Descargar PDF Nubefact" (click)="openPdf(inv)">
                     <i class="bi bi-file-earmark-pdf"></i>
                   </button>
 
@@ -124,6 +124,24 @@
                   @if (inv.status === 'accepted') {
                     <button class="btn btn-xs btn-outline-secondary me-1" (click)="downloadCdr(inv)">
                       <i class="bi bi-file-earmark-zip"></i>
+                    </button>
+                  }
+
+                  <!-- WhatsApp: only when PDF URL exists (accepted/sent) -->
+                  @if (canSendByWhatsApp(inv)) {
+                    <button class="btn btn-xs btn-outline-success me-1"
+                      title="Enviar por WhatsApp"
+                      (click)="openWhatsAppDialog(inv)">
+                      <i class="bi bi-whatsapp"></i>
+                    </button>
+                  }
+
+                  <!-- Email via Nubefact: only for SUNAT documents already sent -->
+                  @if (canSendByEmail(inv)) {
+                    <button class="btn btn-xs btn-outline-info me-1"
+                      title="Enviar por correo"
+                      (click)="openEmailDialog(inv)">
+                      <i class="bi bi-envelope"></i>
                     </button>
                   }
 
@@ -178,8 +196,8 @@
 
         @if (voidResult(); as res) {
           <div class="modal-body">
-            <div class="alert" [ngClass]="res.success ? 'alert-success' : 'alert-danger'" role="alert">
-              {{ res.message }}
+            <div class="alert" [ngClass]="res.success ? 'alert-success' : 'alert-danger'" role="alert"
+              [innerHTML]="res.message">
             </div>
           </div>
           <div class="modal-footer">
@@ -187,42 +205,216 @@
           </div>
         } @else {
           <div class="modal-body">
-            <p class="mb-3">
-              Se emitira una <strong>Nota de Credito</strong> para anular el comprobante<br>
-              <span class="font-monospace fw-semibold">{{ inv.full_number }}</span>
+            <p class="text-muted small mb-3">
+              Comprobante: <span class="font-monospace fw-semibold text-dark">{{ inv.full_number }}</span>
             </p>
 
-            @if (voidError()) {
-              <div class="alert alert-danger py-2 small">{{ voidError() }}</div>
-            }
+            @if (voidCheckLoading()) {
+              <div class="text-center py-3 text-muted">
+                <span class="spinner-border spinner-border-sm me-2"></span>Verificando elegibilidad...
+              </div>
+            } @else {
+              @if (voidCheck(); as vc) {
 
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Motivo de anulacion</label>
-              <select class="form-select form-select-sm" [(ngModel)]="voidForm.note_motive" (change)="onNoteMotive()">
-                @for (m of noteMotives; track m.value) {
-                  <option [value]="m.value">{{ m.value }} - {{ m.label }}</option>
+                <!-- Info banner -->
+                <div class="alert py-2 small mb-3" [class]="vc.within_seven_days ? 'alert-info' : 'alert-warning'">
+                  <i class="bi me-1" [class]="vc.within_seven_days ? 'bi-clock' : 'bi-calendar-x'"></i>
+                  {{ vc.days_since === 0 ? 'Emitido hoy' : 'Emitido hace ' + vc.days_since + ' día(s)' }}.
+                  {{ vc.recommendation }}
+                </div>
+
+                @if (voidError()) {
+                  <div class="alert alert-danger py-2 small">{{ voidError() }}</div>
                 }
-              </select>
-            </div>
 
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Descripcion del motivo</label>
-              <input type="text" class="form-control form-control-sm" [(ngModel)]="voidForm.note_motive_desc" />
-            </div>
+                <!-- Method selector -->
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Método de anulación</label>
+                  <div class="d-flex gap-2">
+                    @if (vc.can_use_baja) {
+                      <div class="form-check border rounded px-3 py-2 flex-fill" style="cursor:pointer"
+                        [class.border-success]="voidForm.void_method === 'baja'"
+                        [class.bg-success-subtle]="voidForm.void_method === 'baja'">
+                        <input class="form-check-input" type="radio" id="methodBaja" name="voidMethod"
+                          [(ngModel)]="voidForm.void_method" value="baja" />
+                        <label class="form-check-label small" for="methodBaja" style="cursor:pointer">
+                          <strong class="d-block">Comunicación de Baja</strong>
+                          <span class="text-muted">Más limpio, anula directamente en SUNAT</span>
+                        </label>
+                      </div>
+                    }
+                    <div class="form-check border rounded px-3 py-2 flex-fill" style="cursor:pointer"
+                      [class.border-warning]="voidForm.void_method === 'credit_note'"
+                      [class.bg-warning-subtle]="voidForm.void_method === 'credit_note'">
+                      <input class="form-check-input" type="radio" id="methodNC" name="voidMethod"
+                        [(ngModel)]="voidForm.void_method" value="credit_note" />
+                      <label class="form-check-label small" for="methodNC" style="cursor:pointer">
+                        <strong class="d-block">Nota de Crédito</strong>
+                        <span class="text-muted">Genera un NC electrónico en SUNAT</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
 
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="autoSend" [(ngModel)]="voidForm.auto_send" />
-              <label class="form-check-label small" for="autoSend">Enviar automaticamente a SUNAT</label>
-            </div>
+                <!-- Fields for BAJA -->
+                @if (voidForm.void_method === 'baja') {
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold small">Motivo de baja</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="voidForm.motivo"
+                      placeholder="Ej: Error en emisión" />
+                  </div>
+                }
+
+                <!-- Fields for NC -->
+                @if (voidForm.void_method === 'credit_note') {
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold small">Motivo de Nota de Crédito</label>
+                    <select class="form-select form-select-sm" [(ngModel)]="voidForm.note_motive" (change)="onNoteMotive()">
+                      @for (m of noteMotives; track m.value) {
+                        <option [value]="m.value">{{ m.value }} — {{ m.label }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold small">Descripción del motivo</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="voidForm.note_motive_desc" />
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="autoSend" [(ngModel)]="voidForm.auto_send" />
+                    <label class="form-check-label small" for="autoSend">Enviar automáticamente a SUNAT</label>
+                  </div>
+                }
+              }
+            }
           </div>
           <div class="modal-footer">
-            <button class="btn btn-secondary" (click)="cancelVoid()" [disabled]="saving()">Cancelar</button>
-            <button class="btn btn-warning" (click)="confirmVoid()" [disabled]="saving()">
+            <button class="btn btn-secondary btn-sm" (click)="cancelVoid()" [disabled]="saving()">Cancelar</button>
+            <button [class]="voidForm.void_method === 'baja' ? 'btn btn-danger btn-sm' : 'btn btn-warning btn-sm'"
+              (click)="confirmVoid()" [disabled]="saving() || voidCheckLoading()">
               @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-              Emitir Nota de Credito
+              @if (voidForm.void_method === 'baja') { Comunicar Baja a SUNAT }
+              @else { Emitir Nota de Crédito }
             </button>
           </div>
         }
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── WhatsApp modal ──────────────────────────────────────────────────────── -->
+@if (whatsAppInvoice(); as inv) {
+  <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-whatsapp me-2 text-success"></i>Enviar por WhatsApp
+          </h5>
+          <button type="button" class="btn-close" (click)="closeWhatsAppDialog()"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Se generará un enlace con el PDF del comprobante
+            <strong>{{ inv.full_number }}</strong> listo para enviar manualmente.
+          </p>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">País</label>
+            <select class="form-select form-select-sm" [(ngModel)]="whatsAppCountryCode">
+              @for (c of countries; track c.code + c.name) {
+                <option [value]="c.code">{{ c.flag }} +{{ c.code }} — {{ c.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Número de WhatsApp</label>
+            <input type="tel" class="form-control form-control-sm" [(ngModel)]="whatsAppPhone"
+              placeholder="987 654 321" />
+            <div class="form-text">Sin código de país ni ceros iniciales. Ejemplo: 987654321</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="closeWhatsAppDialog()">Cancelar</button>
+          <button class="btn btn-success btn-sm" (click)="sendByWhatsApp()"
+            [disabled]="whatsAppLoading() || !whatsAppPhone.trim()">
+            @if (whatsAppLoading()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-whatsapp me-1"></i>Generar enlace
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Email modal ─────────────────────────────────────────────────────────── -->
+@if (emailInvoice(); as inv) {
+  <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-envelope me-2 text-info"></i>Enviar por correo
+          </h5>
+          <button type="button" class="btn-close" (click)="closeEmailDialog()" [disabled]="emailLoading()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2 small text-muted">
+            <strong>Comprobante:</strong> {{ inv.full_number }}
+            &nbsp;·&nbsp;
+            <strong>Cliente:</strong> {{ inv.customer_name ?? '—' }}
+            &nbsp;·&nbsp;
+            <strong>Total:</strong> S/ {{ inv.mto_imp_venta | number:'1.2-2' }}
+          </div>
+
+          @if (emailError()) {
+            <div class="alert py-2 small" [class]="emailFallbackPdfUrl() ? 'alert-warning' : 'alert-danger'">
+              {{ emailError() }}
+              @if (emailFallbackPdfUrl()) {
+                <div class="mt-2">
+                  <strong>NubeFact no admite reenvío por API.</strong> Comparte el PDF manualmente:
+                  <div class="d-flex gap-2 flex-wrap mt-2">
+                    <a [href]="emailFallbackPdfUrl()!" target="_blank" rel="noopener noreferrer"
+                      class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-file-earmark-pdf me-1"></i>Ver PDF
+                    </a>
+                    @if (emailInvoice(); as inv) {
+                      <a [href]="buildMailtoLink(emailAddress, inv, emailFallbackPdfUrl()!)"
+                        class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-envelope me-1"></i>Abrir cliente de correo
+                      </a>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Correo del cliente</label>
+            <input type="email" class="form-control form-control-sm" [(ngModel)]="emailAddress"
+              placeholder="cliente@correo.com" [disabled]="emailLoading()" />
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="saveEmail"
+              [(ngModel)]="emailSaveToCustomer" [disabled]="emailLoading()" />
+            <label class="form-check-label small" for="saveEmail">
+              Guardar este correo en el cliente
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="closeEmailDialog()" [disabled]="emailLoading()">
+            Cancelar
+          </button>
+          <button class="btn btn-info btn-sm text-white" (click)="sendByEmail()"
+            [disabled]="emailLoading() || !emailAddress.trim()">
+            @if (emailLoading()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-send me-1"></i>Enviar correo
+          </button>
+        </div>
       </div>
     </div>
   </div>

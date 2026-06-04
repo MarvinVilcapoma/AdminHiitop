@@ -70,18 +70,16 @@ export class RolesListComponent implements OnInit {
   delConfirm = signal<{ message: string; action: () => void } | null>(null);
 
   readonly moduleCatalog: ModuleOption[] = [
-    { permission: 'dashboard.view', label: 'Dashboard', description: 'Inicio y métricas', icon: 'bi-grid-1x2' },
-    { permission: 'pos.view', label: 'Punto de venta', description: 'Caja, emisión y cobro en tienda', icon: 'bi-shop-window' },
-    { permission: 'orders.view', label: 'Pedidos', description: 'Gestión de pedidos', icon: 'bi-bag' },
-    { permission: 'guides.view', label: 'Guías', description: 'Guías de remisión', icon: 'bi-truck' },
-    { permission: 'products.view', label: 'Productos', description: 'Catálogo de productos', icon: 'bi-box-seam' },
-    { permission: 'stocks.view', label: 'Stock', description: 'Inventario y ajustes', icon: 'bi-boxes' },
-    { permission: 'customers.view', label: 'Clientes', description: 'Base de clientes', icon: 'bi-people' },
-    { permission: 'sales.view', label: 'Ventas', description: 'Ventas, promociones y reportes', icon: 'bi-graph-up' },
-    { permission: 'invoices.view', label: 'Comprobantes', description: 'Comprobantes electrónicos y SUNAT', icon: 'bi-receipt' },
-    { permission: 'promotions.view', label: 'Promociones', description: 'Campañas y descuentos comerciales', icon: 'bi-tags' },
-    { permission: 'users.view', label: 'Usuarios', description: 'Usuarios y roles', icon: 'bi-person-badge' },
-    { permission: 'config.order-statuses', label: 'Configuración', description: 'Catálogos y ajustes', icon: 'bi-gear' },
+    { permission: 'dashboard.view',        label: 'Dashboard',      description: 'Inicio y métricas',                  icon: 'bi-grid-1x2'          },
+    { permission: 'pos.view',              label: 'Punto de venta', description: 'Caja, emisión y cobro en tienda',    icon: 'bi-shop-window'        },
+    { permission: 'orders.view',           label: 'Pedidos',        description: 'Gestión de pedidos y devoluciones',  icon: 'bi-bag'                },
+    { permission: 'guides.view',           label: 'Guías',          description: 'Guías de remisión',                  icon: 'bi-truck'              },
+    { permission: 'stocks.view',           label: 'Inventario',     description: 'Inventario y ajustes de stock',      icon: 'bi-boxes'              },
+    { permission: 'customers.view',        label: 'Clientes',       description: 'Base de clientes',                   icon: 'bi-people'             },
+    { permission: 'invoices.view',         label: 'Comprobantes',   description: 'Comprobantes electrónicos y SUNAT',  icon: 'bi-receipt'            },
+    { permission: 'finance.view',          label: 'Finanzas',       description: 'Ingresos, gastos y finanzas',        icon: 'bi-bar-chart-line'     },
+    { permission: 'users.view',            label: 'Usuarios',       description: 'Usuarios y roles',                   icon: 'bi-person-badge'       },
+    { permission: 'config.order-statuses', label: 'Configuración',  description: 'Catálogos y ajustes',                icon: 'bi-gear'               },
   ];
 
   availableModules = computed(() => {
