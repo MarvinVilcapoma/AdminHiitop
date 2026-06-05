@@ -43,6 +43,20 @@ public sealed class OrderGuidesController : BaseApiController
         return response is null ? NotFound(new { message = "La guía aún no ha sido enviada." }) : Ok(response);
     }
 
+    /// <summary>
+    /// Communicate a baja (void) for an accepted GRE to SUNAT via Nubefact.
+    /// Requires: transfer_started, goods_arrived, motivo.
+    /// </summary>
+    [HttpPost("orders/{orderId:int}/guide/baja")]
+    public async Task<IActionResult> Baja(int orderId, [FromBody] GuideBajaRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+            return BadRequest(new { success = false, message = "El motivo de la baja es obligatorio." });
+
+        object? response = await _orderGuideService.BajaAsync(orderId, request);
+        return response is null ? NotFound(new { message = "Guía no encontrada." }) : Ok(response);
+    }
+
     [HttpGet("orders/{orderId:int}/guide/xml")]
     public async Task<IActionResult> Xml(int orderId)
     {

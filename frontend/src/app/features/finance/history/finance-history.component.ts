@@ -2,9 +2,9 @@ import { Component } from '@angular/core';
 import { FinancialMovementsComponent } from '../movements/financial-movements.component';
 
 @Component({
-  selector: 'app-expenses',
+  selector: 'app-finance-history',
   standalone: true,
   imports: [FinancialMovementsComponent],
-  template: `<app-financial-movements movementType="EXPENSE" [showBack]="true" />`,
+  template: `<app-financial-movements movementType="" [showBack]="true" />`,
 })
-export class ExpensesComponent {}
+export class FinanceHistoryComponent {}

@@ -5,6 +5,6 @@ import { FinancialMovementsComponent } from '../movements/financial-movements.co
   selector: 'app-incomes',
   standalone: true,
   imports: [FinancialMovementsComponent],
-  template: `<app-financial-movements movementType="INCOME" />`,
+  template: `<app-financial-movements movementType="INCOME" [showBack]="true" />`,
 })
 export class IncomesComponent {}

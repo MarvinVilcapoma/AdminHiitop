@@ -66,9 +66,9 @@
                   <div class="text-muted" style="font-size:.75rem">{{ ret.customer_dni }}</div>
                 }
               </td>
-              <td class="small">{{ ret.return_type_label }}</td>
+              <td class="small">{{ returnTypeLabel(ret) }}</td>
               <td>
-                <span class="badge {{ statusClass(ret.status) }}">{{ ret.status_label }}</span>
+                <span class="badge {{ statusClass(ret.status) }}">{{ statusLabel(ret) }}</span>
               </td>
               <td class="small font-monospace">{{ ret.original_invoice_number ?? '—' }}</td>
               <td class="small font-monospace">
@@ -82,11 +82,15 @@
               <td class="text-end small">S/ {{ ret.total_returned_amount | number:'1.2-2' }}</td>
               <td class="small text-muted text-nowrap">{{ ret.created_at | date:'dd/MM/yy HH:mm' }}</td>
               <td>
-                <div class="d-flex gap-1 justify-content-end">
+                <div class="d-flex gap-1 justify-content-end align-items-center flex-wrap">
                   @if (canIssueCreditNote(ret)) {
                     <button class="btn btn-xs btn-outline-warning" title="Emitir nota de crédito"
                       [disabled]="saving()" (click)="issueCreditNote(ret)">
-                      <i class="bi bi-receipt"></i>
+                      @if (saving() && ncErrorInvoiceId() === ret.id) {
+                        <span class="spinner-border spinner-border-sm"></span>
+                      } @else {
+                        <i class="bi bi-receipt"></i>
+                      }
                     </button>
                   }
                   @if (canCancel(ret)) {
@@ -95,6 +99,14 @@
                     </button>
                   }
                 </div>
+                @if (ncErrorInvoiceId() === ret.id && ncErrorMessage()) {
+                  <div class="text-danger mt-1" style="font-size:.72rem;max-width:220px;line-height:1.2">
+                    <i class="bi bi-exclamation-circle me-1"></i>{{ ncErrorMessage() }}
+                    @if (ncErrorMessage().includes('Parámetros fiscales')) {
+                      <a routerLink="/dashboard/settings" class="ms-1 text-danger fw-semibold">Configurar</a>
+                    }
+                  </div>
+                }
               </td>
             </tr>
           }

@@ -272,6 +272,7 @@ export interface Order {
   user?: Pick<AppUser, 'id' | 'name'>;
   items?: OrderItem[];
   invoices?: { id: number; status: string; doc_type: string; full_number: string }[];
+  has_active_return?: boolean;
   created_at?: string;
 }
 

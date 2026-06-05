@@ -252,7 +252,7 @@ export class InvoicesListComponent implements OnInit {
   }
 
   canVoid(inv: Invoice): boolean {
-    return ['accepted', 'cancelled'].includes(inv.status) && !['07', '08'].includes(inv.doc_type);
+    return inv.status === 'accepted' && !['07', '08'].includes(inv.doc_type);
   }
 
   hasXml(inv: Invoice): boolean {
@@ -348,17 +348,19 @@ export class InvoicesListComponent implements OnInit {
               const size = varParts.length >= 2 ? varParts[varParts.length - 1] : '';
               desc = size ? `${name} — ${size}` : name;
             }
+            const um = it.unit_measure ?? 'NIU';
             return `
             <tr>
               <td class="qty">${it.quantity}</td>
+              <td class="um" title="Unidad de Medida">${this.escHtml(um)}</td>
               <td class="desc">${this.escHtml(desc)}</td>
               <td class="num">S/ ${(+it.unit_price).toFixed(2)}</td>
               <td class="num">S/ ${(+it.subtotal).toFixed(2)}</td>
             </tr>`;
           }).join('');
-          doRender(rows || '<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>');
+          doRender(rows || '<tr><td colspan="5" style="text-align:center;color:#888">Sin detalle de items</td></tr>');
         },
-        error: () => doRender('<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>'),
+        error: () => doRender('<tr><td colspan="5" style="text-align:center;color:#888">Sin detalle de items</td></tr>'),
       });
     } else {
       doRender('<tr><td colspan="4" style="text-align:center;color:#888">Sin detalle de items</td></tr>');
@@ -536,6 +538,7 @@ export class InvoicesListComponent implements OnInit {
   th { padding: 5px 7px; font-weight: 700; text-align: left; }
   td { padding: 5px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
   .qty  { width: 36px; text-align: center; }
+  .um   { width: 38px; text-align: center; color: #555; font-size: 9.5px; }
   .desc { }
   .num  { text-align: right; white-space: nowrap; }
 
@@ -584,6 +587,7 @@ export class InvoicesListComponent implements OnInit {
   <thead>
     <tr>
       <th class="qty">Cant.</th>
+      <th class="um" title="Unidad de Medida">UM</th>
       <th class="desc">Descripción</th>
       <th class="num">P. Unit.</th>
       <th class="num">Total</th>

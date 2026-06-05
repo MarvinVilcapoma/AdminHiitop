@@ -7,7 +7,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { Order, Page } from '../../../core/models';
 import { PageStateComponent } from '../../../core/components';
 
-type GuideFilterStatus = '' | 'draft' | 'accepted' | 'rejected' | 'exception' | 'error';
+type GuideFilterStatus = '' | 'draft' | 'accepted' | 'rejected' | 'exception' | 'error' | 'voided';
 type GuideTypeFilter   = '' | 'GUIA_REMISION' | 'GUIA_REMISION_TRANSP';
 
 @Component({
@@ -52,6 +52,63 @@ export class GuidesListComponent implements OnInit {
   guideEmailLoading = signal(false);
   guideEmailError   = signal('');
   guideEmailPdfUrl  = signal<string | null>(null);
+
+  // Baja GRE
+  bajaGuide   = signal<Order | null>(null);
+  bajaSaving  = signal(false);
+  bajaResult  = signal<{ success: boolean; message: string } | null>(null);
+  bajaForm = {
+    transfer_started: '' as '' | 'si' | 'no',
+    goods_arrived:    '' as '' | 'si' | 'no',
+    motivo:           '',
+  };
+
+  canBajaGuide(order: Order): boolean {
+    return order.guide_status === 'accepted';
+  }
+
+  openBaja(order: Order): void {
+    this.bajaForm = { transfer_started: '', goods_arrived: '', motivo: '' };
+    this.bajaResult.set(null);
+    this.bajaGuide.set(order);
+  }
+
+  closeBaja(): void {
+    if (this.bajaSaving()) return;
+    this.bajaGuide.set(null);
+  }
+
+  confirmBaja(): void {
+    const order = this.bajaGuide();
+    if (!order) return;
+    if (!this.bajaForm.transfer_started || !this.bajaForm.goods_arrived) {
+      this.toast.warning('Responde todas las preguntas antes de continuar.');
+      return;
+    }
+    if (!this.bajaForm.motivo.trim()) {
+      this.toast.warning('El motivo de la baja es obligatorio.');
+      return;
+    }
+    this.bajaSaving.set(true);
+    this.api.post<any>(`orders/${order.id}/guide/baja`, {
+      transfer_started: this.bajaForm.transfer_started === 'si',
+      goods_arrived:    this.bajaForm.goods_arrived    === 'si',
+      motivo:           this.bajaForm.motivo.trim(),
+    }).subscribe({
+      next: res => {
+        this.bajaSaving.set(false);
+        const ok = !!res?.success;
+        this.bajaResult.set({ success: ok, message: res?.message ?? (ok ? 'Baja comunicada correctamente a SUNAT.' : 'No se pudo dar de baja la guía.') });
+        if (ok) {
+          this.guides.update(rows => rows.map(r => r.id === order.id ? { ...r, guide_status: 'voided' } : r));
+        }
+      },
+      error: e => {
+        this.bajaSaving.set(false);
+        this.bajaResult.set({ success: false, message: e?.error?.message ?? 'Error al dar de baja la guía.' });
+      },
+    });
+  }
 
   // WhatsApp
   guideWhatsApp        = signal<Order | null>(null);
@@ -188,22 +245,24 @@ export class GuidesListComponent implements OnInit {
   statusLabel(order: Order): string {
     const status = String(order.guide_status ?? '').toLowerCase();
     return ({
-      draft: 'Borrador',
+      draft:    'Borrador',
       accepted: 'Aceptado',
       rejected: 'Rechazado',
-      exception: 'Observado',
-      error: 'Error',
+      exception:'Observado',
+      error:    'Error',
+      voided:   'Dado de baja',
     } as Record<string, string>)[status] ?? 'Sin enviar';
   }
 
   statusBadgeClass(order: Order): string {
     const status = String(order.guide_status ?? '').toLowerCase();
     return ({
-      draft: 'badge-draft',
+      draft:    'badge-draft',
       accepted: 'badge-accepted',
       rejected: 'badge-rejected',
-      exception: 'badge-exception',
-      error: 'badge-error',
+      exception:'badge-exception',
+      error:    'badge-error',
+      voided:   'badge-cancelled',
     } as Record<string, string>)[status] ?? 'badge-none';
   }
 

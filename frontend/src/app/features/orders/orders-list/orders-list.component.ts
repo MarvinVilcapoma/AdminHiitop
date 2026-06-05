@@ -22,8 +22,9 @@ interface EmitForm {
 }
 
 interface TrackingForm {
-  pickup_key: string;
-  tracking_number: string;
+  pickup_key:         string;
+  tracking_number:    string;
+  shipping_agency_id: number | null;
 }
 
 @Component({
@@ -66,12 +67,13 @@ export class OrdersListComponent implements OnInit {
   filterToDate = '';
 
   // Lookup data for filter dropdowns
-  orderStatuses = signal<OrderStatus[]>([]);
-  collections = signal<Collection[]>([]);
-  productTypes = signal<ProductType[]>([]);
-  invoiceSeries = signal<InvoiceSeries[]>([]);
-  paymentMethods = signal<PaymentMethod[]>([]);
-  users = signal<{ id: number; name: string }[]>([]);
+  orderStatuses    = signal<OrderStatus[]>([]);
+  collections      = signal<Collection[]>([]);
+  productTypes     = signal<ProductType[]>([]);
+  invoiceSeries    = signal<InvoiceSeries[]>([]);
+  paymentMethods   = signal<PaymentMethod[]>([]);
+  shippingAgencies = signal<{ id: number; name: string }[]>([]);
+  users            = signal<{ id: number; name: string }[]>([]);
 
   // Inline status editing
   editingStatusOrderId = signal<number | null>(null);
@@ -81,8 +83,9 @@ export class OrdersListComponent implements OnInit {
   trackingOrder = signal<Order | null>(null);
   trackingSaving = signal(false);
   trackingForm: TrackingForm = {
-    pickup_key: '',
-    tracking_number: '',
+    pickup_key:         '',
+    tracking_number:    '',
+    shipping_agency_id: null,
   };
 
   // Emit invoice modal
@@ -276,6 +279,7 @@ export class OrdersListComponent implements OnInit {
     this.api.get<any>('product-types?per_page=100').subscribe((r: any) => this.productTypes.set(r.data ?? r));
     this.api.get<any>('invoices/series').subscribe((r: any) => this.invoiceSeries.set(r ?? []));
     this.api.get<any>('payment-methods?per_page=100').subscribe((r: any) => this.paymentMethods.set((r.data ?? r).filter((m: any) => m.is_active !== false)));
+    this.api.get<any>('shipping-agencies?per_page=100').subscribe((r: any) => this.shippingAgencies.set((r.data ?? r).filter((a: any) => a.is_active !== false)));
     this.api.get<any>('users?per_page=200').subscribe((r: any) => this.users.set((r.data ?? r).map((u: any) => ({ id: u.id, name: u.name }))));
   }
 
@@ -611,19 +615,56 @@ export class OrdersListComponent implements OnInit {
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   canDelete(order: Order): boolean {
+    if (order.has_active_return) return false;
+    const slug = String(order.order_status?.slug ?? '').toLowerCase();
+    if (slug === 'devuelto') return false;
     return !order.document_number;
   }
 
+  deleteBlockReason(order: Order): string {
+    if (order.has_active_return) return 'Este pedido tiene una devolución registrada y no puede eliminarse.';
+    const slug = String(order.order_status?.slug ?? '').toLowerCase();
+    if (slug === 'devuelto') return 'El pedido está marcado como devuelto y no puede eliminarse.';
+    if (order.document_number) return 'El pedido tiene un comprobante emitido y no puede eliminarse.';
+    return '';
+  }
+
+  /** True when the order has at least one invoice and ALL are cancelled/voided */
+  isVoided(order: Order): boolean {
+    const invs = order.invoices;
+    if (!invs || invs.length === 0) return false;
+    return invs.every(i => i.status === 'cancelled');
+  }
+
+  /** Statuses that represent an in-flight or finalised invoice — cannot emit again */
+  private readonly ACTIVE_INVOICE_STATUSES = [
+    'draft', 'generated', 'pending', 'sent',
+    'accepted', 'accepted_with_obs',
+    'processing', 'ticket_generated',
+    'pending_daily_summary', 'daily_summary_sent',
+  ];
+
   canEmit(order: Order): boolean {
-    if (this.isGuideOrder(order)) {
-      return true;
+    if (this.isGuideOrder(order)) return true;
+
+    // Use invoices[] as the primary source of truth when available
+    if (order.invoices && order.invoices.length > 0) {
+      return !order.invoices.some(inv => this.ACTIVE_INVOICE_STATUSES.includes(inv.status));
     }
 
-    if (!order.invoices || order.invoices.length === 0) return true;
-    // Allow retry only if ALL invoices are failed (rejected, error, cancelled)
-    // Block if any invoice is accepted, pending, or draft
-    const blockingStatuses = ['accepted', 'pending', 'draft'];
-    return !order.invoices.some(inv => blockingStatuses.includes(inv.status));
+    // Fallback: document_number is set only when an accepted invoice exists
+    if (order.document_number) return false;
+
+    return true;
+  }
+
+  /** Returns the active invoice number for a blocked order, or empty string */
+  activeInvoiceNumber(order: Order): string {
+    if (order.invoices && order.invoices.length > 0) {
+      const active = order.invoices.find(inv => this.ACTIVE_INVOICE_STATUSES.includes(inv.status));
+      if (active) return active.full_number;
+    }
+    return order.document_number ?? '';
   }
 
   isGuideOrder(order: Order): boolean {
@@ -681,8 +722,9 @@ export class OrdersListComponent implements OnInit {
   openTrackingModal(order: Order): void {
     this.trackingOrder.set(order);
     this.trackingForm = {
-      pickup_key: order.pickup_key ?? '',
-      tracking_number: order.tracking_number ?? '',
+      pickup_key:         order.pickup_key      ?? '',
+      tracking_number:    order.tracking_number ?? '',
+      shipping_agency_id: order.shipping_agency_id ?? null,
     };
   }
 
@@ -697,24 +739,28 @@ export class OrdersListComponent implements OnInit {
 
     this.trackingSaving.set(true);
     const payload = {
-      pickup_key: this.trackingForm.pickup_key.trim() || null,
-      tracking_number: this.trackingForm.tracking_number.trim() || null,
+      pickup_key:          this.trackingForm.pickup_key.trim()      || null,
+      tracking_number:     this.trackingForm.tracking_number.trim() || null,
+      shipping_agency_id:  this.trackingForm.shipping_agency_id     ?? null,
     };
 
     this.api.put<Order>(`orders/${order.id}/tracking`, payload).subscribe({
       next: (updated) => {
+        const agency = this.shippingAgencies().find(a => a.id === payload.shipping_agency_id);
         this.orders.update(list =>
           list.map(item => item.id === order.id
             ? {
                 ...item,
-                pickup_key: updated?.pickup_key ?? payload.pickup_key ?? undefined,
-                tracking_number: updated?.tracking_number ?? payload.tracking_number ?? undefined,
+                pickup_key:         updated?.pickup_key         ?? payload.pickup_key         ?? undefined,
+                tracking_number:    updated?.tracking_number    ?? payload.tracking_number    ?? undefined,
+                shipping_agency_id: payload.shipping_agency_id ?? undefined,
+                shipping_agency:    agency ? { id: agency.id, name: agency.name } : item.shipping_agency,
               }
             : item)
         );
         this.trackingSaving.set(false);
         this.trackingOrder.set(null);
-        this.toast.success('Datos de recojo y tracking guardados.');
+        this.toast.success('Datos de envío guardados.');
       },
       error: (e) => {
         this.trackingSaving.set(false);
@@ -845,13 +891,26 @@ export class OrdersListComponent implements OnInit {
     this.emitError.set('');
     this.api.post<any>('invoices', { order_id: order.id, ...this.emitForm }).subscribe({
       next: res => {
+        this.emitLoading.set(false);
+        // Backend may return { error: true, message } for business-rule violations
+        if (res?.error) {
+          this.emitError.set(res.message ?? 'No se pudo emitir el comprobante.');
+          return;
+        }
         const sunat = res?.sunat_result;
         this.emitResult.set({
           success: sunat?.success ?? true,
           code: sunat?.code,
           description: sunat?.description ?? (res?.invoice ? 'Comprobante generado.' : 'Guardado como borrador.'),
         });
-        this.emitLoading.set(false);
+        // Refresh the order's invoices in-list so canEmit updates immediately
+        if (res?.invoice) {
+          this.orders.update(list => list.map(o =>
+            o.id === order.id
+              ? { ...o, invoices: [...(o.invoices ?? []), { id: res.invoice.id, status: res.invoice.status, doc_type: res.invoice.doc_type, full_number: res.invoice.full_number }] }
+              : o
+          ));
+        }
       },
       error: e => {
         this.emitError.set(e?.error?.message ?? 'Error al emitir el comprobante.');

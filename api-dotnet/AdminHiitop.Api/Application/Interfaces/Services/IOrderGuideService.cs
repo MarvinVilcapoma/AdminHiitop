@@ -1,4 +1,5 @@
 using AdminHiitop.Api.Application.DTOs.Common;
+using AdminHiitop.Api.Application.DTOs.OrderGuides;
 using AdminHiitop.Api.Domain.Sales.Entities;
 
 namespace AdminHiitop.Api.Application.Interfaces.Services;
@@ -9,6 +10,7 @@ public interface IOrderGuideService
     Task<Order?> GetByOrderIdAsync(int orderId);
     Task<object?> SendAsync(int orderId);
     Task<object?> ConsultAsync(int orderId);
+    Task<object?> BajaAsync(int orderId, GuideBajaRequest request);
     Task<FileDownloadResponse?> GetXmlAsync(int orderId);
     Task<FileDownloadResponse?> GetCdrAsync(int orderId);
     Task<FileDownloadResponse?> GetPdfAsync(int orderId);

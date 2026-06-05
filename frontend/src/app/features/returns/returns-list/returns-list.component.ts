@@ -82,7 +82,36 @@ export class ReturnsListComponent implements OnInit {
     } as Record<string, string>)[status] ?? 'badge-draft';
   }
 
+  statusLabel(ret: ReturnRequest): string {
+    if (ret.status_label) return ret.status_label;
+    return ({
+      REQUESTED:          'Solicitado',
+      APPROVED:           'Aprobado',
+      CREDIT_NOTE_ISSUED: 'NC Emitida',
+      COMPLETED:          'Completado',
+      CREDIT_NOTE_PENDING:'NC Pendiente',
+      CANCELLED:          'Cancelado',
+    } as Record<string, string>)[ret.status] ?? ret.status;
+  }
+
+  returnTypeLabel(ret: ReturnRequest): string {
+    if (ret.return_type_label) return ret.return_type_label;
+    return ({
+      FULL_REFUND:              'Devolución total',
+      PARTIAL_REFUND:           'Devolución parcial',
+      EXCHANGE_SAME_PRICE:      'Cambio mismo precio',
+      EXCHANGE_WITH_EXTRA_PAYMENT: 'Cambio con pago extra',
+      EXCHANGE_WITH_REFUND:     'Cambio con devolución',
+      STORE_CREDIT:             'Crédito en tienda',
+    } as Record<string, string>)[ret.return_type] ?? ret.return_type ?? '—';
+  }
+
+  ncErrorMessage = signal('');
+  ncErrorInvoiceId = signal<number | null>(null);
+
   issueCreditNote(ret: ReturnRequest): void {
+    this.ncErrorMessage.set('');
+    this.ncErrorInvoiceId.set(null);
     this.saving.set(true);
     this.api.post<any>(`returns/${ret.id}/issue-credit-note`, {}).subscribe({
       next: res => {
@@ -91,12 +120,15 @@ export class ReturnsListComponent implements OnInit {
           this.toast.success('Nota de crédito emitida correctamente.');
           this.load();
         } else {
-          this.toast.error(res?.message ?? 'No se pudo emitir la nota de crédito.');
+          this.ncErrorMessage.set(res?.message ?? 'No se pudo emitir la nota de crédito.');
+          this.ncErrorInvoiceId.set(ret.id);
         }
       },
       error: e => {
         this.saving.set(false);
-        this.toast.error(e?.error?.message ?? 'Error al emitir la nota de crédito.');
+        const msg: string = e?.error?.message ?? 'Error al emitir la nota de crédito.';
+        this.ncErrorMessage.set(msg);
+        this.ncErrorInvoiceId.set(ret.id);
       },
     });
   }

@@ -171,6 +171,16 @@
                 <div>
                   <h6 class="mb-0">{{ doc.label }}</h6>
                   <small class="text-muted">Tipo {{ doc.code }}</small>
+                  @if (doc.code === '07') {
+                    <div class="mt-1">
+                      <span class="badge bg-warning text-dark me-1">Importante</span>
+                      <small class="text-muted">
+                        Las NC de <strong>Factura</strong> deben iniciar con <code>FC</code> (ej: <code>FC01</code>)
+                        y las de <strong>Boleta</strong> con <code>BC</code> (ej: <code>BC01</code>).
+                        Ambas son obligatorias para emitir notas de crédito desde Devoluciones.
+                      </small>
+                    </div>
+                  }
                 </div>
                 @if (seriesFor(doc.code).length === 0) {
                   <button type="button" class="btn btn-sm btn-outline-secondary" (click)="addSeries(doc.code)">

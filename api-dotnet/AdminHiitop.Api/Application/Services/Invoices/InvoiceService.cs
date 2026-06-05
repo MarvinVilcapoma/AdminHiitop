@@ -72,6 +72,33 @@ public sealed class InvoiceService : IInvoiceService
                 .FirstOrDefaultAsync(item => item.Id == request.OrderId.Value)
             : null;
 
+        // Guard: block if this order already has an active (non-cancelled) invoice.
+        // Statuses that represent an in-flight or accepted invoice.
+        if (request.OrderId.HasValue)
+        {
+            string[] activeStatuses = ["draft", "generated", "pending", "sent", "accepted", "accepted_with_obs",
+                                       "processing", "ticket_generated", "pending_daily_summary", "daily_summary_sent"];
+            bool hasActive = await _context.Invoices
+                .AnyAsync(inv => inv.OrderId == request.OrderId.Value && activeStatuses.Contains(inv.Status));
+
+            if (hasActive)
+            {
+                var existing = await _context.Invoices
+                    .AsNoTracking()
+                    .Where(inv => inv.OrderId == request.OrderId.Value && activeStatuses.Contains(inv.Status))
+                    .OrderByDescending(inv => inv.Id)
+                    .Select(inv => new { inv.FullNumber, inv.Status })
+                    .FirstOrDefaultAsync();
+
+                return new
+                {
+                    error   = true,
+                    message = $"Este pedido ya tiene el comprobante {existing?.FullNumber} ({existing?.Status}). " +
+                              "Anúlalo primero si necesitas emitir uno nuevo.",
+                };
+            }
+        }
+
         // Atomic increment — never re-uses a number even under concurrent requests
         string serie;
         int correlativo;

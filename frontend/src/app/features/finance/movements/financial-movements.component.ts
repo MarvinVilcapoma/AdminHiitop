@@ -1,6 +1,7 @@
 import { Component, OnInit, signal, computed, inject, Input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe, LowerCasePipe, NgClass, SlicePipe } from '@angular/common';
+import { Location } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import {
@@ -14,7 +15,12 @@ import {
   templateUrl: './financial-movements.component.html',
 })
 export class FinancialMovementsComponent implements OnInit {
-  @Input() movementType: 'EXPENSE' | 'INCOME' = 'EXPENSE';
+  /** Pass 'EXPENSE', 'INCOME', or leave empty for combined (historial) view */
+  @Input() movementType: 'EXPENSE' | 'INCOME' | '' = 'EXPENSE';
+  /** Show back button (used in standalone pages) */
+  @Input() showBack = false;
+
+  private readonly location = inject(Location);
 
   private readonly api   = inject(ApiService);
   private readonly toast = inject(ToastService);
@@ -39,8 +45,20 @@ export class FinancialMovementsComponent implements OnInit {
 
   form: FinancialMovementRequest = this.emptyForm();
 
-  get typeLabel()   { return this.movementType === 'EXPENSE' ? 'Gasto' : 'Ingreso'; }
-  get typeLabelPl() { return this.movementType === 'EXPENSE' ? 'Gastos' : 'Ingresos'; }
+  /** For combined view the user can filter by type in the UI */
+  filterType: 'EXPENSE' | 'INCOME' | '' = '';
+
+  get typeLabel()   {
+    const t = this.movementType || this.filterType;
+    return t === 'EXPENSE' ? 'Gasto' : t === 'INCOME' ? 'Ingreso' : 'Movimiento';
+  }
+  get typeLabelPl() {
+    const t = this.movementType || this.filterType;
+    return t === 'EXPENSE' ? 'Gastos' : t === 'INCOME' ? 'Ingresos' : 'Movimientos';
+  }
+  get isCombined() { return !this.movementType; }
+
+  goBack(): void { this.location.back(); }
 
   years = Array.from({ length: 5 }, (_, i) => this.today.getFullYear() - i);
   months = [
@@ -56,16 +74,25 @@ export class FinancialMovementsComponent implements OnInit {
   }
 
   loadCategories(): void {
-    this.api.get<FinancialCategory[]>(`financial-categories?type=${this.movementType}`).subscribe({
+    const typeParam = this.movementType || this.filterType;
+    const qs = typeParam ? `?type=${typeParam}` : '';
+    this.api.get<FinancialCategory[]>(`financial-categories${qs}`).subscribe({
       next: (data) => this.categories.set(data ?? []),
       error: () => {},
     });
   }
 
+  onTypeFilterChange(): void {
+    this.loadCategories();
+    this.load(1);
+  }
+
   load(page = 1): void {
     this.loading.set(true);
     this.currentPage.set(page);
-    const params = `type=${this.movementType}&year=${this.filterYear}&month=${this.filterMonth}&page=${page}&per_page=${this.perPage}`;
+    const effectiveType = this.movementType || this.filterType;
+    const typeParam = effectiveType ? `&type=${effectiveType}` : '';
+    const params = `year=${this.filterYear}&month=${this.filterMonth}&page=${page}&per_page=${this.perPage}${typeParam}`;
     this.api.get<Page<FinancialMovement>>(`financial-movements?${params}`).subscribe({
       next: (res) => {
         this.items.set(res.data ?? []);
@@ -109,7 +136,7 @@ export class FinancialMovementsComponent implements OnInit {
       return;
     }
     this.saving.set(true);
-    const payload = { ...this.form, type: this.movementType };
+    const payload = { ...this.form, type: (this.movementType || this.form.type) as 'EXPENSE' | 'INCOME' };
     const existing = this.editItem();
 
     const req$ = existing
@@ -154,7 +181,7 @@ export class FinancialMovementsComponent implements OnInit {
 
   private emptyForm(): FinancialMovementRequest {
     return {
-      type:           this.movementType,
+      type:           (this.movementType || this.filterType || 'EXPENSE') as 'EXPENSE' | 'INCOME',
       category_id:    0,
       description:    '',
       amount:         0,

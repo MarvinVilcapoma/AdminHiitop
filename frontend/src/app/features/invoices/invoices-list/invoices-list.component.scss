@@ -14,3 +14,30 @@
   &.badge-pending-summary  { background-color: #6f42c1; }
   &.badge-summary-sent     { background-color: #0d6efd; }
 }
+
+// ── Cancelled / voided invoice row ────────────────────────────────────────
+
+.tr-cancelled {
+  opacity: 0.5;
+  background-color: #f8f9fa !important;
+  pointer-events: none;   // disables all clicks on the row
+
+  // Re-enable only the print and PDF buttons (visual only — pointer-events override below)
+  td:last-child {
+    pointer-events: auto;
+
+    button, a {
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    // Allow print and PDF download even on cancelled invoices
+    button[title="Imprimir comprobante"],
+    button[title="Ver / descargar PDF Nubefact"],
+    button[title="Descargar XML firmado"],
+    button[title="Descargar CDR de SUNAT"] {
+      pointer-events: auto;
+      opacity: 1;
+    }
+  }
+}

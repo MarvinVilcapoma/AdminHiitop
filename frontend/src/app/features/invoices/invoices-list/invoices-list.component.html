@@ -88,17 +88,28 @@
             </tr>
           } @else {
             @for (inv of invoices(); track inv.id) {
-              <tr>
-                <td class="fw-semibold font-monospace small">{{ inv.full_number }}</td>
+              <tr [class.tr-cancelled]="inv.status === 'cancelled'">
+                <td class="fw-semibold font-monospace small">
+                  @if (inv.status === 'cancelled') {
+                    <s class="text-muted">{{ inv.full_number }}</s>
+                  } @else {
+                    {{ inv.full_number }}
+                  }
+                </td>
                 <td><span class="badge text-bg-secondary">{{ docTypeLabel(inv.doc_type) }}</span></td>
                 <td class="text-truncate" style="max-width:180px">{{ inv.customer_name }}</td>
                 <td class="small text-muted">{{ inv.customer_doc_type === '6' ? 'RUC' : 'DNI' }}: {{ inv.customer_doc_number }}</td>
-                <td class="text-end">{{ inv.mto_imp_venta | number:'1.2-2' }}</td>
+                <td class="text-end" [class.text-decoration-line-through]="inv.status === 'cancelled'"
+                    [class.text-muted]="inv.status === 'cancelled'">
+                  {{ inv.mto_imp_venta | number:'1.2-2' }}
+                </td>
                 <td><span class="badge inv-status" [ngClass]="statusBadgeClass(inv.status)">{{ statusLabel(inv) }}</span></td>
                 <td class="small text-muted text-nowrap">{{ inv.issued_at | date:'dd/MM/yy HH:mm' }}</td>
                 <td class="text-center text-nowrap">
                   @if (canSend(inv)) {
-                    <button class="btn btn-xs btn-outline-primary me-1" [disabled]="sendingId() === inv.id" (click)="sendInvoice(inv)">
+                    <button class="btn btn-xs btn-outline-primary me-1"
+                      title="Enviar / reenviar a SUNAT"
+                      [disabled]="sendingId() === inv.id" (click)="sendInvoice(inv)">
                       @if (sendingId() === inv.id) {
                         <span class="spinner-border spinner-border-sm"></span>
                       } @else {
@@ -111,23 +122,22 @@
                     <i class="bi bi-printer"></i>
                   </button>
 
-                  <button class="btn btn-xs btn-outline-danger me-1" title="Descargar PDF Nubefact" (click)="openPdf(inv)">
+                  <button class="btn btn-xs btn-outline-danger me-1" title="Ver / descargar PDF Nubefact" (click)="openPdf(inv)">
                     <i class="bi bi-file-earmark-pdf"></i>
                   </button>
 
                   @if (hasXml(inv)) {
-                    <button class="btn btn-xs btn-outline-secondary me-1" (click)="downloadXml(inv)">
+                    <button class="btn btn-xs btn-outline-secondary me-1" title="Descargar XML firmado" (click)="downloadXml(inv)">
                       <i class="bi bi-file-earmark-code"></i>
                     </button>
                   }
 
                   @if (inv.status === 'accepted') {
-                    <button class="btn btn-xs btn-outline-secondary me-1" (click)="downloadCdr(inv)">
+                    <button class="btn btn-xs btn-outline-secondary me-1" title="Descargar CDR de SUNAT" (click)="downloadCdr(inv)">
                       <i class="bi bi-file-earmark-zip"></i>
                     </button>
                   }
 
-                  <!-- WhatsApp: only when PDF URL exists (accepted/sent) -->
                   @if (canSendByWhatsApp(inv)) {
                     <button class="btn btn-xs btn-outline-success me-1"
                       title="Enviar por WhatsApp"
@@ -136,7 +146,6 @@
                     </button>
                   }
 
-                  <!-- Email via Nubefact: only for SUNAT documents already sent -->
                   @if (canSendByEmail(inv)) {
                     <button class="btn btn-xs btn-outline-info me-1"
                       title="Enviar por correo"
@@ -146,7 +155,7 @@
                   }
 
                   @if (canVoid(inv)) {
-                    <button class="btn btn-xs btn-outline-warning" (click)="openVoid(inv)">
+                    <button class="btn btn-xs btn-outline-warning" title="Anular comprobante" (click)="openVoid(inv)">
                       <i class="bi bi-x-square"></i>
                     </button>
                   }

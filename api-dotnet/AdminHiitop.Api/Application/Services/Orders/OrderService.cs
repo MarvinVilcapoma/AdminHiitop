@@ -56,8 +56,10 @@ public sealed class OrderService : IOrderService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            string term = search.Trim();
+            string term      = search.Trim();
+            bool   isNumeric = int.TryParse(term, out int searchId);
             query = query.Where(item =>
+                (isNumeric && item.Id == searchId) ||
                 item.OrderNumber.Contains(term) ||
                 (item.CustomerName != null && item.CustomerName.Contains(term)) ||
                 (item.Dni          != null && item.Dni.Contains(term)) ||
@@ -230,10 +232,15 @@ public sealed class OrderService : IOrderService
             .FirstOrDefaultAsync(item => item.Id == id)
             ?? throw new AppException("Pedido no encontrado.", 404);
 
-        entity.PickupKey = string.IsNullOrWhiteSpace(request.PickupKey) ? null : request.PickupKey.Trim();
-        entity.TrackingNumber = string.IsNullOrWhiteSpace(request.TrackingNumber) ? null : request.TrackingNumber.Trim();
+        entity.PickupKey        = string.IsNullOrWhiteSpace(request.PickupKey)      ? null : request.PickupKey.Trim();
+        entity.TrackingNumber   = string.IsNullOrWhiteSpace(request.TrackingNumber) ? null : request.TrackingNumber.Trim();
+        if (request.ShippingAgencyId.HasValue)
+            entity.ShippingAgencyId = request.ShippingAgencyId.Value == 0 ? null : request.ShippingAgencyId;
 
         await _context.SaveChangesAsync();
+
+        // Return with ShippingAgency loaded so the frontend can update the row
+        await _context.Entry(entity).Reference(o => o.ShippingAgency).LoadAsync();
         return entity;
     }
 

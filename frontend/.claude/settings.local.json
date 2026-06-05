@@ -111,7 +111,11 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marvin.vilcapoma\\\\source\\\\repos\\\\Marvin\\\\AdminHiitop\\\\api-dotnet\\\\AdminHiitop.Api\\\\Application\\\\Services\\\\Returns\" -ErrorAction SilentlyContinue)",
       "Bash(xargs grep -l \"whatsapp\\\\|WhatsApp\")",
       "Read(//c/Users/marvin.vilcapoma/source/repos/Marvin/AdminHiitop.Api/Application/DTOs/ElectronicBilling/**)",
-      "Bash(dotnet add *)"
+      "Bash(dotnet add *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(xargs grep -l \"historial\\\\|history\\\\|route.*finance\")",
+      "Bash(xargs grep -l \"NubeFact\\\\|nubefact\")"
     ],
     "additionalDirectories": [
       "\\dev",

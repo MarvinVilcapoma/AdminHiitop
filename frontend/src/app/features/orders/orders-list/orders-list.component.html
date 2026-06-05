@@ -542,20 +542,23 @@
                     }
                   </select>
                 } @else {
-                  @if (isStatusLocked(row)) {
+                  @if (isVoided(row)) {
+                    <span class="badge text-white status-badge" style="background:#6b7280"
+                          title="Comprobante(s) anulado(s)">
+                      Anulado
+                    </span>
+                  } @else if (isStatusLocked(row)) {
                     <span class="badge text-white status-badge"
-                          [style.background]="row.order_status?.color || '#6b7280'"
-                          title="Estado bloqueado">
+                          [style.background]="row.order_status?.color || '#6b7280'">
                       {{ row.order_status?.name }}
-                      <i class="bi bi-lock-fill ms-1 opacity-75" style="font-size:.65rem"></i>
                     </span>
                   } @else {
                     <span class="badge text-white status-badge"
                           [style.background]="row.order_status?.color || '#6b7280'"
                           title="Click para cambiar estado"
+                          style="cursor:pointer"
                           (click)="startEditStatus(row)">
                       {{ row.order_status?.name }}
-                      <i class="bi bi-pencil-fill ms-1 opacity-50" style="font-size:.65rem"></i>
                     </span>
                   }
                 }
@@ -617,14 +620,15 @@
                       }
                     </button>
                   } @else if (canEmit(row)) {
-                  <button class="btn btn-xs btn-outline-success" title="Emitir comprobante"
-                    (click)="openEmit(row)">
-                    <i class="bi bi-receipt"></i>
-                  </button>
+                    <button class="btn btn-xs btn-outline-success" title="Emitir comprobante"
+                      (click)="openEmit(row)">
+                      <i class="bi bi-receipt"></i>
+                    </button>
                   } @else {
-                  <span class="btn btn-xs btn-outline-secondary disabled" title="Ya tiene comprobante emitido">
-                    <i class="bi bi-receipt-cutoff"></i>
-                  </span>
+                    <span class="btn btn-xs btn-outline-secondary disabled"
+                      [title]="activeInvoiceNumber(row) ? 'Comprobante ya emitido: ' + activeInvoiceNumber(row) : 'Ya tiene comprobante emitido'">
+                      <i class="bi bi-receipt-cutoff"></i>
+                    </span>
                   }
                   <a [routerLink]="['/dashboard/orders', row.id, 'detail']" class="btn btn-xs btn-outline-secondary" title="Ver detalle">
                     <i class="bi bi-eye"></i>
@@ -632,11 +636,15 @@
                   <a [routerLink]="['/dashboard/orders', row.id]" class="btn btn-xs btn-outline-primary" title="Editar">
                     <i class="bi bi-pencil"></i>
                   </a>
-                  <button class="btn btn-xs btn-outline-info" title="Editar clave y tracking" (click)="openTrackingModal(row)">
-                    <i class="bi bi-box-seam"></i>
+                  <button class="btn btn-xs btn-outline-success" title="Marcar como enviado / editar tracking" (click)="openTrackingModal(row)">
+                    <i class="bi bi-truck"></i>
                   </button>
                   @if (canDelete(row)) {
-                    <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="requestDelete(row)">
+                    <button class="btn btn-xs btn-outline-danger" title="Eliminar pedido" (click)="requestDelete(row)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  } @else if (deleteBlockReason(row)) {
+                    <button class="btn btn-xs btn-outline-secondary" [title]="deleteBlockReason(row)" disabled>
                       <i class="bi bi-trash"></i>
                     </button>
                   }
@@ -735,34 +743,56 @@
   </div>
 }
 
-<!-- ═══ Emit Invoice Modal ═══ -->
+<!-- ═══ Tracking / Envío Modal ═══ -->
 @if (trackingOrder(); as order) {
-  <div class="modal-backdrop-custom" (click)="closeTrackingModal()"></div>
-  <div class="tracking-modal">
-    <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
-      <div>
-        <h5 class="mb-1">Clave de recojo y tracking</h5>
-        <p class="text-muted small mb-0">Pedido {{ order.order_number || ('#' + order.id) }}</p>
+  <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-truck me-2 text-success"></i>Marcar como enviado
+          </h5>
+          <button type="button" class="btn-close" (click)="closeTrackingModal()" [disabled]="trackingSaving()"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-4">
+            Pedido <strong>{{ order.order_number || ('#' + order.id) }}</strong>
+            @if (order.customer_name) { · {{ order.customer_name }} }
+          </p>
+
+          <!-- Courier -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Courier <span class="text-muted fw-normal">(opcional)</span></label>
+            <select class="form-select" [(ngModel)]="trackingForm.shipping_agency_id">
+              <option [ngValue]="null">Selecciona o escribe el courier...</option>
+              @for (agency of shippingAgencies(); track agency.id) {
+                <option [ngValue]="agency.id">{{ agency.name }}</option>
+              }
+            </select>
+          </div>
+
+          <!-- Nro. Tracking -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nro. Tracking <span class="text-muted fw-normal">(opcional)</span></label>
+            <input type="text" class="form-control" [(ngModel)]="trackingForm.tracking_number"
+              maxlength="120" placeholder="ABC123456789">
+          </div>
+
+          <!-- Clave de recojo -->
+          <div class="mb-1">
+            <label class="form-label fw-semibold">Clave de recojo <span class="text-muted fw-normal">(opcional)</span></label>
+            <input type="text" class="form-control" [(ngModel)]="trackingForm.pickup_key"
+              maxlength="120" placeholder="Ej: 4821">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeTrackingModal()" [disabled]="trackingSaving()">Cancelar</button>
+          <button class="btn btn-success" (click)="saveTracking()" [disabled]="trackingSaving()">
+            @if (trackingSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-truck me-1"></i>Confirmar envío
+          </button>
+        </div>
       </div>
-      <button type="button" class="btn-close" aria-label="Cerrar" (click)="closeTrackingModal()" [disabled]="trackingSaving()"></button>
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Clave de recojo</label>
-      <input type="text" class="form-control" [(ngModel)]="trackingForm.pickup_key" maxlength="120" placeholder="Opcional">
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label fw-semibold">Nro. Tracking</label>
-      <input type="text" class="form-control" [(ngModel)]="trackingForm.tracking_number" maxlength="120" placeholder="Opcional">
-    </div>
-
-    <div class="d-flex justify-content-end gap-2">
-      <button class="btn btn-sm btn-secondary" (click)="closeTrackingModal()" [disabled]="trackingSaving()">Cancelar</button>
-      <button class="btn btn-sm btn-info text-white" (click)="saveTracking()" [disabled]="trackingSaving()">
-        @if (trackingSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
-        Guardar
-      </button>
     </div>
   </div>
 }

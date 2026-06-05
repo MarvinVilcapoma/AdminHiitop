@@ -2,17 +2,35 @@
 
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-    <h5 class="mb-0 fw-bold">
-      <i class="bi {{ movementType === 'EXPENSE' ? 'bi-arrow-down-circle-fill text-danger' : 'bi-arrow-up-circle-fill text-success' }} me-2"></i>
-      {{ typeLabelPl }}
-    </h5>
+    <div class="d-flex align-items-center gap-2">
+      @if (showBack) {
+        <button class="btn btn-sm btn-outline-secondary" (click)="goBack()" title="Volver">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+      }
+      <h5 class="mb-0 fw-bold">
+        @if (!isCombined) {
+          <i class="bi {{ movementType === 'EXPENSE' ? 'bi-arrow-down-circle-fill text-danger' : 'bi-arrow-up-circle-fill text-success' }} me-2"></i>
+        } @else {
+          <i class="bi bi-clock-history text-primary me-2"></i>
+        }
+        {{ typeLabelPl }}
+      </h5>
+    </div>
     <button class="btn btn-primary btn-sm" (click)="openCreate()">
       <i class="bi bi-plus-lg me-1"></i>Nuevo {{ typeLabel }}
     </button>
   </div>
 
   <!-- Filters -->
-  <div class="d-flex gap-2 mb-3 flex-wrap">
+  <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+    @if (isCombined) {
+      <select class="form-select form-select-sm" style="width:120px" [(ngModel)]="filterType" (ngModelChange)="onTypeFilterChange()">
+        <option value="">Todos</option>
+        <option value="EXPENSE">Gastos</option>
+        <option value="INCOME">Ingresos</option>
+      </select>
+    }
     <select class="form-select form-select-sm" style="width:90px" [(ngModel)]="filterMonth">
       @for (m of months; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
     </select>
@@ -64,7 +82,10 @@
                   }
                 </td>
                 <td>{{ item.payment_method ?? '—' }}</td>
-                <td class="text-end fw-semibold" [ngClass]="movementType === 'INCOME' ? 'text-success' : 'text-danger'">
+                <td class="text-end fw-semibold" [ngClass]="(item.type || movementType) === 'INCOME' ? 'text-success' : 'text-danger'">
+                  @if (isCombined) {
+                    <i class="bi {{ item.type === 'INCOME' ? 'bi-arrow-up-short text-success' : 'bi-arrow-down-short text-danger' }}"></i>
+                  }
                   S/ {{ item.amount | number:'1.2-2' }}
                 </td>
                 <td class="text-end">
@@ -139,6 +160,15 @@
           <button class="btn-close" (click)="closeModal()"></button>
         </div>
         <div class="modal-body">
+          @if (isCombined) {
+            <div class="mb-3">
+              <label class="form-label form-label-sm fw-semibold">Tipo *</label>
+              <select class="form-select form-select-sm" [(ngModel)]="form.type" (ngModelChange)="loadCategories()">
+                <option value="EXPENSE">Gasto</option>
+                <option value="INCOME">Ingreso</option>
+              </select>
+            </div>
+          }
           <div class="mb-3">
             <label class="form-label form-label-sm fw-semibold">Descripción *</label>
             <input type="text" class="form-control form-control-sm" [(ngModel)]="form.description" placeholder="Ej. Pago de alquiler" />

@@ -58,6 +58,7 @@
         <option value="rejected">Rechazado</option>
         <option value="exception">Observado</option>
         <option value="error">Error</option>
+        <option value="voided">Dado de baja</option>
       </select>
     </div>
 
@@ -194,6 +195,12 @@
                   <a [routerLink]="['/dashboard/guides', row.id]" class="btn btn-xs btn-outline-primary" title="Editar guía">
                     <i class="bi bi-pencil"></i>
                   </a>
+
+                  @if (canBajaGuide(row)) {
+                    <button class="btn btn-xs btn-outline-warning" title="Dar de baja (comunicar baja a SUNAT)" (click)="openBaja(row)">
+                      <i class="bi bi-x-square"></i>
+                    </button>
+                  }
                 </div>
               </td>
             </tr>
@@ -296,6 +303,94 @@
                 <i class="bi bi-whatsapp me-1"></i>Generar enlace
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Baja GRE modal -->
+    @if (bajaGuide(); as guide) {
+      <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-x-square me-2 text-warning"></i>Dar de baja GRE
+              </h5>
+              <button type="button" class="btn-close" (click)="closeBaja()" [disabled]="bajaSaving()"></button>
+            </div>
+
+            @if (bajaResult(); as res) {
+              <!-- Resultado -->
+              <div class="modal-body">
+                <div class="alert mb-0" [ngClass]="res.success ? 'alert-success' : 'alert-danger'">
+                  <i class="bi me-2" [ngClass]="res.success ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'"></i>
+                  {{ res.message }}
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" (click)="closeBaja()">Cerrar</button>
+              </div>
+            } @else {
+              <!-- Formulario -->
+              <div class="modal-body">
+                <p class="text-muted small mb-4">
+                  Guía: <span class="fw-semibold font-monospace text-dark">{{ guide.guide_full_number }}</span>
+                </p>
+
+                <!-- Pregunta 1 -->
+                <div class="mb-4">
+                  <p class="fw-semibold mb-2">¿El traslado ya inició?</p>
+                  <div class="d-flex gap-3">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" id="tsYes" name="transferStarted"
+                        [(ngModel)]="bajaForm.transfer_started" value="si" />
+                      <label class="form-check-label" for="tsYes">Sí</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" id="tsNo" name="transferStarted"
+                        [(ngModel)]="bajaForm.transfer_started" value="no" />
+                      <label class="form-check-label" for="tsNo">No</label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Pregunta 2 -->
+                <div class="mb-4">
+                  <p class="fw-semibold mb-2">¿La mercadería ya llegó?</p>
+                  <div class="d-flex gap-3">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" id="gaYes" name="goodsArrived"
+                        [(ngModel)]="bajaForm.goods_arrived" value="si" />
+                      <label class="form-check-label" for="gaYes">Sí</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" id="gaNo" name="goodsArrived"
+                        [(ngModel)]="bajaForm.goods_arrived" value="no" />
+                      <label class="form-check-label" for="gaNo">No</label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Pregunta 3 -->
+                <div class="mb-1">
+                  <label class="form-label fw-semibold">¿Cuál es el motivo de la baja? *</label>
+                  <input type="text" class="form-control form-control-sm"
+                    [(ngModel)]="bajaForm.motivo"
+                    placeholder="Ej: Error en datos de destinatario" />
+                  <div class="form-text">Campo obligatorio. Se enviará a SUNAT junto con la baja.</div>
+                </div>
+              </div>
+
+              <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" (click)="closeBaja()" [disabled]="bajaSaving()">Cancelar</button>
+                <button class="btn btn-warning btn-sm" (click)="confirmBaja()"
+                  [disabled]="bajaSaving() || !bajaForm.transfer_started || !bajaForm.goods_arrived || !bajaForm.motivo.trim()">
+                  @if (bajaSaving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                  <i class="bi bi-x-square me-1"></i>Comunicar baja a SUNAT
+                </button>
+              </div>
+            }
           </div>
         </div>
       </div>

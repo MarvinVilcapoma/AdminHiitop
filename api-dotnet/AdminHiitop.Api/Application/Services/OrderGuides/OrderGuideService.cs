@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AdminHiitop.Api.Application.DTOs.Common;
 using AdminHiitop.Api.Application.DTOs.ElectronicBilling;
+using AdminHiitop.Api.Application.DTOs.OrderGuides;
 using AdminHiitop.Api.Application.Helpers;
 using AdminHiitop.Api.Application.Interfaces.ElectronicBilling;
 using AdminHiitop.Api.Application.Interfaces.Services;
@@ -173,6 +174,86 @@ public sealed class OrderGuideService(
                 consulted_at = order.GuideConsultedAt,
             },
             result = result.Response,
+        };
+    }
+
+    /// <summary>
+    /// Communicates a "baja" (void) for an accepted GRE to SUNAT via Nubefact.
+    /// NubeFact tipo: 7 = GRE Remitente, 8 = GRE Transportista.
+    /// </summary>
+    public async Task<object?> BajaAsync(int orderId, GuideBajaRequest request)
+    {
+        Order? order = await _context.Orders
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order is null) return null;
+
+        if (string.IsNullOrWhiteSpace(order.GuideSeries) || order.GuideCorrelativo is null)
+            return new { success = false, message = "La guía aún no ha sido emitida (sin serie/correlativo)." };
+
+        if (order.GuideStatus != "accepted")
+            return new { success = false, message = "Solo se pueden dar de baja guías con estado Aceptado." };
+
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+            return new { success = false, message = "El motivo de la baja es obligatorio." };
+
+        // NubeFact tipo: 7 = Remitente (09), 8 = Transportista (31)
+        string guideDocType = order.GuideType ?? "09";
+        int nubefactTipo    = guideDocType == "31" ? 8 : 7;
+
+        string fechaEmision = (order.GuideSentAt ?? PeruClock.Now).ToString("dd/MM/yyyy");
+
+        var bajaRequest = new NubeFactBajaRequest
+        {
+            TipoDeComprobante = nubefactTipo,
+            Serie             = order.GuideSeries,
+            Correlativo       = order.GuideCorrelativo.Value,
+            FechaDeEmision    = fechaEmision,
+            Motivo            = request.Motivo.Trim(),
+        };
+
+        NubeFactSubmitResult result;
+        try
+        {
+            result = await _billingProvider.SendBajaAsync(bajaRequest);
+        }
+        catch (Exception ex)
+        {
+            return new
+            {
+                success = false,
+                message = $"Error al comunicar la baja a Nubefact: {ex.InnerException?.Message ?? ex.Message}",
+            };
+        }
+
+        if (result.Success)
+        {
+            order.GuideStatus           = "voided";
+            order.GuideSunatDescription = "Guía dada de baja mediante comunicación de baja SUNAT.";
+            await _context.SaveChangesAsync();
+        }
+
+        string successMsg = $"Baja comunicada correctamente para {order.GuideFullNumber}. " +
+                            (request.TransferStarted ? "Traslado iniciado. " : "") +
+                            (request.GoodsArrived    ? "Mercadería ya llegó." : "");
+
+        return new
+        {
+            success      = result.Success,
+            message      = result.Success
+                ? successMsg
+                : $"Nubefact no pudo procesar la baja: {result.Response.Errors ?? result.Response.SunatDescription}",
+            sunat_result = new
+            {
+                result.Success,
+                description = result.Response.SunatDescription ?? result.Response.Errors,
+            },
+            order = new
+            {
+                order.Id,
+                order.GuideFullNumber,
+                order.GuideStatus,
+            },
         };
     }
 
