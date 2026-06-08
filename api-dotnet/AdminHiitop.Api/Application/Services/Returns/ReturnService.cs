@@ -359,18 +359,51 @@ public sealed class ReturnService : IReturnService
 
     public async Task<object> CancelReturnAsync(int id, string? reason)
     {
-        ReturnRequest rr = await _context.ReturnRequests.FirstOrDefaultAsync(r => r.Id == id)
+        ReturnRequest rr = await _context.ReturnRequests
+            .Include(r => r.Items)
+            .Include(r => r.Order)
+            .FirstOrDefaultAsync(r => r.Id == id)
             ?? throw new AppException("Solicitud de devolución no encontrada.", 404);
 
         if (rr.Status is "COMPLETED" or "CANCELLED")
             throw new AppException("No se puede cancelar una solicitud ya completada o cancelada.", 422);
+
+        // Reverse the stock that was added when the return was created.
+        int warehouseId = rr.Order?.WarehouseId ?? await GetDefaultWarehouseIdAsync();
+
+        foreach (ReturnRequestItem item in rr.Items)
+        {
+            if (item.RestockAction == "DO_NOT_RESTOCK" || !item.ProductId.HasValue)
+                continue;
+
+            Stock? stock = await FindStockVariantAsync(item, rr.Order!, warehouseId);
+            if (stock is null) continue;
+
+            int previousQty = stock.Quantity;
+            stock.Quantity = Math.Max(0, stock.Quantity - item.Quantity);
+
+            _context.StockMovements.Add(new StockMovement
+            {
+                StockId          = stock.Id,
+                ProductId        = stock.ProductId,
+                WarehouseId      = stock.WarehouseId,
+                ColorId          = stock.ColorId,
+                Size             = stock.Size,
+                MovementType     = "RETURN_CANCEL",
+                Quantity         = item.Quantity,
+                PreviousQuantity = previousQty,
+                NewQuantity      = stock.Quantity,
+                Reference        = $"RETURN-CANCEL-{rr.Id}",
+                Notes            = $"Anulación de devolución #{rr.Id}. Motivo: {reason ?? "sin motivo"}",
+            });
+        }
 
         rr.Status = "CANCELLED";
         rr.CancelledAt = PeruClock.Now;
         rr.CancellationReason = reason;
         await _context.SaveChangesAsync();
 
-        return new { success = true, message = "Solicitud de devolución cancelada." };
+        return new { success = true, message = "Solicitud de devolución cancelada y stock revertido." };
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -387,21 +420,8 @@ public sealed class ReturnService : IReturnService
     {
         var warnings = new List<string>();
 
-        // If the order has no warehouse at all, warn immediately — nothing to restock.
-        if (order.WarehouseId is null)
-        {
-            var toRestock = returnRequest.Items
-                .Where(i => i.RestockAction == "RETURN_TO_STOCK" && i.ProductId.HasValue)
-                .ToList();
-
-            if (toRestock.Count > 0)
-                warnings.Add("El pedido no tiene almacén asignado. Los siguientes artículos NO fueron reingresados al stock: " +
-                    string.Join(", ", toRestock.Select(i => i.ProductDescription ?? $"Producto #{i.ProductId}")));
-
-            return warnings;  // nothing to do
-        }
-
-        int warehouseId = order.WarehouseId.Value;
+        // Fall back to the default active warehouse when the order has none assigned.
+        int warehouseId = order.WarehouseId ?? await GetDefaultWarehouseIdAsync();
 
         foreach (ReturnRequestItem item in returnRequest.Items)
         {
@@ -410,11 +430,23 @@ public sealed class ReturnService : IReturnService
 
             Stock? stock = await FindStockVariantAsync(item, order, warehouseId);
 
+            // If no stock record exists, create one so the returned units are not lost.
             if (stock is null)
             {
-                string name = item.ProductDescription ?? $"Producto #{item.ProductId}";
-                warnings.Add($"'{name}' — no se encontró registro de stock en el almacén. Ingresa el stock manualmente.");
-                continue;
+                OrderItem? srcOrderItem = item.OrderItemId.HasValue
+                    ? order.Items.FirstOrDefault(i => i.Id == item.OrderItemId.Value)
+                    : null;
+
+                stock = new Stock
+                {
+                    ProductId   = item.ProductId.Value,
+                    WarehouseId = warehouseId,
+                    ColorId     = srcOrderItem?.ColorId,
+                    Size        = srcOrderItem?.Size,
+                    Quantity    = 0,
+                };
+                _context.Stocks.Add(stock);
+                await _context.SaveChangesAsync(); // flush to get stock.Id
             }
 
             int previousQty = stock.Quantity;
@@ -574,13 +606,18 @@ public sealed class ReturnService : IReturnService
         ReturnRequest returnRequest, Invoice originalInvoice,
         string noteMotive, string? noteMotiveDesc)
     {
-        string expectedPrefix = originalInvoice.DocType == "01" ? "FC" : "BC";
+        // Nubefact assigns the same serie code for NC as for the base document
+        // (e.g., FFF1 Factura → FFF1 NC, BBB1 Boleta → BBB1 NC).
+        // Look up by matching serie + doc_type "07".
+        string originalSerie = originalInvoice.Serie ?? string.Empty;
         InvoiceSeriesEntity? ncSeries = await _context.InvoiceSeries
             .AsNoTracking()
-            .Where(s => s.IsActive && s.DocType == "07" && s.Serie.StartsWith(expectedPrefix))
+            .Where(s => s.IsActive && s.DocType == "07" && s.Serie == originalSerie)
             .OrderBy(s => s.Id)
             .FirstOrDefaultAsync()
-            ?? throw new AppException($"No hay serie de Nota de Crédito activa para '{expectedPrefix}'. Créala en Parámetros fiscales.", 422);
+            ?? throw new AppException(
+                $"No hay serie de Nota de Crédito activa para '{originalSerie}' (tipo 07). " +
+                "Créala en Parámetros fiscales.", 422);
 
         (string ncSerie, int ncCorrelativo) = await _seriesService.GetNextAsync(ncSeries.Id);
 

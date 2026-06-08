@@ -115,8 +115,8 @@ public static class HiitopSeedData
     [
         ("01", "FFF1", "Facturas Electronicas",                    1),
         ("03", "BBB1", "Boletas de Venta",                         1),
-        ("07", "FC01", "Notas de Credito de Factura",              1),
-        ("07", "BC01", "Notas de Credito de Boleta",               1),
+        ("07", "FFF1", "Notas de Credito de Factura",              1),
+        ("07", "BBB1", "Notas de Credito de Boleta",               1),
         ("09", "TTT1", "Guias de Remision Remitente",              1),
         ("31", "VVV1", "Guias de Remision Transportista",          1),
     ];

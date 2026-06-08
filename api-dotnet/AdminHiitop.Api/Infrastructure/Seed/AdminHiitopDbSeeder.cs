@@ -147,6 +147,47 @@ public sealed class AdminHiitopDbSeeder
             cmd.CommandText = "ALTER TABLE `order_items` ADD CONSTRAINT `FK_order_items_products_product_id` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL";
             await cmd.ExecuteNonQueryAsync();
         }
+
+        // Schema patch: replace unique index on serie with composite (doc_type, serie) (2026-06-08)
+        // Required so the same serie code (e.g. FFF1) can exist for both Factura (01) and NC (07).
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME   = 'invoice_series'
+              AND INDEX_NAME   = 'IX_invoice_series_serie'
+            """;
+        var oldIndexExists = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        if (oldIndexExists > 0)
+        {
+            cmd.CommandText = "ALTER TABLE `invoice_series` DROP INDEX `IX_invoice_series_serie`";
+            await cmd.ExecuteNonQueryAsync();
+
+            cmd.CommandText = """
+                ALTER TABLE `invoice_series`
+                  ADD UNIQUE KEY `UQ_invoice_series_doctype_serie` (`doc_type`, `serie`)
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Data patch: ensure NC series FFF1/BBB1 (doc_type 07) exist (2026-06-08)
+        // Nubefact assigns the same serie for NC as for the base document (FFF1 → NC de Factura, BBB1 → NC de Boleta).
+        // Remove incorrect FC01/BC01 if they were inserted by a previous patch, then upsert the correct rows.
+        cmd.CommandText = "DELETE FROM `invoice_series` WHERE `serie` IN ('FC01','BC01') AND `doc_type` = '07'";
+        await cmd.ExecuteNonQueryAsync();
+
+        cmd.CommandText = """
+            INSERT INTO `invoice_series` (`doc_type`, `serie`, `name`, `next_number`, `is_active`, `created_at`, `updated_at`)
+            SELECT '07', 'FFF1', 'Notas de Credito de Factura', 1, 1, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM `invoice_series` WHERE `doc_type` = '07' AND `serie` = 'FFF1')
+            """;
+        await cmd.ExecuteNonQueryAsync();
+
+        cmd.CommandText = """
+            INSERT INTO `invoice_series` (`doc_type`, `serie`, `name`, `next_number`, `is_active`, `created_at`, `updated_at`)
+            SELECT '07', 'BBB1', 'Notas de Credito de Boleta', 1, 1, NOW(), NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM `invoice_series` WHERE `doc_type` = '07' AND `serie` = 'BBB1')
+            """;
+        await cmd.ExecuteNonQueryAsync();
     }
 
     private async Task SeedOrderStatusesAsync()
@@ -383,7 +424,10 @@ public sealed class AdminHiitopDbSeeder
     {
         foreach ((string docType, string serie, string name, int nextNumber) in HiitopSeedData.InvoiceSeries)
         {
-            InvoiceSeries? existing = await _context.InvoiceSeries.FirstOrDefaultAsync(x => x.Serie == serie);
+            // Uniqueness is (DocType + Serie) — the same serie code can exist for different doc types
+            // e.g., FFF1 for doc_type "01" (Factura) AND FFF1 for doc_type "07" (NC de Factura).
+            InvoiceSeries? existing = await _context.InvoiceSeries
+                .FirstOrDefaultAsync(x => x.DocType == docType && x.Serie == serie);
             if (existing is null)
             {
                 _context.InvoiceSeries.Add(new InvoiceSeries { DocType = docType, Serie = serie, Name = name, NextNumber = nextNumber });
