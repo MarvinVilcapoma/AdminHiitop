@@ -148,6 +148,36 @@ public sealed class AdminHiitopDbSeeder
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Schema patch: add local_warehouse_id to shopify_locations (2026-06-08)
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME   = 'shopify_locations'
+              AND COLUMN_NAME  = 'local_warehouse_id'
+            """;
+        var hasLocalWarehouseId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        if (hasLocalWarehouseId == 0)
+        {
+            cmd.CommandText = "ALTER TABLE `shopify_locations` ADD COLUMN `local_warehouse_id` INT NULL";
+            await cmd.ExecuteNonQueryAsync();
+
+            cmd.CommandText = "ALTER TABLE `shopify_locations` ADD INDEX `IX_shopify_locations_local_warehouse_id` (`local_warehouse_id`)";
+            await cmd.ExecuteNonQueryAsync();
+
+            // Auto-map all Shopify locations to the first active local warehouse
+            cmd.CommandText = """
+                UPDATE `shopify_locations`
+                SET `local_warehouse_id` = (
+                    SELECT `id` FROM `warehouses`
+                    WHERE `is_active` = 1
+                    ORDER BY `id`
+                    LIMIT 1
+                )
+                WHERE `local_warehouse_id` IS NULL
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         // Schema patch: replace unique index on serie with composite (doc_type, serie) (2026-06-08)
         // Required so the same serie code (e.g. FFF1) can exist for both Factura (01) and NC (07).
         cmd.CommandText = """

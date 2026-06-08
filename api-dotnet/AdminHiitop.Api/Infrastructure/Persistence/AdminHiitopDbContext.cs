@@ -102,6 +102,11 @@ public sealed class AdminHiitopDbContext : DbContext
         modelBuilder.Entity<ShopifyLocation>().HasKey(t => t.Id);
         modelBuilder.Entity<ShopifyLocation>().Property(t => t.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<ShopifyLocation>().HasIndex(t => t.ShopifyLocationId).IsUnique();
+        modelBuilder.Entity<ShopifyLocation>()
+            .HasOne(t => t.LocalWarehouse)
+            .WithMany()
+            .HasForeignKey(t => t.LocalWarehouseId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Finance entities
         modelBuilder.Entity<FinancialCategory>().ToTable("financial_categories");

@@ -418,25 +418,32 @@ public sealed class ReturnService : IReturnService
 
     private async Task<List<string>> UpdateStockAsync(ReturnRequest returnRequest, Order order)
     {
-        var warnings = new List<string>();
-
-        // Fall back to the default active warehouse when the order has none assigned.
-        int warehouseId = order.WarehouseId ?? await GetDefaultWarehouseIdAsync();
+        var warnings    = new List<string>();
+        int defaultWh   = order.WarehouseId ?? await GetDefaultWarehouseIdAsync();
 
         foreach (ReturnRequestItem item in returnRequest.Items)
         {
             if (item.RestockAction == "DO_NOT_RESTOCK" || !item.ProductId.HasValue)
                 continue;
 
+            OrderItem? srcOrderItem = item.OrderItemId.HasValue
+                ? order.Items.FirstOrDefault(i => i.Id == item.OrderItemId.Value)
+                : null;
+
+            // Resolve the warehouse: order warehouse → Shopify location mapping → default
+            int warehouseId = order.WarehouseId
+                ?? await ResolveWarehouseFromProductKeyAsync(srcOrderItem?.ProductKey)
+                ?? defaultWh;
+
             Stock? stock = await FindStockVariantAsync(item, order, warehouseId);
 
-            // If no stock record exists, create one so the returned units are not lost.
+            // If not found with the specific warehouse, try default as last resort before creating
+            if (stock is null && warehouseId != defaultWh)
+                stock = await FindStockVariantAsync(item, order, defaultWh);
+
+            // If no stock record exists anywhere, create one at the correct warehouse
             if (stock is null)
             {
-                OrderItem? srcOrderItem = item.OrderItemId.HasValue
-                    ? order.Items.FirstOrDefault(i => i.Id == item.OrderItemId.Value)
-                    : null;
-
                 stock = new Stock
                 {
                     ProductId   = item.ProductId.Value,
@@ -559,6 +566,27 @@ public sealed class ReturnService : IReturnService
         // 5. Any stock for this product + warehouse (last resort).
         return await _context.Stocks.FirstOrDefaultAsync(s =>
             s.ProductId == productId && s.WarehouseId == warehouseId);
+    }
+
+    /// <summary>
+    /// Parses the Shopify ProductKey to find the local warehouse mapped to that Shopify location.
+    /// Format: shopify:{variantId}:{inventoryItemId}:{shopifyLocationId}
+    /// Returns null when the key is absent, not a Shopify key, or no mapping exists.
+    /// </summary>
+    private async Task<int?> ResolveWarehouseFromProductKeyAsync(string? productKey)
+    {
+        if (string.IsNullOrWhiteSpace(productKey)) return null;
+        if (!productKey.StartsWith("shopify:", StringComparison.OrdinalIgnoreCase)) return null;
+
+        string[] parts = productKey.Split(':');
+        if (parts.Length < 4 || !long.TryParse(parts[3], out long shopifyLocationId) || shopifyLocationId <= 0)
+            return null;
+
+        var loc = await _context.ShopifyLocations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.ShopifyLocationId == shopifyLocationId);
+
+        return loc?.LocalWarehouseId; // null when no mapping configured
     }
 
     private async Task<int> GetDefaultWarehouseIdAsync()
