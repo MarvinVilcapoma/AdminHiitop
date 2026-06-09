@@ -208,7 +208,9 @@ public sealed class ShopifyAdminClient
     {
         // NOTE: Shopify REST title filter does exact-match only.
         // We fetch all products (up to 250) and do client-side substring filtering.
-        var qs = new List<string> { $"limit={Math.Min(limit, 250)}", $"status={status}" };
+        // Empty/whitespace status is sent as "any" — Shopify rejects blank status values.
+        string effectiveStatus = string.IsNullOrWhiteSpace(status) ? "any" : status;
+        var qs = new List<string> { $"limit={Math.Min(limit, 250)}", $"status={effectiveStatus}" };
 
         string url = $"{BuildUrl("products.json")}?{string.Join("&", qs)}";
         using HttpResponseMessage response = await SendAsync(HttpMethod.Get, url);

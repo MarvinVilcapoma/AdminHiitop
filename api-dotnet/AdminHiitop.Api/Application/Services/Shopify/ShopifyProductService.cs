@@ -56,7 +56,9 @@ public sealed class ShopifyProductService : IShopifyProductService
             .ToList();
 
         List<ShopifyApiInventoryLevel> levels = await _client.GetInventoryLevelsAsync(inventoryItemIds, resolvedLocationId);
-        var levelMap = levels.ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0);
+        var levelMap = new Dictionary<long, int>();
+        foreach (var l in levels)
+            levelMap[l.InventoryItemId] = l.Available ?? 0;
 
         var result = new List<StockLookupResponse>();
 
@@ -160,10 +162,16 @@ public sealed class ShopifyProductService : IShopifyProductService
 
         await Task.WhenAll(levelsTask, costsTask);
 
-        var levelMap = levelsTask.Result.ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0);
-        var costMap  = costsTask.Result
-            .Where(i => !string.IsNullOrWhiteSpace(i.Cost))
-            .ToDictionary(i => i.Id, i => ParseDecimal(i.Cost!));
+        // Use last-wins loop instead of ToDictionary to avoid ArgumentException on duplicate IDs
+        // (Shopify can return duplicate inventory_item_ids in edge cases).
+        var levelMap = new Dictionary<long, int>();
+        foreach (var l in levelsTask.Result)
+            levelMap[l.InventoryItemId] = l.Available ?? 0;
+
+        var costMap = new Dictionary<long, decimal>();
+        foreach (var i in costsTask.Result)
+            if (!string.IsNullOrWhiteSpace(i.Cost))
+                costMap[i.Id] = ParseDecimal(i.Cost!);
 
         return new ShopifyProductListResponse
         {
@@ -191,10 +199,14 @@ public sealed class ShopifyProductService : IShopifyProductService
 
         await Task.WhenAll(levelsTask, costsTask);
 
-        var levelMap = levelsTask.Result.ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0);
-        var costMap  = costsTask.Result
-            .Where(i => !string.IsNullOrWhiteSpace(i.Cost))
-            .ToDictionary(i => i.Id, i => ParseDecimal(i.Cost!));
+        var levelMap = new Dictionary<long, int>();
+        foreach (var l in levelsTask.Result)
+            levelMap[l.InventoryItemId] = l.Available ?? 0;
+
+        var costMap = new Dictionary<long, decimal>();
+        foreach (var i in costsTask.Result)
+            if (!string.IsNullOrWhiteSpace(i.Cost))
+                costMap[i.Id] = ParseDecimal(i.Cost!);
 
         return MapDetail(product, levelMap, costMap);
     }

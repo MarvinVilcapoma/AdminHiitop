@@ -30,6 +30,10 @@ public sealed class ExceptionHandlingMiddleware
         {
             await WriteErrorAsync(context, exception.StatusCode, exception.Message);
         }
+        catch (OperationCanceledException)
+        {
+            await WriteErrorAsync(context, 504, "La solicitud tardó demasiado. Inténtalo de nuevo.");
+        }
         catch (AggregateException aggEx)
         {
             // Task.WhenAll with multiple failing tasks wraps them in AggregateException.
