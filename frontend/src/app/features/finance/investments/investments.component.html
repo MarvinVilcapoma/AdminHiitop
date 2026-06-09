@@ -1,0 +1,183 @@
+<div class="container-fluid px-3 py-3">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <a routerLink="/dashboard/finance/dashboard" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <h5 class="mb-0 fw-bold"><i class="bi bi-piggy-bank me-2"></i>Inversiones</h5>
+    </div>
+    <button class="btn btn-primary btn-sm" (click)="openCreate()">
+      <i class="bi bi-plus-circle me-1"></i>Registrar inversión
+    </button>
+  </div>
+
+  <!-- Summary card -->
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="fs-4 text-primary"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="text-muted small">Total invertido (activo)</span>
+          </div>
+          <div class="fw-bold fs-4">{{ formatCurrency(totalInvested()) }}</div>
+          <div class="small text-muted mt-1">{{ investments().length }} registro(s)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  } @else {
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        @if (investments().length === 0) {
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-piggy-bank fs-1 d-block mb-2 opacity-25"></i>
+            <p class="mb-0">Sin inversiones registradas.</p>
+            <button class="btn btn-primary btn-sm mt-3" (click)="openCreate()">
+              <i class="bi bi-plus-circle me-1"></i>Registrar primera inversión
+            </button>
+          </div>
+        } @else {
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Categoría</th>
+                  <th>Descripción</th>
+                  <th class="text-end">Monto</th>
+                  <th class="text-center">Estado</th>
+                  <th class="text-end" style="width:80px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of investments(); track item.id) {
+                  <tr>
+                    <td class="text-nowrap small">{{ item.investment_date | slice:0:10 }}</td>
+                    <td>
+                      <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle">
+                        {{ item.category_name }}
+                      </span>
+                    </td>
+                    <td>{{ item.description || '—' }}</td>
+                    <td class="text-end fw-semibold">{{ formatCurrency(item.amount) }}</td>
+                    <td class="text-center">
+                      <span class="badge rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1 fw-medium"
+                            [ngClass]="item.is_active
+                              ? 'bg-success-subtle text-success border border-success-subtle'
+                              : 'bg-secondary-subtle text-secondary border border-secondary-subtle'">
+                        <span class="rounded-circle"
+                              [ngClass]="item.is_active ? 'bg-success' : 'bg-secondary'"
+                              style="width:6px;height:6px"></span>
+                        {{ item.is_active ? 'Activa' : 'Inactiva' }}
+                      </span>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-flex gap-1 justify-content-end">
+                        <button class="btn btn-xs btn-outline-primary" title="Editar" (click)="openEdit(item)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-xs btn-outline-danger" title="Eliminar" (click)="confirmDelete(item)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Create / Edit modal -->
+@if (showModal()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fs-6">
+            <i class="bi bi-piggy-bank me-2"></i>
+            {{ isEditing() ? 'Editar inversión' : 'Registrar inversión' }}
+          </h5>
+          <button class="btn-close btn-close-white" (click)="closeModal()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-500">Categoría <span class="text-danger">*</span></label>
+            <select class="form-select" [(ngModel)]="form.investment_category_id">
+              <option [ngValue]="0">— Seleccionar —</option>
+              @for (cat of categories(); track cat.id) {
+                <option [ngValue]="cat.id">{{ cat.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-500">Monto (S/) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" [(ngModel)]="form.amount"
+                     min="0.01" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-500">Fecha <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" [(ngModel)]="form.investment_date" />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-500">Descripción</label>
+            <input class="form-control" [(ngModel)]="form.description"
+                   placeholder="Ej: Compra de máquina de coser, inversión en tela..." maxlength="500" />
+          </div>
+          @if (isEditing()) {
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="is_active_check"
+                     [(ngModel)]="form.is_active">
+              <label class="form-check-label small" for="is_active_check">Inversión activa</label>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-sm" (click)="closeModal()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" (click)="save()" [disabled]="saving()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-check-lg me-1"></i>{{ isEditing() ? 'Actualizar' : 'Guardar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirmation -->
+@if (delConfirm()) {
+  <div class="modal fade show d-block modal-overlay" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center pt-4 pb-2">
+          <i class="bi bi-exclamation-triangle-fill text-danger fs-1 d-block mb-3"></i>
+          <h6 class="fw-bold mb-1">¿Eliminar esta inversión?</h6>
+          <p class="text-muted small mb-0">
+            <strong>{{ delConfirm()!.category_name }}</strong><br>
+            {{ formatCurrency(delConfirm()!.amount) }}
+          </p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 pb-4">
+          <button class="btn btn-outline-secondary btn-sm" (click)="delConfirm.set(null)"
+                  [disabled]="deleting()">Cancelar</button>
+          <button class="btn btn-danger btn-sm" (click)="executeDelete()" [disabled]="deleting()">
+            @if (deleting()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="bi bi-trash me-1"></i>Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

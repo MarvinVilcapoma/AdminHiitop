@@ -72,6 +72,7 @@ export const routes: Routes = [
       { path: 'finance/fixed-incomes',   canActivate: [permissionGuard('finance.view')], loadComponent: () => import('./features/finance/fixed-incomes/fixed-incomes.component').then(m => m.FixedIncomesComponent) },
       { path: 'finance/categories',      canActivate: [permissionGuard('finance.view')], loadComponent: () => import('./features/finance/categories/finance-categories.component').then(m => m.FinanceCategoriesComponent) },
       { path: 'finance/history',         canActivate: [permissionGuard('finance.view')], loadComponent: () => import('./features/finance/history/finance-history.component').then(m => m.FinanceHistoryComponent) },
+      { path: 'finance/investments',     canActivate: [permissionGuard('finance.view')], loadComponent: () => import('./features/finance/investments/investments.component').then(m => m.InvestmentsComponent) },
       { path: 'finance', redirectTo: 'finance/dashboard', pathMatch: 'full' },
     ],
   },

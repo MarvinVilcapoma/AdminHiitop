@@ -149,17 +149,26 @@ public sealed class ShopifyProductService : IShopifyProductService
             .Take(perPage)
             .ToList();
 
-        // Fetch inventory for the page using the requested location
+        // Fetch inventory levels and item costs in parallel
         var inventoryItemIds = paged.SelectMany(p => p.Variants).Select(v => v.InventoryItemId).Distinct().ToList();
-        var levelMap = inventoryItemIds.Count > 0
-            ? (await _client.GetInventoryLevelsAsync(inventoryItemIds, resolvedLocationId))
-                .ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0)
-            : new Dictionary<long, int>();
+        var levelsTask = inventoryItemIds.Count > 0
+            ? _client.GetInventoryLevelsAsync(inventoryItemIds, resolvedLocationId)
+            : Task.FromResult(new List<ShopifyApiInventoryLevel>());
+        var costsTask = inventoryItemIds.Count > 0
+            ? _client.GetInventoryItemsAsync(inventoryItemIds)
+            : Task.FromResult(new List<ShopifyApiInventoryItem>());
+
+        await Task.WhenAll(levelsTask, costsTask);
+
+        var levelMap = levelsTask.Result.ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0);
+        var costMap  = costsTask.Result
+            .Where(i => !string.IsNullOrWhiteSpace(i.Cost))
+            .ToDictionary(i => i.Id, i => ParseDecimal(i.Cost!));
 
         return new ShopifyProductListResponse
         {
             Total    = all.Count,
-            Products = paged.Select(p => MapSummary(p, levelMap)).ToList(),
+            Products = paged.Select(p => MapSummary(p, levelMap, costMap)).ToList(),
         };
     }
 
@@ -172,12 +181,22 @@ public sealed class ShopifyProductService : IShopifyProductService
 
         long resolvedLocationId = locationId > 0 ? locationId!.Value : await ResolveLocationIdAsync();
         var inventoryItemIds = product.Variants.Select(v => v.InventoryItemId).Distinct().ToList();
-        var levelMap = inventoryItemIds.Count > 0
-            ? (await _client.GetInventoryLevelsAsync(inventoryItemIds, resolvedLocationId))
-                .ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0)
-            : new Dictionary<long, int>();
 
-        return MapDetail(product, levelMap);
+        var levelsTask = inventoryItemIds.Count > 0
+            ? _client.GetInventoryLevelsAsync(inventoryItemIds, resolvedLocationId)
+            : Task.FromResult(new List<ShopifyApiInventoryLevel>());
+        var costsTask = inventoryItemIds.Count > 0
+            ? _client.GetInventoryItemsAsync(inventoryItemIds)
+            : Task.FromResult(new List<ShopifyApiInventoryItem>());
+
+        await Task.WhenAll(levelsTask, costsTask);
+
+        var levelMap = levelsTask.Result.ToDictionary(l => l.InventoryItemId, l => l.Available ?? 0);
+        var costMap  = costsTask.Result
+            .Where(i => !string.IsNullOrWhiteSpace(i.Cost))
+            .ToDictionary(i => i.Id, i => ParseDecimal(i.Cost!));
+
+        return MapDetail(product, levelMap, costMap);
     }
 
     // ── Update product ────────────────────────────────────────────────────────
@@ -669,29 +688,46 @@ public sealed class ShopifyProductService : IShopifyProductService
         return _resolvedLocationId.Value;
     }
 
-    private static ShopifyProductSummary MapSummary(ShopifyApiProduct p, Dictionary<long, int> levelMap)
+    private static ShopifyProductSummary MapSummary(
+        ShopifyApiProduct p, Dictionary<long, int> levelMap,
+        Dictionary<long, decimal>? costMap = null)
     {
         decimal minPrice = p.Variants.Count > 0 ? p.Variants.Min(v => ParseDecimal(v.Price)) : 0m;
         decimal maxPrice = p.Variants.Count > 0 ? p.Variants.Max(v => ParseDecimal(v.Price)) : 0m;
-        int totalStock   = p.Variants.Sum(v => levelMap.GetValueOrDefault(v.InventoryItemId, 0));
+        int     totalStock          = p.Variants.Sum(v => levelMap.GetValueOrDefault(v.InventoryItemId, 0));
+        bool    connectedToLocation = p.Variants.Any(v => levelMap.ContainsKey(v.InventoryItemId));
+
+        List<decimal>? costs = null;
+        if (costMap is not null)
+        {
+            costs = p.Variants
+                .Select(v => costMap.GetValueOrDefault(v.InventoryItemId))
+                .Where(c => c > 0)
+                .ToList();
+        }
 
         return new ShopifyProductSummary
         {
-            Id           = p.Id,
-            Title        = p.Title,
-            ProductType  = p.ProductType,
-            Tags         = p.Tags,
-            Vendor       = p.Vendor,
-            Status       = p.Status,
-            ImageUrl     = p.Image?.Src ?? p.Images.FirstOrDefault()?.Src,
-            VariantCount = p.Variants.Count,
-            MinPrice     = minPrice,
-            MaxPrice     = maxPrice,
-            TotalStock   = totalStock,
+            Id                  = p.Id,
+            Title               = p.Title,
+            ProductType         = p.ProductType,
+            Tags                = p.Tags,
+            Vendor              = p.Vendor,
+            Status              = p.Status,
+            ImageUrl            = p.Image?.Src ?? p.Images.FirstOrDefault()?.Src,
+            VariantCount        = p.Variants.Count,
+            MinPrice            = minPrice,
+            MaxPrice            = maxPrice,
+            TotalStock          = totalStock,
+            ConnectedToLocation = connectedToLocation,
+            MinCost             = costs is { Count: > 0 } ? costs.Min() : null,
+            MaxCost             = costs is { Count: > 0 } ? costs.Max() : null,
         };
     }
 
-    private static ShopifyProductDetailResponse MapDetail(ShopifyApiProduct p, Dictionary<long, int> levelMap)
+    private static ShopifyProductDetailResponse MapDetail(
+        ShopifyApiProduct p, Dictionary<long, int> levelMap,
+        Dictionary<long, decimal>? costMap = null)
         => new()
         {
             Id          = p.Id,
@@ -711,7 +747,8 @@ public sealed class ShopifyProductService : IShopifyProductService
                 Values   = o.Values,
             }).ToList(),
             Variants    = p.Variants.Select(v => MapVariant(v,
-                levelMap.GetValueOrDefault(v.InventoryItemId, 0))).ToList(),
+                levelMap.GetValueOrDefault(v.InventoryItemId, 0),
+                costMap?.GetValueOrDefault(v.InventoryItemId))).ToList(),
             Images      = p.Images.Select(i => new ShopifyImageResponse
             {
                 Id  = i.Id,
@@ -720,7 +757,7 @@ public sealed class ShopifyProductService : IShopifyProductService
             }).ToList(),
         };
 
-    private static ShopifyVariantResponse MapVariant(ShopifyApiVariant v, int inventoryQty)
+    private static ShopifyVariantResponse MapVariant(ShopifyApiVariant v, int inventoryQty, decimal? costPrice = null)
         => new()
         {
             Id                  = v.Id,
@@ -736,6 +773,7 @@ public sealed class ShopifyProductService : IShopifyProductService
             InventoryQty        = inventoryQty,
             Position            = v.Position,
             InventoryManagement = v.InventoryManagement,
+            CostPrice           = costPrice > 0 ? costPrice : null,
         };
 
     /// <summary>

@@ -180,6 +180,12 @@ public sealed class ShopifyApiInventoryLevel
     [JsonPropertyName("available")]         public int? Available        { get; set; }
 }
 
+public sealed class ShopifyApiInventoryItem
+{
+    [JsonPropertyName("id")]   public long    Id   { get; set; }
+    [JsonPropertyName("cost")] public string? Cost { get; set; }
+}
+
 // ── Collections ───────────────────────────────────────────────────────────────
 
 public sealed class ShopifyApiCollection

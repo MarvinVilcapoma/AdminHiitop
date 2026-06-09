@@ -15,6 +15,7 @@ interface ShopifyVariant {
   sku?: string;
   price: number;
   compare_at_price?: number;
+  cost_price?: number;
   option1?: string;
   option2?: string;
   option3?: string;
@@ -102,6 +103,9 @@ interface ShopifyProduct {
   min_price: number;
   max_price: number;
   total_stock: number;
+  min_cost?: number;
+  max_cost?: number;
+  connected_to_location?: boolean;
   // Loaded on expand
   variants?: ShopifyVariant[];
   loadingVariants?: boolean;
@@ -194,6 +198,7 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
 
   oauthConnected  = signal<boolean | null>(null);  // null = loading
 
+  private readonly DEFAULT_LOCATION_KEY = 'hiitop_default_shopify_location_id';
   private locationsReady = false;
   private readonly offcanvasListener = () => this.openDropdownKey.set(null);
 
@@ -288,8 +293,34 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
   shopifyLowStock    = computed(() => this.products().filter(p => p.total_stock <= 5 && p.total_stock > 0).length);
   shopifyOutOfStock  = computed(() => this.products().filter(p => p.total_stock === 0).length);
 
+  // Margin metrics — only from products that have cost data
+  shopifyAvgMargin = computed(() => {
+    const ps = this.products().filter(p => p.min_cost && p.min_cost > 0 && p.min_price > 0);
+    if (ps.length === 0) return null;
+    const avg = ps.reduce((s, p) => {
+      const cost  = p.min_cost!;
+      const price = p.min_price;
+      return s + (price - cost) / price * 100;
+    }, 0) / ps.length;
+    return avg;
+  });
+
+  shopifyTotalCostValue = computed(() =>
+    this.products()
+      .filter(p => p.min_cost && p.min_cost > 0)
+      .reduce((s, p) => s + p.min_cost! * p.total_stock, 0)
+  );
+
+  shopifyTotalSaleValue = computed(() =>
+    this.products().reduce((s, p) => s + p.min_price * p.total_stock, 0)
+  );
+
   activeLocation = computed(() =>
     this.locations().find(l => l.id === this.activeLocationId()) ?? null
+  );
+
+  defaultLocationId = signal<number | null>(
+    Number(localStorage.getItem('hiitop_default_shopify_location_id')) || null
   );
 
   ngOnInit(): void {
@@ -304,8 +335,11 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
         this.locations.set(active);
         this.locationsReady = true;  // arm the effect before changing signals
         if (active.length) {
-          this.newProductLocationId.set(active[0].id);
-          this.activeLocationId.set(active[0].id); // triggers effect → loadProducts(1)
+          // Pre-select stored default, falling back to first active location
+          const stored = Number(localStorage.getItem(this.DEFAULT_LOCATION_KEY)) || null;
+          const preferred = stored && active.find(l => l.id === stored) ? stored : active[0].id;
+          this.newProductLocationId.set(preferred);
+          this.activeLocationId.set(preferred); // triggers effect → loadProducts(1)
         } else {
           this.loadProducts(1); // no locations: load once without filter
         }
@@ -1096,6 +1130,10 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
   transferSaving    = signal(false);
   transferHistory   = signal<TransferHistoryItem[]>([]);
   showTransferHistory = signal(false);
+  // Inventory levels of the product being transferred, across all locations.
+  // Shopify only allows adjusting stock at locations where the item is already
+  // connected, so we use this to limit origin/destination to those locations.
+  transferLocationLevels = signal<ShopifyInventoryLevel[]>([]);
   transferForm: TransferForm = {
     shopify_product_id: 0, shopify_variant_id: 0, inventory_item_id: 0,
     product_title: '', variant_title: '',
@@ -1118,11 +1156,43 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
       reason:              '',
       available_at_source: inv?.inventory_qty ?? 0,
     };
+    this.transferLocationLevels.set([]);
     this.showTransferModal.set(true);
     // Fetch real stock for the initial origin location
     if (inv?.inventory_item_id && loc) {
       this.fetchSourceStock(inv.inventory_item_id, loc);
     }
+    // Load which locations this product's items are already connected to in
+    // Shopify, so the transfer only offers locations that actually support it.
+    this.loadTransferLocationLevels(product.id);
+  }
+
+  private loadTransferLocationLevels(productId: number): void {
+    this.api.get<ShopifyInventoryLevel[]>(`shopify/products/${productId}/inventory`).subscribe({
+      next:  levels => { this.transferLocationLevels.set(levels); this.reconcileTransferLocations(); },
+      error: () => this.transferLocationLevels.set([]),
+    });
+  }
+
+  /** Locations where the given inventory item is already connected/stocked in Shopify. */
+  connectedTransferLocations(inventoryItemId: number): ShopifyLocation[] {
+    const levels = this.transferLocationLevels();
+    if (levels.length === 0) return this.locations();
+    const ids = new Set(levels.filter(l => l.inventory_item_id === inventoryItemId).map(l => l.location_id));
+    return this.locations().filter(l => ids.has(l.id));
+  }
+
+  private reconcileTransferLocations(): void {
+    const connected = this.connectedTransferLocations(this.transferForm.inventory_item_id);
+    if (connected.length === 0) return;
+    if (!connected.some(l => l.id === this.transferForm.from_location_id)) {
+      this.transferForm.from_location_id = connected[0].id;
+    }
+    if (this.transferForm.to_location_id === this.transferForm.from_location_id
+        || !connected.some(l => l.id === this.transferForm.to_location_id)) {
+      this.transferForm.to_location_id = connected.find(l => l.id !== this.transferForm.from_location_id)?.id ?? 0;
+    }
+    this.fetchSourceStock(this.transferForm.inventory_item_id, this.transferForm.from_location_id);
   }
 
   onTransferVariantChange(variantId: number, product: ShopifyProduct): void {
@@ -1132,15 +1202,17 @@ export class ShopifyInventoryComponent implements OnInit, OnDestroy {
     this.transferForm.inventory_item_id   = v.inventory_item_id;
     this.transferForm.variant_title       = v.title;
     this.transferForm.available_at_source = v.inventory_qty;
+    this.reconcileTransferLocations();
     this.fetchSourceStock(v.inventory_item_id, this.transferForm.from_location_id);
   }
 
   onTransferFromLocationChange(locationId: number): void {
     this.transferForm.from_location_id = locationId;
-    // Auto-pick a different destination when origin matches
-    const other = this.locations().find(l => l.id !== locationId);
-    if (other && this.transferForm.to_location_id === locationId)
-      this.transferForm.to_location_id = other.id;
+    // Auto-pick a different connected destination when origin matches
+    const connected = this.connectedTransferLocations(this.transferForm.inventory_item_id);
+    if (this.transferForm.to_location_id === locationId || !connected.some(l => l.id === this.transferForm.to_location_id)) {
+      this.transferForm.to_location_id = connected.find(l => l.id !== locationId)?.id ?? 0;
+    }
     // Fetch real stock for this location from Shopify
     this.fetchSourceStock(this.transferForm.inventory_item_id, locationId);
   }

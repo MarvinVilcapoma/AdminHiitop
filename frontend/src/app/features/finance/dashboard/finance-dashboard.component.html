@@ -24,15 +24,36 @@
       <a routerLink="/dashboard/finance/fixed-incomes" class="btn btn-outline-success btn-sm" title="Ingresos fijos recurrentes">
         <i class="bi bi-arrow-repeat me-1"></i>Fijos
       </a>
+      <button class="btn btn-outline-primary btn-sm" (click)="syncOrders()" [disabled]="syncing()" title="Sincronizar pedidos entregados como ingresos">
+        @if (syncing()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+        @else { <i class="bi bi-cloud-download me-1"></i> }
+        Sincronizar pedidos
+      </button>
+      <a routerLink="/dashboard/finance/investments" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-graph-up-arrow me-1"></i>Inversiones
+      </a>
     </div>
   </div>
+
+  <!-- Sync result alert -->
+  @if (syncResult(); as r) {
+    <div class="alert alert-info alert-dismissible py-2 mb-3" role="alert">
+      <i class="bi bi-check2-circle me-2"></i>
+      <strong>Sincronización completada:</strong>
+      {{ r.movements_created }} creado(s), {{ r.movements_updated }} actualizado(s), {{ r.skipped_orders }} omitido(s).
+      @if (r.pending_cost_items > 0) {
+        <span class="text-warning fw-semibold ms-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ r.pending_cost_items }} ítems sin precio de costo.</span>
+      }
+      <button type="button" class="btn-close py-2" (click)="syncResult.set(null)"></button>
+    </div>
+  }
 
   @if (loading()) {
     <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
   } @else {
     @if (dashboard(); as d) {
 
-      <!-- KPI Cards -->
+      <!-- ── KPI Cards row 1: ingresos / gastos / utilidad / movimientos ── -->
       <div class="row g-3 mb-3">
         <div class="col-6 col-lg-3">
           <div class="card border-0 shadow-sm h-100">
@@ -95,6 +116,145 @@
           </div>
         </div>
       </div>
+
+      <!-- ── KPI Cards row 2: profit & margin metrics (enhanced) ── -->
+      @if (enhancedDashboard(); as e) {
+
+        <!-- Pending cost alert -->
+        @if (e.pending_cost_orders_count > 0) {
+          <div class="alert alert-warning py-2 mb-3 d-flex align-items-center gap-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <span>
+              <strong>{{ e.pending_cost_orders_count }}</strong> pedido(s) sincronizados tienen ítems sin precio de costo.
+              El margen bruto puede estar sobreestimado.
+              <a routerLink="/dashboard/finance/investments" class="alert-link ms-1">Ver inversiones</a>
+            </span>
+          </div>
+        }
+
+        <div class="row g-3 mb-3">
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="fs-4 text-info"><i class="bi bi-boxes"></i></span>
+                  <span class="text-muted small">Costo de productos</span>
+                </div>
+                <div class="fw-bold fs-5 text-info">{{ formatCurrency(e.total_product_cost) }}</div>
+                <div class="small text-muted mt-1">Ventas automáticas sincronizadas</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="fs-4 text-success"><i class="bi bi-graph-up-arrow"></i></span>
+                  <span class="text-muted small">Utilidad bruta</span>
+                </div>
+                <div class="fw-bold fs-5" [ngClass]="e.gross_profit >= 0 ? 'text-success' : 'text-danger'">
+                  {{ formatCurrency(e.gross_profit) }}
+                </div>
+                <div class="small mt-1">
+                  <span class="badge rounded-pill" [ngClass]="marginBadgeClass(e.gross_margin_pct)">
+                    {{ e.gross_margin_pct | number:'1.1-1' }}% margen bruto
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="fs-4" [ngClass]="e.net_profit >= 0 ? 'text-primary' : 'text-danger'">
+                    <i class="bi bi-cash-stack"></i>
+                  </span>
+                  <span class="text-muted small">Utilidad neta (con costos)</span>
+                </div>
+                <div class="fw-bold fs-5" [ngClass]="e.net_profit >= 0 ? 'text-primary' : 'text-danger'">
+                  {{ formatCurrency(e.net_profit) }}
+                </div>
+                <div class="small mt-1">
+                  <span class="badge rounded-pill" [ngClass]="marginBadgeClass(e.net_margin_pct)">
+                    {{ e.net_margin_pct | number:'1.1-1' }}% margen neto
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="fs-4 text-purple"><i class="bi bi-piggy-bank"></i></span>
+                  <span class="text-muted small">Recupero inversión</span>
+                </div>
+                <div class="fw-bold fs-5">{{ e.investment_recovery_pct | number:'1.0-0' }}%</div>
+                <div class="small text-muted mt-1">
+                  {{ formatCurrency(e.recovered_investment) }} /
+                  {{ formatCurrency(e.total_investment) }}
+                </div>
+                @if (e.total_investment > 0) {
+                  <div class="progress mt-2" style="height:4px">
+                    <div class="progress-bar bg-success" role="progressbar"
+                         [style.width.%]="e.investment_recovery_pct > 100 ? 100 : e.investment_recovery_pct"></div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top profit products -->
+        @if (e.top_profit_products.length > 0) {
+          <div class="row g-3 mb-3">
+            <div class="col-12">
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold py-2 d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-trophy me-2 text-warning"></i>Top productos por ganancia bruta</span>
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">
+                    {{ months[selectedMonth - 1].label }} {{ selectedYear }}
+                  </span>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th class="text-end">Uds.</th>
+                        <th class="text-end">Venta</th>
+                        <th class="text-end">Costo</th>
+                        <th class="text-end">Ganancia</th>
+                        <th class="text-center">Margen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (p of e.top_profit_products | slice:0:8; track p.product_name; let i = $index) {
+                        <tr>
+                          <td class="text-muted small">{{ i + 1 }}</td>
+                          <td class="fw-medium">{{ p.product_name }}</td>
+                          <td class="text-end small">{{ p.quantity_sold }}</td>
+                          <td class="text-end small">{{ formatCurrency(p.total_sale_amount) }}</td>
+                          <td class="text-end small text-muted">{{ formatCurrency(p.total_cost_amount) }}</td>
+                          <td class="text-end fw-semibold text-success small">{{ formatCurrency(p.gross_profit_amount) }}</td>
+                          <td class="text-center">
+                            <span class="badge rounded-pill small" [ngClass]="marginBadgeClass(p.margin_pct)">
+                              {{ p.margin_pct | number:'1.1-1' }}%
+                            </span>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+
+      } <!-- /enhancedDashboard -->
 
       <!-- Bar chart (full width) -->
       <div class="row g-3 mb-3">

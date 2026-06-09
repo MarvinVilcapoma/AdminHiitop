@@ -201,6 +201,11 @@
                         <i class="bi bi-shop me-1"></i>Shopify
                       </span>
                     }
+                    @if (col.key === 'name' && isWarehouseEndpoint() && isDefaultShopifyLocation(row)) {
+                      <span class="badge rounded-pill bg-warning-subtle text-warning border border-warning-subtle ms-1">
+                        <i class="bi bi-star-fill me-1"></i>Predefinido
+                      </span>
+                    }
                     @if (col.key === 'name' && isProtectedRow(row)) {
                       <span class="badge text-bg-light border ms-1">
                         <i class="bi bi-shield-lock me-1"></i>Protegido
@@ -225,6 +230,14 @@
               </td>
               <td>
                 <div class="d-flex gap-1 justify-content-end">
+                  @if (isWarehouseEndpoint() && isShopifyRow(row) && row.shopify_location_id) {
+                    <button class="btn btn-xs"
+                      [class]="isDefaultShopifyLocation(row) ? 'btn-warning' : 'btn-outline-warning'"
+                      [title]="isDefaultShopifyLocation(row) ? 'Almacén predefinido' : 'Marcar como predefinido'"
+                      (click)="setDefaultShopifyLocation(row)">
+                      <i class="bi" [class]="isDefaultShopifyLocation(row) ? 'bi-star-fill' : 'bi-star'"></i>
+                    </button>
+                  }
                   @if (isSizableEndpoint() && !isProtectedRow(row)) {
                     <button class="btn btn-xs"
                       [class]="activeSizesRowId() === row.id ? 'btn-primary' : 'btn-outline-secondary'"

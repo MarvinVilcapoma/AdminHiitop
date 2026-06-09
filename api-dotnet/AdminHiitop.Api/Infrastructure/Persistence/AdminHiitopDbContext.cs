@@ -66,7 +66,10 @@ public sealed class AdminHiitopDbContext : DbContext
     // Finance module
     public DbSet<FinancialCategory>         FinancialCategories        => Set<FinancialCategory>();
     public DbSet<FinancialMovement>         FinancialMovements         => Set<FinancialMovement>();
+    public DbSet<FinancialMovementItem>     FinancialMovementItems     => Set<FinancialMovementItem>();
     public DbSet<FixedFinancialMovement>    FixedFinancialMovements    => Set<FixedFinancialMovement>();
+    public DbSet<InvestmentCategory>        InvestmentCategories       => Set<InvestmentCategory>();
+    public DbSet<Investment>                Investments                => Set<Investment>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -126,7 +129,34 @@ public sealed class AdminHiitopDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<FinancialMovement>().Property(m => m.Amount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovement>().Property(m => m.CostAmount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovement>().Property(m => m.GrossProfitAmount).HasColumnType("decimal(12,2)");
         modelBuilder.Entity<FixedFinancialMovement>().Property(m => m.Amount).HasColumnType("decimal(12,2)");
+
+        // FinancialMovementItem
+        modelBuilder.Entity<FinancialMovementItem>().ToTable("financial_movement_items");
+        modelBuilder.Entity<FinancialMovementItem>()
+            .HasOne(i => i.FinancialMovement)
+            .WithMany(m => m.Items)
+            .HasForeignKey(i => i.FinancialMovementId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<FinancialMovementItem>().Property(i => i.UnitSalePrice).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovementItem>().Property(i => i.UnitCostSnapshot).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovementItem>().Property(i => i.DiscountAmount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovementItem>().Property(i => i.TotalSaleAmount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovementItem>().Property(i => i.TotalCostAmount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<FinancialMovementItem>().Property(i => i.GrossProfitAmount).HasColumnType("decimal(12,2)");
+
+        // Investment
+        modelBuilder.Entity<InvestmentCategory>().ToTable("investment_categories");
+        modelBuilder.Entity<InvestmentCategory>().HasIndex(c => c.Code).IsUnique();
+        modelBuilder.Entity<Investment>().ToTable("investments");
+        modelBuilder.Entity<Investment>().Property(i => i.Amount).HasColumnType("decimal(12,2)");
+        modelBuilder.Entity<Investment>()
+            .HasOne(i => i.InvestmentCategory)
+            .WithMany(c => c.Investments)
+            .HasForeignKey(i => i.InvestmentCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<FinancialCategory>().HasIndex(c => c.Code).IsUnique();
 

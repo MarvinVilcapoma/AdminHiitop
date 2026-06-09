@@ -85,11 +85,17 @@ public static class DependencyInjection
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IWarehouseTypeService, WarehouseTypeService>();
 
-        // Finance module
+        // Finance module — original services (kept for backward compatibility)
         services.AddScoped<IFinancialCategoryService, FinancialCategoryService>();
         services.AddScoped<IFinancialMovementService, FinancialMovementService>();
         services.AddScoped<IFixedFinancialMovementService, FixedFinancialMovementService>();
         services.AddScoped<IFinancialDashboardService, FinancialDashboardService>();
+
+        // Finance module — new enhanced services
+        services.AddScoped<IFinanceCalculationService, FinanceCalculationService>();
+        services.AddScoped<IOrderFinanceIntegrationService, OrderFinanceIntegrationService>();
+        services.AddScoped<IInvestmentService, InvestmentService>();
+        services.AddScoped<IFinanceDashboardService, FinanceDashboardService>();
 
         return services;
     }

@@ -17,10 +17,15 @@ public sealed class ShopifyProductSummary
     public string? Vendor      { get; set; }
     public string  Status      { get; set; } = "active";
     public string? ImageUrl    { get; set; }
-    public int     VariantCount { get; set; }
-    public decimal MinPrice    { get; set; }
-    public decimal MaxPrice    { get; set; }
-    public int     TotalStock  { get; set; }
+    public int     VariantCount        { get; set; }
+    public decimal MinPrice            { get; set; }
+    public decimal MaxPrice            { get; set; }
+    public int     TotalStock          { get; set; }
+    public decimal? MinCost            { get; set; }
+    public decimal? MaxCost            { get; set; }
+    // False when no variant of this product is connected/stocked at the filtered location.
+    // Allows the UI to distinguish "exists here but empty" from "not here at all".
+    public bool    ConnectedToLocation { get; set; } = true;
 }
 
 // ── Detail (product + variants) ───────────────────────────────────────────────
@@ -64,6 +69,7 @@ public sealed class ShopifyVariantResponse
     public int     InventoryQty        { get; set; }
     public int     Position            { get; set; }
     public string? InventoryManagement { get; set; }  // "shopify" | null
+    public decimal? CostPrice          { get; set; }
 }
 
 public sealed class ShopifyImageResponse

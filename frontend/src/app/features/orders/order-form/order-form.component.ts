@@ -99,6 +99,7 @@ export class OrderFormComponent implements OnInit {
   customerFound  = signal(false);
 
   // Shopify stock source
+  private static readonly DEFAULT_LOCATION_KEY = 'hiitop_default_shopify_location_id';
   stockSource       = signal<'mysql' | 'shopify'>('mysql');
   shopifyLocations  = signal<ShopifyLocation[]>([]);
   shopifyLocationId = signal<number | null>(null);
@@ -251,7 +252,15 @@ export class OrderFormComponent implements OnInit {
     });
     this.api.get<Warehouse[]>('warehouses?per_page=100').subscribe(r => this.warehouses.set(pick(r)));
     this.api.get<ShopifyLocation[]>('shopify/locations').subscribe({
-      next: locs => this.shopifyLocations.set(locs.filter(l => l.active)),
+      next: locs => {
+        const active = locs.filter(l => l.active);
+        this.shopifyLocations.set(active);
+        if (active.length && this.stockSource() === 'shopify' && !this.id()) {
+          const stored = Number(localStorage.getItem(OrderFormComponent.DEFAULT_LOCATION_KEY)) || null;
+          const preferred = stored && active.find(l => l.id === stored) ? stored : active[0].id;
+          this.shopifyLocationId.set(preferred);
+        }
+      },
       error: () => {},
     });
     this.api.get<Collection[]>('collections?per_page=200').subscribe(r => this.collections.set(pick(r)));
@@ -400,7 +409,13 @@ export class OrderFormComponent implements OnInit {
       warehouseCtrl?.clearValidators();
       warehouseCtrl?.updateValueAndValidity();
       const locs = this.shopifyLocations();
-      this.shopifyLocationId.set(locs.length ? locs[0].id : null);
+      if (locs.length) {
+        const stored = Number(localStorage.getItem(OrderFormComponent.DEFAULT_LOCATION_KEY)) || null;
+        const preferred = stored && locs.find(l => l.id === stored) ? stored : locs[0].id;
+        this.shopifyLocationId.set(preferred);
+      } else {
+        this.shopifyLocationId.set(null);
+      }
     } else {
       this.shopifyLocationId.set(null);
       warehouseCtrl?.setValidators([Validators.required]);

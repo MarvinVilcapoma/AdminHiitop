@@ -376,6 +376,22 @@ export class ConfigCrudComponent implements OnInit {
     this.isWarehouseEndpoint() && this.rows().some(r => this.isShopifyRow(r) && typeof r?.id === 'number' && r.id < 0)
   );
 
+  private readonly DEFAULT_LOCATION_KEY = 'hiitop_default_shopify_location_id';
+  defaultShopifyLocationId = signal<number | null>(null);
+
+  isDefaultShopifyLocation(row: any): boolean {
+    const locId = row?.shopify_location_id;
+    return !!locId && locId === this.defaultShopifyLocationId();
+  }
+
+  setDefaultShopifyLocation(row: any): void {
+    const locationId = row?.shopify_location_id as number | undefined;
+    if (!locationId) return;
+    localStorage.setItem(this.DEFAULT_LOCATION_KEY, String(locationId));
+    this.defaultShopifyLocationId.set(locationId);
+    this.toast.success(`"${row.name}" marcado como almacén predefinido.`);
+  }
+
   syncShopifyLocations(): void {
     this.syncingShopify.set(true);
     this.api.post('warehouses/shopify-sync', {}).subscribe({
@@ -393,6 +409,9 @@ export class ConfigCrudComponent implements OnInit {
 
   loadProvinces(): void {
     if (!this.isWarehouseEndpoint()) return;
+    // Load stored default location preference
+    const stored = localStorage.getItem(this.DEFAULT_LOCATION_KEY);
+    if (stored) this.defaultShopifyLocationId.set(Number(stored));
     if (this.provinces().length === 0) {
       this.api.get<any>('provinces?per_page=500').subscribe({
         next: r => this.provinces.set(Array.isArray(r) ? r : (r?.data ?? [])),

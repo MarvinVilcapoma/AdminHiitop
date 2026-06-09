@@ -759,3 +759,75 @@ export interface FinancialDashboard {
   incomes_by_category: CategorySummaryItem[];
   recent_movements: FinancialMovement[];
 }
+
+// ── Enhanced Finance Dashboard (api/finance/dashboard) ───────────────────────
+
+export interface ProfitByProductItem {
+  product_id?: number;
+  product_name: string;
+  quantity_sold: number;
+  total_sale_amount: number;
+  total_cost_amount: number;
+  gross_profit_amount: number;
+  margin_pct: number;
+}
+
+export interface EnhancedFinanceDashboard {
+  year: number;
+  month: number;
+  // Revenue & cost
+  total_income: number;
+  total_product_cost: number;
+  gross_profit: number;
+  total_expenses: number;
+  net_profit: number;
+  // Margins
+  gross_margin_pct: number;
+  net_margin_pct: number;
+  // Month-over-month
+  prev_month_income: number;
+  prev_month_expense: number;
+  prev_month_net: number;
+  // Investments
+  total_investment: number;
+  recovered_investment: number;
+  pending_investment_recovery: number;
+  investment_recovery_pct: number;
+  // Counters
+  automatic_movements_count: number;
+  pending_cost_orders_count: number;
+  // Charts
+  monthly_series: MonthlySummaryItem[];
+  expenses_by_category: CategorySummaryItem[];
+  top_profit_products: ProfitByProductItem[];
+}
+
+export interface SyncOrdersResponse {
+  total_orders_processed: number;
+  movements_created: number;
+  movements_updated: number;
+  skipped_orders: number;
+  pending_cost_items: number;
+  errors: string[];
+}
+
+// ── Investments ──────────────────────────────────────────────────────────────
+
+export interface InvestmentCategory {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+}
+
+export interface Investment {
+  id: number;
+  investment_category_id: number;
+  category_name: string;
+  amount: number;
+  description?: string;
+  investment_date: string;
+  is_active: boolean;
+  created_at?: string;
+}

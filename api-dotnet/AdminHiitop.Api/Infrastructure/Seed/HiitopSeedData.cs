@@ -181,11 +181,11 @@ public static class HiitopSeedData
         ("MERCADERIA",     "Compra de mercadería",  "EXPENSE", "#0ea5e9", "bi-cart"),
         ("TRANSPORTE",     "Transporte",            "EXPENSE", "#f59e0b", "bi-truck"),
         ("COMISIONES",     "Comisiones",            "EXPENSE", "#10b981", "bi-percent"),
+        ("REEMBOLSOS",     "Reembolsos",            "EXPENSE", "#6366f1", "bi-arrow-counterclockwise"),
         ("OTROS_GASTOS",   "Otros gastos",          "EXPENSE", "#6b7280", "bi-three-dots"),
         // Incomes
         ("VENTAS",         "Ventas",                "INCOME",  "#22c55e", "bi-bag-check"),
         ("SERVICIOS_ING",  "Servicios prestados",   "INCOME",  "#0d9488", "bi-briefcase"),
-        ("REEMBOLSOS",     "Reembolsos",            "INCOME",  "#6366f1", "bi-arrow-counterclockwise"),
         ("OTROS_INGRESOS", "Otros ingresos",        "INCOME",  "#84cc16", "bi-plus-circle"),
     ];
 }

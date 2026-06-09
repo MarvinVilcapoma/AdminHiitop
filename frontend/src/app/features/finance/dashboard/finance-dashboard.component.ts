@@ -4,7 +4,11 @@ import { DecimalPipe, NgClass, SlicePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
-import { FinancialDashboard, MonthlySummaryItem, CategorySummaryItem, FinancialMovement, FinancialCategory } from '../../../core/models';
+import {
+  FinancialDashboard, MonthlySummaryItem, CategorySummaryItem,
+  FinancialMovement, FinancialCategory,
+  EnhancedFinanceDashboard, SyncOrdersResponse
+} from '../../../core/models';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
 
 Chart.register(...registerables);
@@ -30,8 +34,13 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
   private incPie?:   Chart;
   private combPie?:  Chart;
 
-  loading   = signal(false);
-  dashboard = signal<FinancialDashboard | null>(null);
+  loading          = signal(false);
+  dashboard        = signal<FinancialDashboard | null>(null);
+  enhancedDashboard = signal<EnhancedFinanceDashboard | null>(null);
+
+  // Sync orders
+  syncing    = signal(false);
+  syncResult = signal<SyncOrdersResponse | null>(null);
 
   // Quick-add / edit modal
   showModal       = signal(false);
@@ -73,6 +82,22 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
     return ((d.total_expense - d.prev_month_expense) / d.prev_month_expense) * 100;
   });
 
+  grossMarginColor = computed(() => {
+    const e = this.enhancedDashboard();
+    if (!e) return 'text-muted';
+    if (e.gross_margin_pct >= 30) return 'text-success';
+    if (e.gross_margin_pct >= 10) return 'text-warning';
+    return 'text-danger';
+  });
+
+  netMarginColor = computed(() => {
+    const e = this.enhancedDashboard();
+    if (!e) return 'text-muted';
+    if (e.net_margin_pct >= 15) return 'text-success';
+    if (e.net_margin_pct >= 5)  return 'text-warning';
+    return 'text-danger';
+  });
+
   ngOnInit(): void { this.load(); }
   ngAfterViewInit(): void {}
 
@@ -98,6 +123,37 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
         this.toast.error('Error al cargar el dashboard financiero.');
       },
     });
+
+    // Load enhanced metrics in parallel
+    this.api.get<EnhancedFinanceDashboard>(
+      `finance/dashboard?year=${this.selectedYear}&month=${this.selectedMonth}`
+    ).subscribe({
+      next: (data) => this.enhancedDashboard.set(data),
+      error: () => {},  // non-blocking — enhanced metrics are optional
+    });
+  }
+
+  // ── Sync orders ───────────────────────────────────────────────────────────
+
+  syncOrders(): void {
+    this.syncing.set(true);
+    this.syncResult.set(null);
+    this.api.post<SyncOrdersResponse>('finance/sync-orders', {}).subscribe({
+      next: (result) => {
+        this.syncing.set(false);
+        this.syncResult.set(result);
+        this.load();
+        if (result.movements_created > 0) {
+          this.toast.success(`${result.movements_created} movimiento(s) creado(s) desde pedidos.`);
+        } else {
+          this.toast.info?.('Sincronización completada. No hay pedidos nuevos.');
+        }
+      },
+      error: (err) => {
+        this.syncing.set(false);
+        this.toast.error(err?.error?.message ?? 'Error al sincronizar pedidos.');
+      },
+    });
   }
 
   // ── Create ────────────────────────────────────────────────────────────────
@@ -121,7 +177,7 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
       amount:         m.amount,
       movement_date:  (m.movement_date ?? '').slice(0, 10),
       payment_method: m.payment_method ?? '',
-      is_fixed:       false,   // editing never creates a new fixed movement
+      is_fixed:       false,
     };
     this.showModal.set(true);
     this.loadCategories(m.type as 'INCOME' | 'EXPENSE');
@@ -147,7 +203,7 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
     };
 
     const existing = this.editingMovement();
-    const isFixed = !existing && !!this.quickForm.is_fixed;
+    const isFixed  = !existing && !!this.quickForm.is_fixed;
 
     const req$ = existing
       ? this.api.put(`financial-movements/${existing.id}`, payload)
@@ -159,7 +215,6 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
 
         if (isFixed) {
           this.toast.success(`${label} registrado. Configurando recurrencia...`);
-          // Navigate to the full fixed movements page to configure all recurrence details
           const route = this.quickAddType() === 'INCOME'
             ? '/dashboard/finance/fixed-incomes'
             : '/dashboard/finance/fixed-expenses';
@@ -224,9 +279,17 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
       amount:         null as number | null,
       movement_date:  new Date().toISOString().slice(0, 10),
       payment_method: '',
-      is_fixed:       false,   // también crear movimiento fijo mensual
+      is_fixed:       false,
     };
   }
+
+  marginBadgeClass(pct: number): string {
+    if (pct >= 30) return 'bg-success-subtle text-success border border-success-subtle';
+    if (pct >= 10) return 'bg-warning-subtle text-warning border border-warning-subtle';
+    return 'bg-danger-subtle text-danger border border-danger-subtle';
+  }
+
+  formatCurrency(v: number): string { return `S/ ${v.toFixed(2)}`; }
 
   // ── Charts ────────────────────────────────────────────────────────────────
 
@@ -301,6 +364,4 @@ export class FinanceDashboardComponent implements OnInit, AfterViewInit, OnDestr
       },
     });
   }
-
-  formatCurrency(v: number): string { return `S/ ${v.toFixed(2)}`; }
 }

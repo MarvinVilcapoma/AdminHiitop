@@ -25,7 +25,10 @@
                   } @else {
                     <span style="width:16px"></span>
                   }
-                  {{ loc.name }}
+                  <span class="flex-grow-1">{{ loc.name }}</span>
+                  @if (defaultLocationId() === loc.id) {
+                    <i class="bi bi-star-fill text-warning" style="font-size:.7rem" title="Predefinido"></i>
+                  }
                 </div>
               }
             </div>
@@ -63,6 +66,30 @@
         <div class="stat-value text-danger">{{ shopifyOutOfStock() }}</div>
       </div>
     </div>
+    @if (shopifyAvgMargin() !== null) {
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-label">Margen promedio</div>
+          <div class="stat-value" [class.text-success]="shopifyAvgMargin()! >= 30"
+               [class.text-warning]="shopifyAvgMargin()! >= 10 && shopifyAvgMargin()! < 30"
+               [class.text-danger]="shopifyAvgMargin()! < 10">
+            {{ shopifyAvgMargin()! | number:'1.1-1' }}%
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-label">Valor al costo</div>
+          <div class="stat-value text-muted">S/ {{ shopifyTotalCostValue() | number:'1.0-0' }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-label">Valor de venta</div>
+          <div class="stat-value text-primary">S/ {{ shopifyTotalSaleValue() | number:'1.0-0' }}</div>
+        </div>
+      </div>
+    }
   </div>
 
   <!-- Location selector inside embedded mode -->
@@ -159,8 +186,9 @@
           <th>Producto</th>
           <th>Estado</th>
           <th>Inventario</th>
+          <th>Precio / Costo</th>
+          <th>Margen</th>
           <th>Tipo de producto</th>
-          <th>Vendor</th>
           <th style="width:80px"></th>
         </tr>
       </thead>
@@ -192,13 +220,49 @@
               </span>
             </td>
             <td class="small">
-              <span [class]="product.total_stock === 0 ? 'text-danger fw-semibold' : product.total_stock <= 5 ? 'text-warning fw-semibold' : 'text-success fw-semibold'">
-                {{ product.total_stock }}
-              </span>
-              <span class="text-muted"> en stock para {{ product.variant_count }} variante{{ product.variant_count !== 1 ? 's' : '' }}</span>
+              @if (product.connected_to_location === false) {
+                <span class="text-muted fst-italic">—</span>
+                <span class="text-muted small ms-1">No en esta sucursal</span>
+              } @else {
+                <span [class]="product.total_stock === 0 ? 'text-danger fw-semibold' : product.total_stock <= 5 ? 'text-warning fw-semibold' : 'text-success fw-semibold'">
+                  {{ product.total_stock }}
+                </span>
+                <span class="text-muted"> en stock para {{ product.variant_count }} variante{{ product.variant_count !== 1 ? 's' : '' }}</span>
+              }
+            </td>
+            <!-- Price / Cost -->
+            <td class="small">
+              <div class="fw-semibold">S/ {{ product.min_price | number:'1.2-2' }}
+                @if (product.max_price !== product.min_price) {
+                  <span class="text-muted fw-normal"> – {{ product.max_price | number:'1.2-2' }}</span>
+                }
+              </div>
+              @if (product.min_cost && product.min_cost > 0) {
+                <div class="text-muted" style="font-size:.75rem">
+                  Costo: S/ {{ product.min_cost | number:'1.2-2' }}
+                  @if (product.max_cost !== product.min_cost) {
+                    <span> – {{ product.max_cost! | number:'1.2-2' }}</span>
+                  }
+                </div>
+              } @else {
+                <div class="text-muted" style="font-size:.75rem">Sin costo</div>
+              }
+            </td>
+            <!-- Margin -->
+            <td class="small">
+              @if (product.min_cost && product.min_cost > 0 && product.min_price > 0) {
+                @let margin = (product.min_price - product.min_cost) / product.min_price * 100;
+                <span class="badge rounded-pill fw-semibold"
+                      [class.bg-success-subtle]="margin >= 30" [class.text-success]="margin >= 30"
+                      [class.bg-warning-subtle]="margin >= 10 && margin < 30" [class.text-warning]="margin >= 10 && margin < 30"
+                      [class.bg-danger-subtle]="margin < 10" [class.text-danger]="margin < 10">
+                  {{ margin | number:'1.0-0' }}%
+                </span>
+              } @else {
+                <span class="text-muted">—</span>
+              }
             </td>
             <td class="text-muted small">{{ product.product_type || '—' }}</td>
-            <td class="text-muted small">{{ product.vendor || '—' }}</td>
             <td class="text-end pe-2" (click)="$event.stopPropagation()">
               <button class="btn btn-sm btn-outline-primary me-1 py-0"
                       (click)="openEditProduct(product)" title="Editar producto">
@@ -212,7 +276,7 @@
           <!-- Variants expansion -->
           @if (product.expanded) {
             <tr>
-              <td colspan="7" class="p-0 border-0">
+              <td colspan="8" class="p-0 border-0">
                 <div class="bg-light border-bottom">
                   @if (product.loadingVariants) {
                     <div class="text-center py-3 text-muted small">
@@ -224,8 +288,9 @@
                         <tr class="small text-muted">
                           <th class="ps-5">Variante</th>
                           <th>SKU</th>
-                          <th class="text-end">Precio</th>
-                          <th class="text-end">P. original (con desc.)</th>
+                          <th class="text-end">Precio venta</th>
+                          <th class="text-end">Precio costo</th>
+                          <th class="text-end">Margen</th>
                           <th class="text-center" style="min-width:180px">
                             Stock en <strong>{{ activeLocation()?.name || '—' }}</strong>
                           </th>
@@ -249,19 +314,28 @@
                                 <input type="number" class="form-control form-control-sm text-end"
                                        [(ngModel)]="v.editPrice" min="0" step="0.01" style="max-width:90px">
                               </td>
-                              <td class="text-end">
-                                <input type="number" class="form-control form-control-sm text-end"
-                                       [(ngModel)]="v.editCompare" min="0" step="0.01" style="max-width:90px"
-                                       placeholder="—">
+                              <td class="text-end text-muted small">
+                                @if (v.cost_price) { S/ {{ v.cost_price | number:'1.2-2' }} } @else { — }
                               </td>
+                              <td class="text-end text-muted small">—</td>
                             } @else {
                               <td class="text-muted small">{{ v.sku || '—' }}</td>
                               <td class="text-end small fw-semibold">S/ {{ v.price | number:'1.2-2' }}</td>
+                              <!-- Cost price -->
                               <td class="text-end small">
-                                @if (v.compare_at_price && v.compare_at_price > v.price) {
-                                  <span class="text-muted">S/ {{ v.compare_at_price | number:'1.2-2' }}</span>
-                                  <span class="badge bg-danger-subtle text-danger ms-1" style="font-size:.65rem">
-                                    -{{ ((1 - v.price / v.compare_at_price) * 100) | number:'1.0-0' }}%
+                                @if (v.cost_price && v.cost_price > 0) {
+                                  <span class="text-muted">S/ {{ v.cost_price | number:'1.2-2' }}</span>
+                                } @else { <span class="text-muted">—</span> }
+                              </td>
+                              <!-- Margin per variant -->
+                              <td class="text-end small">
+                                @if (v.cost_price && v.cost_price > 0 && v.price > 0) {
+                                  @let vm = (v.price - v.cost_price) / v.price * 100;
+                                  <span [class.text-success]="vm >= 30"
+                                        [class.text-warning]="vm >= 10 && vm < 30"
+                                        [class.text-danger]="vm < 10"
+                                        class="fw-semibold">
+                                    {{ vm | number:'1.0-0' }}%
                                   </span>
                                 } @else { <span class="text-muted">—</span> }
                               </td>
@@ -1285,13 +1359,21 @@
             </div>
           </div>
 
+          @if (connectedTransferLocations(transferForm.inventory_item_id).length < 2) {
+            <div class="alert alert-warning border py-2 small mb-3">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Este producto solo está conectado a una sucursal en Shopify. No se puede traspasar
+              hasta que también esté presente en otra sucursal de destino.
+            </div>
+          }
+
           <div class="row g-3">
             <!-- From location -->
             <div class="col-12">
               <label class="form-label fw-semibold">Sucursal de origen</label>
               <select class="form-select" [(ngModel)]="transferForm.from_location_id"
                       (ngModelChange)="onTransferFromLocationChange(+$event)">
-                @for (loc of locations(); track loc.id) {
+                @for (loc of connectedTransferLocations(transferForm.inventory_item_id); track loc.id) {
                   <option [ngValue]="loc.id">{{ loc.name }}</option>
                 }
               </select>
@@ -1301,12 +1383,15 @@
             <div class="col-12">
               <label class="form-label fw-semibold">Sucursal de destino</label>
               <select class="form-select" [(ngModel)]="transferForm.to_location_id">
-                @for (loc of locations(); track loc.id) {
+                @for (loc of connectedTransferLocations(transferForm.inventory_item_id); track loc.id) {
                   @if (loc.id !== transferForm.from_location_id) {
                     <option [ngValue]="loc.id">{{ loc.name }}</option>
                   }
                 }
               </select>
+              <div class="form-text">
+                <i class="bi bi-info-circle me-1"></i>Solo se muestran sucursales donde este producto ya existe en Shopify.
+              </div>
             </div>
 
             <!-- Quantity -->

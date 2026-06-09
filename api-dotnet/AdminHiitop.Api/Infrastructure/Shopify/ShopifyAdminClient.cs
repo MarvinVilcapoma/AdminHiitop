@@ -269,24 +269,57 @@ public sealed class ShopifyAdminClient
             : [];
     }
 
+    // Shopify limits batch requests to 100 IDs per call for both inventory_levels and inventory_items.
+    private const int ShopifyIdBatchSize = 100;
+
     public async Task<List<ShopifyApiInventoryLevel>> GetInventoryLevelsAsync(
         IEnumerable<long> inventoryItemIds,
         long?             locationId = null)
     {
-        string ids = string.Join(",", inventoryItemIds);
-        if (string.IsNullOrEmpty(ids)) return [];
+        var idList = inventoryItemIds.ToList();
+        if (idList.Count == 0) return [];
 
-        var qs = new List<string> { $"inventory_item_ids={ids}", "limit=250" };
-        if (locationId.HasValue) qs.Add($"location_ids={locationId.Value}");
+        var result = new List<ShopifyApiInventoryLevel>();
 
-        string url = $"{BuildUrl("inventory_levels.json")}?{string.Join("&", qs)}";
-        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, url);
-        string body = await response.Content.ReadAsStringAsync();
-        EnsureSuccessOrThrow(response, body);
-        using JsonDocument doc = JsonDocument.Parse(body);
-        return doc.RootElement.TryGetProperty("inventory_levels", out JsonElement el)
-            ? el.Deserialize<List<ShopifyApiInventoryLevel>>(JsonOpts) ?? []
-            : [];
+        // Chunk into batches of 100 to stay within Shopify's limit
+        foreach (var chunk in idList.Chunk(ShopifyIdBatchSize))
+        {
+            string ids = string.Join(",", chunk);
+            var qs = new List<string> { $"inventory_item_ids={ids}", "limit=250" };
+            if (locationId is > 0) qs.Add($"location_ids={locationId.Value}");
+
+            string url = $"{BuildUrl("inventory_levels.json")}?{string.Join("&", qs)}";
+            using HttpResponseMessage response = await SendAsync(HttpMethod.Get, url);
+            string body = await response.Content.ReadAsStringAsync();
+            EnsureSuccessOrThrow(response, body);
+            using JsonDocument doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("inventory_levels", out JsonElement el))
+                result.AddRange(el.Deserialize<List<ShopifyApiInventoryLevel>>(JsonOpts) ?? []);
+        }
+
+        return result;
+    }
+
+    public async Task<List<ShopifyApiInventoryItem>> GetInventoryItemsAsync(IEnumerable<long> ids)
+    {
+        var idList = ids.ToList();
+        if (idList.Count == 0) return [];
+
+        var result = new List<ShopifyApiInventoryItem>();
+
+        foreach (var chunk in idList.Chunk(ShopifyIdBatchSize))
+        {
+            string idStr = string.Join(",", chunk);
+            string url = $"{BuildUrl("inventory_items.json")}?ids={idStr}&limit=250";
+            using HttpResponseMessage response = await SendAsync(HttpMethod.Get, url);
+            string body = await response.Content.ReadAsStringAsync();
+            EnsureSuccessOrThrow(response, body);
+            using JsonDocument doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("inventory_items", out JsonElement el))
+                result.AddRange(el.Deserialize<List<ShopifyApiInventoryItem>>(JsonOpts) ?? []);
+        }
+
+        return result;
     }
 
     public async Task<ShopifyApiProduct?> CreateProductAsync(object payload)
@@ -312,8 +345,12 @@ public sealed class ShopifyAdminClient
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post, BuildUrl("inventory_levels/set.json"), json);
 
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        if (!response.IsSuccessStatusCode)
         {
+            string body = await response.Content.ReadAsStringAsync();
+            if (!IsInventoryNotConnectedError(response, body))
+                return false;
+
             // Item not connected to this location — connect first, then retry set.
             await ConnectInventoryLevelAsync(inventoryItemId, locationId);
             using HttpResponseMessage retry = await SendAsync(
@@ -321,7 +358,7 @@ public sealed class ShopifyAdminClient
             return retry.IsSuccessStatusCode;
         }
 
-        return response.IsSuccessStatusCode;
+        return true;
     }
 
     /// <summary>
@@ -342,33 +379,55 @@ public sealed class ShopifyAdminClient
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post, BuildUrl("inventory_levels/adjust.json"), json);
 
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        if (!response.IsSuccessStatusCode)
         {
-            // 404 means the inventory item is not connected to this location yet.
-            // Connect it first, then retry the adjustment.
-            await ConnectInventoryLevelAsync(inventoryItemId, locationId);
+            string body = await response.Content.ReadAsStringAsync();
+            if (!IsInventoryNotConnectedError(response, body))
+            {
+                EnsureSuccessOrThrow(response, body);
+                return true;
+            }
+
+            // The item has never been stocked at this location — connect it first, then retry.
+            try
+            {
+                await ConnectInventoryLevelAsync(inventoryItemId, locationId);
+            }
+            catch (AppException ex)
+            {
+                throw new AppException($"No se pudo conectar el ítem {inventoryItemId} a la ubicación {locationId}: {ex.Message}", ex.StatusCode);
+            }
 
             using HttpResponseMessage retry = await SendAsync(
                 HttpMethod.Post, BuildUrl("inventory_levels/adjust.json"), json);
             if (!retry.IsSuccessStatusCode)
             {
                 string retryBody = await retry.Content.ReadAsStringAsync();
-                EnsureSuccessOrThrow(retry, retryBody);
+                string retryDetail = ExtractShopifyError(retryBody);
+                throw new AppException(
+                    $"El ítem {inventoryItemId} se conectó a la ubicación {locationId}, pero el ajuste de inventario siguió fallando ({(int)retry.StatusCode}): {retryDetail}",
+                    (int)retry.StatusCode);
             }
-            return true;
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            string body = await response.Content.ReadAsStringAsync();
-            EnsureSuccessOrThrow(response, body);
         }
         return true;
     }
 
+    /// <summary>
+    /// Shopify reports "this item has never been stocked at this location" inconsistently:
+    /// sometimes a plain 404 Not Found, sometimes a 400 with
+    /// {"errors":{"inventory_item_id":"Required parameter missing or invalid"}}. Both mean
+    /// the inventory level needs to be connected (activated) at the location before adjusting it.
+    /// </summary>
+    private static bool IsInventoryNotConnectedError(HttpResponseMessage response, string body)
+        => response.StatusCode == System.Net.HttpStatusCode.NotFound
+            || (response.StatusCode == System.Net.HttpStatusCode.BadRequest
+                && body.Contains("inventory_item_id", StringComparison.OrdinalIgnoreCase));
+
     private async Task ConnectInventoryLevelAsync(long inventoryItemId, long locationId)
     {
-        var payload = new { location_id = locationId, inventory_item_id = inventoryItemId };
+        // relocate_if_necessary lets Shopify move the connection automatically when the
+        // shop has reached its limit of locations stocking this item, instead of rejecting it.
+        var payload = new { location_id = locationId, inventory_item_id = inventoryItemId, relocate_if_necessary = true };
         string json = JsonSerializer.Serialize(new { inventory_level = payload }, JsonOpts);
         using HttpResponseMessage response = await SendAsync(
             HttpMethod.Post, BuildUrl("inventory_levels/connect.json"), json);

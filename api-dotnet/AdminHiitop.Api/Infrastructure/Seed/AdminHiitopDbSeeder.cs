@@ -738,8 +738,8 @@ public sealed class AdminHiitopDbSeeder
     {
         foreach ((string code, string name, string type, string color, string icon) in HiitopSeedData.FinancialCategories)
         {
-            bool exists = await _context.FinancialCategories.AnyAsync(x => x.Code == code);
-            if (!exists)
+            FinancialCategory? existing = await _context.FinancialCategories.FirstOrDefaultAsync(x => x.Code == code);
+            if (existing is null)
             {
                 _context.FinancialCategories.Add(new FinancialCategory
                 {
@@ -750,6 +750,11 @@ public sealed class AdminHiitopDbSeeder
                     Icon    = icon,
                     IsActive = true
                 });
+            }
+            else if (existing.Type != type)
+            {
+                // "Reembolsos" was originally seeded as INCOME by mistake; it's actually an expense (money paid back to customers).
+                existing.Type = type;
             }
         }
 

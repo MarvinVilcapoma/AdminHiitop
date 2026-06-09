@@ -31,7 +31,9 @@
                 <div class="small text-muted">{{ item.code }} · {{ item.type === 'EXPENSE' ? 'Gasto' : 'Ingreso' }}</div>
               </div>
               <div class="d-flex gap-1">
-                <span class="badge" [ngClass]="item.is_active ? 'bg-success' : 'bg-secondary'">
+                <span class="badge rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1 fw-medium"
+                      [ngClass]="item.is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle'">
+                  <span class="rounded-circle" [ngClass]="item.is_active ? 'bg-success' : 'bg-secondary'" style="width:6px;height:6px"></span>
                   {{ item.is_active ? 'Activa' : 'Inactiva' }}
                 </span>
                 <button class="btn btn-sm btn-outline-secondary py-0 px-1" (click)="openEdit(item)"><i class="bi bi-pencil"></i></button>
